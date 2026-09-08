@@ -1076,33 +1076,53 @@ function verificarAcervoEmSegundoPlano(nomeTopico) {
     }, { timeout: 5000 });
 }
 
-async function criarTopicoPrompt() {
-    const obiceInput = await JurisPrompt.ask(
-        '⚖️ Selecionar Pressuposto', 
-        'Agravo de Instrumento — Digite o número correspondente:\n1 - Tempestividade\n2 - Preparo (Custas/GFIP)\n3 - Representação\n4 - Adequação', 
-        'Digite 1, 2, 3 ou 4...'
-    );
-    if (!obiceInput) return;
+// --- NOVO FLUXO DE CRIAÇÃO DE TÓPICO AI (VIA MODAL CARDS) ---
+
+function criarTopicoPrompt() {
+    // Apenas abre o modal
+    document.getElementById('ai-topico-backdrop').style.display = 'block';
+    document.getElementById('ai-topico-modal').style.display = 'flex';
     
-    const mapaObices = { '1': 'tempestividade', '2': 'preparo', '3': 'representacao', '4': 'adequacao' };
-    const obiceTipado = mapaObices[obiceInput.trim()];
+    // Reset do input
+    const inputTema = document.getElementById('ai-topico-tema');
+    inputTema.value = '';
     
-    if (!obiceTipado) {
-        exibirToast('Opção inválida. Tente novamente.', 'erro');
+    // Foco automático no input para agilizar digitação
+    setTimeout(() => {
+        inputTema.focus();
+    }, 100);
+}
+
+window.fecharModalTopicoAI = function() {
+    document.getElementById('ai-topico-backdrop').style.display = 'none';
+    document.getElementById('ai-topico-modal').style.display = 'none';
+};
+
+window.confirmarCriacaoTopicoAI = function() {
+    const radioSelecionado = document.querySelector('input[name="ai_obice"]:checked');
+    const inputTema = document.getElementById('ai-topico-tema');
+    
+    if (!radioSelecionado) {
+        exibirToast('Selecione uma hipótese normativa.', 'aviso');
+        return;
+    }
+    
+    const obiceTipado = radioSelecionado.value;
+    const nomeEspecifico = inputTema.value.trim();
+    
+    if (!nomeEspecifico) {
+        exibirToast('Defina o tema específico.', 'aviso');
+        inputTema.focus();
         return;
     }
 
-    const nomeEspecifico = await JurisPrompt.ask(
-        '📝 Descrever Tema', 
-        `Pressuposto selecionado: ${obiceTipado.toUpperCase()}\nDescreva o tema específico (Ex: Intempestividade do RO):`, 
-        'Nome do Tema...'
-    );
-    if (!nomeEspecifico || !nomeEspecifico.trim()) return;
-
-    const nomeCompleto = `${obiceTipado.toUpperCase()} — ${nomeEspecifico.trim()}`;
+    const nomeCompleto = `${obiceTipado.toUpperCase()} — ${nomeEspecifico}`;
     
     const duplicado = topicos.some(t => t.nome.toLowerCase() === nomeCompleto.toLowerCase());
-    if (duplicado) return exibirToast(`Já existe análise para "${nomeCompleto}".`, 'aviso');
+    if (duplicado) {
+        exibirToast(`Já existe análise para "${nomeCompleto}".`, 'aviso');
+        return;
+    }
 
     const cor = TopicsManager.obterCor(topicos.length);
     
@@ -1118,10 +1138,11 @@ async function criarTopicoPrompt() {
     renderizarTopicos();
     salvarBackupAutomatico();
     trocarAba('historico');
+    fecharModalTopicoAI();
     exibirToast(`Auditoria de ${obiceTipado} iniciada.`, 'sucesso');
     
     verificarAcervoEmSegundoPlano(nomeCompleto);
-}
+};
 
 function renderizarTopicos() {
     TopicsManager.renderizarFichario(topicos);

@@ -947,3 +947,70 @@ body.theme-processo-jasmine {
     justify-content: flex-end;
     gap: 12px;
 }
+
+/* ================================================
+   MODAL ESPECÍFICO: CRIAR TÓPICO (AGRAVO DE INSTRUMENTO)
+   ================================================ */
+.ai-radio-group {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 8px;
+    margin-bottom: 20px;
+}
+
+.ai-radio-card {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: #ffffff;
+}
+
+.ai-radio-card:hover {
+    border-color: var(--trt-blue-mid);
+    background: #fafafa;
+}
+
+/* Estado Selecionado usando pseudo-classe :has (Modern CSS) */
+.ai-radio-card:has(input[type="radio"]:checked) {
+    border-color: var(--trt-blue);
+    background: #f4f8fd;
+    box-shadow: 0 0 0 1px var(--trt-blue);
+}
+
+.ai-radio-card input[type="radio"] {
+    margin-top: 2px;
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--trt-blue);
+}
+
+.ai-radio-content {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ai-radio-title {
+    font-weight: 700;
+    color: var(--trt-blue);
+    font-size: 0.95rem;
+}
+
+.ai-radio-desc {
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.4;
+}
+
+@media (max-width: 600px) {
+    .ai-radio-group {
+        grid-template-columns: 1fr;
+    }
+}
