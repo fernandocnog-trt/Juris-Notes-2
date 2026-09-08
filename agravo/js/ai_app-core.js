@@ -62,6 +62,117 @@ window.SplashScreenManager = (function() {
 })();
 
 /* ================================================
+   JURIS PROMPT: MOTOR UNIVERSAL DE INPUT (V2 - Produção)
+   ================================================ */
+window.JurisPrompt = (function() {
+    let _resolvePromise = null;
+    let _isBusy = false;
+    let _elementos = {};
+
+    function _cacheDOM() {
+        if (_elementos.backdrop) return true;
+        const backdrop = document.getElementById('juris-prompt-backdrop');
+        if (!backdrop) return false;
+
+        _elementos = {
+            backdrop: backdrop,
+            modal: document.getElementById('juris-prompt-modal'),
+            title: document.getElementById('juris-prompt-title-text'),
+            message: document.getElementById('juris-prompt-message'),
+            input: document.getElementById('juris-prompt-input')
+        };
+        return true;
+    }
+
+    function _handleKeydown(e) {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            _fechar(null);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            _fechar(_elementos.input.value);
+        } else if (e.key === 'Tab') {
+            _trapFocus(e);
+        }
+    }
+
+    function _handleClick(e) {
+        const action = e.target.closest('[data-action]')?.dataset.action;
+        if (e.target === _elementos.backdrop || action === 'cancel') {
+            _fechar(null);
+        } else if (action === 'confirm') {
+            _fechar(_elementos.input.value);
+        }
+    }
+
+    function _trapFocus(e) {
+        const focusables = _elementos.modal.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+        if (focusables.length === 0) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    }
+
+    function ask(titulo, mensagem, placeholder = '', valorInicial = '') {
+        return new Promise((resolve) => {
+            if (_isBusy) {
+                console.warn('[JurisPrompt] Requisição ignorada: Prompt já está em uso.');
+                return resolve(null);
+            }
+            if (!_cacheDOM()) {
+                console.error('[JurisPrompt] Elementos ausentes no DOM.');
+                return resolve(null);
+            }
+
+            _isBusy = true;
+            _resolvePromise = resolve;
+
+            _elementos.title.innerHTML = titulo;
+            _elementos.message.textContent = mensagem;
+            _elementos.input.placeholder = placeholder;
+            _elementos.input.value = valorInicial || '';
+
+            _elementos.backdrop.addEventListener('mousedown', _handleClick);
+            document.addEventListener('keydown', _handleKeydown);
+
+            _elementos.backdrop.classList.add('is-active');
+
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    _elementos.input.focus();
+                    _elementos.input.select();
+                });
+            });
+        });
+    }
+
+    function _fechar(valor) {
+        if (!_isBusy) return;
+        
+        _elementos.backdrop.classList.remove('is-active');
+        _elementos.backdrop.removeEventListener('mousedown', _handleClick);
+        document.removeEventListener('keydown', _handleKeydown);
+        _isBusy = false;
+
+        setTimeout(() => {
+            if (_resolvePromise) {
+                _resolvePromise(valor);
+                _resolvePromise = null;
+            }
+        }, 300); 
+    }
+
+    return { ask };
+})();
+
+/* ================================================
    ESTADO GLOBAL DA APLICAÇÃO (ORQUESTRADOR)
    ================================================ */
 let topicos              = [];     
@@ -965,19 +1076,27 @@ function verificarAcervoEmSegundoPlano(nomeTopico) {
     }, { timeout: 5000 });
 }
 
-function criarTopicoPrompt() {
-    const obiceInput = prompt('Agravo de Instrumento - Selecione o Óbice/Pressuposto:\n1 - Tempestividade\n2 - Preparo (Custas/GFIP)\n3 - Representação\n4 - Adequação');
+async function criarTopicoPrompt() {
+    const obiceInput = await JurisPrompt.ask(
+        '⚖️ Selecionar Pressuposto', 
+        'Agravo de Instrumento — Digite o número correspondente:\n1 - Tempestividade\n2 - Preparo (Custas/GFIP)\n3 - Representação\n4 - Adequação', 
+        'Digite 1, 2, 3 ou 4...'
+    );
     if (!obiceInput) return;
     
     const mapaObices = { '1': 'tempestividade', '2': 'preparo', '3': 'representacao', '4': 'adequacao' };
     const obiceTipado = mapaObices[obiceInput.trim()];
     
     if (!obiceTipado) {
-        exibirToast('Opção inválida. Digite 1, 2, 3 ou 4.', 'erro');
+        exibirToast('Opção inválida. Tente novamente.', 'erro');
         return;
     }
 
-    const nomeEspecifico = prompt('Descreva o tema (Ex: Intempestividade do RO):');
+    const nomeEspecifico = await JurisPrompt.ask(
+        '📝 Descrever Tema', 
+        `Pressuposto selecionado: ${obiceTipado.toUpperCase()}\nDescreva o tema específico (Ex: Intempestividade do RO):`, 
+        'Nome do Tema...'
+    );
     if (!nomeEspecifico || !nomeEspecifico.trim()) return;
 
     const nomeCompleto = `${obiceTipado.toUpperCase()} — ${nomeEspecifico.trim()}`;
@@ -990,8 +1109,8 @@ function criarTopicoPrompt() {
     topicos.push({ 
         id: 'topico-' + Date.now(), 
         nome: nomeCompleto, 
-        matrizCalculo: 'admissibilidade', // NOVO: Flag para o Dashboard de Maturidade
-        tipoObice: obiceTipado,           // NOVO: Dado estruturado do AI
+        matrizCalculo: 'admissibilidade', 
+        tipoObice: obiceTipado,           
         cor, 
         anotacoes: [] 
     });
@@ -1001,7 +1120,6 @@ function criarTopicoPrompt() {
     trocarAba('historico');
     exibirToast(`Auditoria de ${obiceTipado} iniciada.`, 'sucesso');
     
-    // Dispara a verificação de acervo de forma não bloqueante
     verificarAcervoEmSegundoPlano(nomeCompleto);
 }
 
@@ -1397,11 +1515,18 @@ function fecharModalGerenciarAbas() {
     document.getElementById('modal-gerenciar-abas').style.display = 'none';
 }
 
-function renomearAba(id) {
+async function renomearAba(id) {
     const topico = topicos.find(t => t.id === id);
     if (!topico) return;
-    const novoNome = prompt('Digite o novo nome para a aba:', topico.nome);
-    if (novoNome && novoNome.trim() !== '') {
+    
+    const novoNome = await JurisPrompt.ask(
+        '✏️ Renomear Aba', 
+        'Digite o novo nome para a aba:', 
+        'Novo nome...', 
+        topico.nome
+    );
+    
+    if (novoNome && novoNome.trim() !== '' && novoNome.trim() !== topico.nome) {
         topico.nome = novoNome.trim();
         renderizarTopicos();
         salvarBackupAutomatico();
@@ -1436,7 +1561,7 @@ function solicitarExclusaoAba(btnEl, id) {
     }
 }
 
-window.handleMetaClick = function(event, topicoId, index, isCorrelated = false, cIdx = null) {
+window.handleMetaClick = async function(event, topicoId, index, isCorrelated = false, cIdx = null) {
     const topico = topicos.find(t => t.id === topicoId);
     if (!topico) return;
 
@@ -1445,7 +1570,13 @@ window.handleMetaClick = function(event, topicoId, index, isCorrelated = false, 
         : topico.anotacoes[index];
 
     if (event.shiftKey) {
-        const novaPagina = prompt(`Editar folha (Atual: ${anotacao.pagina || 'vazio'}):`, anotacao.pagina || '');
+        const novaPagina = await JurisPrompt.ask(
+            '📄 Editar Âncora de Página', 
+            `Editar folha (Atual: ${anotacao.pagina || 'vazio'}):`, 
+            'Nº da folha (ex: 302)', 
+            anotacao.pagina || ''
+        );
+        
         if (novaPagina !== null) {
             anotacao.pagina = novaPagina;
             renderizarTopicos();
