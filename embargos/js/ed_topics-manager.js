@@ -195,7 +195,8 @@ window.TopicsManager = (function () {
 
     function renderizarMarkdownSeguro(strEscapada) {
         if (!strEscapada) return '';
-        let processado = strEscapada;
+        
+        let processado = window.JurisUtils.limparEscapeMarkdown(strEscapada);
 
         // 1. Negrito (**texto**) - Processado primeiro para evitar conflito com Itálico
         processado = processado.replace(/\*\*([\s\S]*?)\*\*/g, '<b>$1</b>');

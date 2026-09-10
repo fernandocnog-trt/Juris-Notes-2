@@ -208,6 +208,11 @@ window.JurisUtils.limparTextoPDF = function(texto) {
         .trim();
 };
 
+window.JurisUtils.limparEscapeMarkdown = function(texto) {
+    if (!texto || typeof texto !== 'string') return '';
+    return texto.replace(/\\([\\`*_{}\[\]()#+\-.!])/g, '$1');
+};
+
 const _encontrarMaiorSubstringComum = (s1, s2) => {
     if (!s1 || !s2) return "";
     let maxLen = 0, endIdx = 0;
