@@ -1010,3 +1010,21 @@ body[data-active-tab="leitura"] #idea-markers-list {
     justify-content: flex-end;
     gap: 12px;
 }
+
+/* ================================================
+   TASK PULSE ALERT (NOTIFICAÇÃO ASSÍNCRONA)
+   ================================================ */
+#btn-lembretes-tarefa.task-pulse-alert {
+    position: relative;
+    overflow: visible;
+}
+#btn-lembretes-tarefa.task-pulse-alert::after {
+    content: ''; 
+    position: absolute; 
+    inset: 0;
+    border-radius: inherit;
+    border: 2px solid #d32f2f;
+    animation: pulse-ring-gpu 0.6s infinite ease-out;
+    pointer-events: none;
+    z-index: -1;
+}

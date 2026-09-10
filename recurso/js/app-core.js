@@ -2269,5 +2269,22 @@ window.TaskManager = (function() {
         atualizarBadge();
     }
 
-    return { abrirModal, fecharModal, adicionarTarefa, toggleConcluido, atualizarBadge, abrirSeletorTemas, getTarefasState, setTarefasState };
+    function sinalizarTarefasPendentes() {
+        const pendentes = document.querySelectorAll('#native-obs-list input[type="checkbox"]:not(:checked)').length;
+        if (pendentes === 0) return;
+
+        if (typeof exibirToast === 'function') {
+            exibirToast(`Atenção: Você possui ${pendentes} tarefa(s) pendente(s).`, 'aviso');
+        }
+
+        const btn = document.getElementById('btn-lembretes-tarefa');
+        if (btn) {
+            btn.classList.remove('task-pulse-alert');
+            void btn.offsetWidth; // Força Reflow para re-engatilhar animação
+            btn.classList.add('task-pulse-alert');
+            setTimeout(() => btn.classList.remove('task-pulse-alert'), 2400); // Remove após 4 ciclos de pulso
+        }
+    }
+
+    return { abrirModal, fecharModal, adicionarTarefa, toggleConcluido, atualizarBadge, abrirSeletorTemas, getTarefasState, setTarefasState, sinalizarTarefasPendentes };
 })();
