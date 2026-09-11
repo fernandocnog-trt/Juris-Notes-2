@@ -2270,19 +2270,29 @@ window.TaskManager = (function() {
     }
 
     function sinalizarTarefasPendentes() {
-        const pendentes = document.querySelectorAll('#native-obs-list input[type="checkbox"]:not(:checked)').length;
-        if (pendentes === 0) return;
+        const container = document.getElementById('native-obs-list');
+        if(!container) return;
+        
+        const pendentes = container.querySelectorAll('input[type="checkbox"]:not(:checked)').length;
+        
+        if (pendentes > 0) {
+            // 1. Dispara o Toast
+            if (typeof exibirToast === 'function') {
+                exibirToast(`Atenção: Você possui ${pendentes} tarefa(s) pendente(s).`, 'aviso');
+            }
 
-        if (typeof exibirToast === 'function') {
-            exibirToast(`Atenção: Você possui ${pendentes} tarefa(s) pendente(s).`, 'aviso');
-        }
-
-        const btn = document.getElementById('btn-lembretes-tarefa');
-        if (btn) {
-            btn.classList.remove('task-pulse-alert');
-            void btn.offsetWidth; // Força Reflow para re-engatilhar animação
-            btn.classList.add('task-pulse-alert');
-            setTimeout(() => btn.classList.remove('task-pulse-alert'), 2400); // Remove após 4 ciclos de pulso
+            // 2. Aplica o choque visual no botão
+            const btn = document.getElementById('btn-lembretes-tarefa');
+            if (btn) {
+                btn.classList.remove('task-pulse-alert');
+                void btn.offsetWidth; // Força o navegador a reiniciar a animação
+                btn.classList.add('task-pulse-alert');
+                
+                // Remove o alerta após 2.8 segundos (0.7s * 4 repetições)
+                setTimeout(() => {
+                    if (btn) btn.classList.remove('task-pulse-alert');
+                }, 2800);
+            }
         }
     }
 

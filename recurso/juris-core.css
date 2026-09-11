@@ -1012,19 +1012,26 @@ body[data-active-tab="leitura"] #idea-markers-list {
 }
 
 /* ================================================
-   TASK PULSE ALERT (NOTIFICAÇÃO ASSÍNCRONA)
+   ANIMAÇÃO DE ALERTA DE TAREFAS (ALTO CONTRASTE)
    ================================================ */
-#btn-lembretes-tarefa.task-pulse-alert {
-    position: relative;
-    overflow: visible;
+@keyframes urgent-task-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.8); transform: scale(1); }
+    50% { box-shadow: 0 0 0 14px rgba(211, 47, 47, 0); transform: scale(1.15); }
+    100% { box-shadow: 0 0 0 0 rgba(211, 47, 47, 0); transform: scale(1); }
 }
-#btn-lembretes-tarefa.task-pulse-alert::after {
-    content: ''; 
-    position: absolute; 
-    inset: 0;
-    border-radius: inherit;
-    border: 2px solid #d32f2f;
-    animation: pulse-ring-gpu 0.6s infinite ease-out;
-    pointer-events: none;
-    z-index: -1;
+
+#btn-lembretes-tarefa.task-pulse-alert {
+    /* Muda de Amarelo para Vermelho para quebrar o padrão visual */
+    background-color: #d32f2f !important;
+    border-color: #b71c1c !important;
+    /* Aplica 4 pulsos agressivos (aprox 3 segundos no total) */
+    animation: urgent-task-pulse 0.7s ease-in-out 4 !important;
+    /* Força o botão a saltar por cima de qualquer película escura (backdrop) */
+    z-index: 9999 !important; 
+    position: relative;
+}
+
+/* Garante que o ícone do check-list fique bem visível no fundo vermelho */
+#btn-lembretes-tarefa.task-pulse-alert svg {
+    stroke: #ffffff !important;
 }

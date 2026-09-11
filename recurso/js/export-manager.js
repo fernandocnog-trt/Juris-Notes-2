@@ -536,11 +536,10 @@ window.ExportManager = (function () {
             return;
         }
 
-        // --- VERIFICAÇÃO ASSÍNCRONA DE TAREFAS ---
+        // INJETAR O ALERTA AQUI: Dispara a notificação de tarefas em paralelo com a exportação
         if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
             window.TaskManager.sinalizarTarefasPendentes();
         }
-        // --- FIM DA VERIFICAÇÃO ---
 
         try {
             // ── Passo 1: Gerar e baixar o Markdown ──────────────────────────
@@ -635,10 +634,6 @@ window.ExportManager = (function () {
         if (!topico || topico.anotacoes.length === 0) {
             _deps.exibirToast('O tópico está vazio ou inválido.', 'aviso');
             return;
-        }
-
-        if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
-            window.TaskManager.sinalizarTarefasPendentes();
         }
 
         const container = document.getElementById('export-options-container');
@@ -827,10 +822,6 @@ window.ExportManager = (function () {
             _deps.exibirToast('Uma exportação já está em andamento. Aguarde.', 'aviso');
             return;
         }
-
-        if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
-            window.TaskManager.sinalizarTarefasPendentes();
-        }
         
         _isExporting = true;
         const topicos = _deps.getTopicos();
@@ -838,6 +829,12 @@ window.ExportManager = (function () {
         
         // UX: Fecha o modal IMEDIATAMENTE para liberar a tela para o usuário
         fecharPainelExportacao();
+        
+        // INJETAR O ALERTA AQUI: Após o modal fechar, garantindo visibilidade total
+        if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
+            window.TaskManager.sinalizarTarefasPendentes();
+        }
+
         _deps.exibirToast('⏳ Iniciando extração de dados em segundo plano...', 'info');
 
         try {
