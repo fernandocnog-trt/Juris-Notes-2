@@ -1354,6 +1354,10 @@
                     <p class="popup-label" style="color: #e65100;">Inteiro Teor dos Embargos:</p>
                     <textarea id="ctx-teor-embargos" class="popup-textarea" style="display: block; min-height: 100px; border-color: #ffcc80;" placeholder="Cole os embargos aqui..." oninput="window.salvarRascunhoContextoDebounced()"></textarea>
                 </div>
+                <div style="grid-column: span 2;">
+                    <label class="popup-label" for="ctx-teor-confronto" style="color: #e65100;">Documentos de Confronto (Peças de Origem e Provas):</label>
+                    <textarea id="ctx-teor-confronto" class="popup-textarea" style="display: block; min-height: 100px; border-color: #ffcc80;" placeholder="Petição Inicial, Laudos, Sentença de 1º Grau, etc." oninput="window.salvarRascunhoContextoDebounced()"></textarea>
+                </div>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 14px;">
@@ -1455,8 +1459,24 @@ Crie um sumário hierárquico enxuto com as Grandes Categorias e Subcategorias q
             <div>
                 <p class="popup-label">Peça Processual:</p>
                 <select id="extrator-doc-select" class="topic-select">
-                    <option value="decisao">Decisão Embargada (Sentença/Acórdão)</option>
-                    <option value="embargos">Inteiro Teor dos Embargos</option>
+                    <optgroup label="Alvos Principais do ED">
+                        <option value="decisao">Decisão Embargada (Sentença/Acórdão)</option>
+                        <option value="embargos">Inteiro Teor dos Embargos</option>
+                    </optgroup>
+                    <optgroup label="Peças de Confronto / Origem">
+                        <option value="recurso_ordinario">Recurso Ordinário</option>
+                        <option value="contrarrazoes">Contrarrazões ao RO</option>
+                        <option value="contraminuta">Contraminuta aos EDs</option>
+                        <option value="peticao_inicial">Petição Inicial</option>
+                        <option value="contestacao">Contestação</option>
+                        <option value="impugnacao_contestacao">Impugnação à Contestação</option>
+                    </optgroup>
+                    <optgroup label="Provas e Atos">
+                        <option value="audiencia_instrucao">Audiência de Instrução</option>
+                        <option value="sentenca_primeiro_grau">Sentença de 1º Grau (Origem)</option>
+                        <option value="laudo_pericial">Laudo Pericial</option>
+                        <option value="atos_secretaria">Atos da Secretaria / Certidões</option>
+                    </optgroup>
                 </select>
             </div>
             <div>

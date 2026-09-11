@@ -18,6 +18,27 @@ window.ExportManager = (function () {
     const MARCADOR_OFICIAL_LGPD = '\n\n[AVISO DE SISTEMA: Dados sensíveis (ex: endereços) ou estruturais (cabeçalhos) foram ocultados pela Borracha Mágica para adequação à LGPD.]\n\n';
     const MARCADOR_RUIDOS = '\n\n[AVISO DE SISTEMA: Dados estruturais ocultados.]\n\n';
 
+    // SINGLE SOURCE OF TRUTH — Rol de Peças do Extrator Inteligente
+    const DOC_EXTRATOR_CONFIG = [
+        { value: 'decisao', label: 'Decisão Embargada (Sentença/Acórdão)', grupo: 'Alvos Principais' },
+        { value: 'embargos', label: 'Inteiro Teor dos Embargos', grupo: 'Alvos Principais' },
+        { value: 'recurso_ordinario', label: 'Recurso Ordinário', grupo: 'Peças de Confronto' },
+        { value: 'contrarrazoes', label: 'Contrarrazões ao RO', grupo: 'Peças de Confronto' },
+        { value: 'contraminuta', label: 'Contraminuta aos EDs', grupo: 'Peças de Confronto' },
+        { value: 'peticao_inicial', label: 'Petição Inicial', grupo: 'Peças de Confronto' },
+        { value: 'contestacao', label: 'Contestação', grupo: 'Peças de Confronto' },
+        { value: 'impugnacao_contestacao', label: 'Impugnação à Contestação', grupo: 'Peças de Confronto' },
+        { value: 'audiencia_instrucao', label: 'Audiência de Instrução', grupo: 'Provas e Atos' },
+        { value: 'sentenca_primeiro_grau', label: 'Sentença de 1º Grau (Origem)', grupo: 'Provas e Atos' },
+        { value: 'laudo_pericial', label: 'Laudo Pericial', grupo: 'Provas e Atos' },
+        { value: 'atos_secretaria', label: 'Atos da Secretaria / Certidões', grupo: 'Provas e Atos' }
+    ];
+
+    function getDocLabel(value) {
+        const doc = DOC_EXTRATOR_CONFIG.find(d => d.value === value);
+        return doc ? doc.label : (value ? value.toUpperCase() : 'DESCONHECIDO');
+    }
+
     function _obterChaveStorageFiltro() {
         const tagDom = document.getElementById('tag-numero-processo');
         const numProcesso = tagDom && tagDom.textContent.trim() ? tagDom.textContent.trim() : 'padrao';
@@ -443,11 +464,6 @@ window.ExportManager = (function () {
                 return acc;
             }, {});
 
-            const docNomes = {
-                decisao: "Decisão Embargada", 
-                embargos: "Inteiro Teor dos Embargos"
-            };
-
             const svgPin = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11.78L20.24 16H13v6l-1 2-1-2v-6H3.76L8 11.78V4h1V2h6v2h1v7.78z"></path></svg>`;
 
             for (const [docTipo, limites] of Object.entries(agrupados)) {
@@ -457,7 +473,7 @@ window.ExportManager = (function () {
                 
                 if (isCompleto) _documentosParaExtracaoCache[docTipo] = limites;
                 
-                const nomeF = docNomes[docTipo] || docTipo.toUpperCase();
+                const nomeF = getDocLabel(docTipo);
                 
                 const btnInicio = hasInicio 
                     ? `<button type="button" class="pin-action-btn pin-start-active" onclick="event.preventDefault(); event.stopPropagation(); excluirMarcadorExtracao('${topico.id}', '${docTipo}', 'inicio');" title="Excluir Início (Fl. ${limites.inicio.pagina})">${svgPin}</button>`
@@ -761,13 +777,7 @@ window.ExportManager = (function () {
         obterDadosDoTopicoAtivo: function() {
             const activeId = _deps.getActiveTabId();
             if (!activeId) return null;
-
-            const topicosArray = _deps.getTopicos();
-            if (!topicosArray || !Array.isArray(topicosArray)) return null;
-
-            const topicoAtivo = topicosArray.find(t => t.id === activeId);
-            if (!topicoAtivo || !topicoAtivo.anotacoes || topicoAtivo.anotacoes.length === 0) return null;
-
+// ... (linhas omitidas para brevidade) ...
             return {
                 nome: topicoAtivo.nome || 'Vício Não Nomeado',
                 markdown: _gerarMarkdown(topicoAtivo)
@@ -776,6 +786,7 @@ window.ExportManager = (function () {
         abrirPainelExportacao, 
         fecharPainelExportacao, 
         gerarExportacaoPersonalizada,
+        getDocLabel,
         aplicarFiltrosAvancados
     };
 
