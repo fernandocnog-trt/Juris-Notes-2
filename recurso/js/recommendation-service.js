@@ -7,12 +7,8 @@ window.AIRecommendationManager = (function() {
 
     const STORAGE_KEY = 'juris_groq_api_key';
     
-    // FILA DE RESILIÊNCIA: Tenta o modelo mais inteligente primeiro. 
-    // Se falhar (404, 429), faz fallback automático para o modelo mais leve.
-    const MODELS_QUEUE = [
-        'llama-3.3-70b-versatile', 
-        'llama-3.1-8b-instant'
-    ];
+    // MODELO OFICIAL GROQ (Alta performance e raciocínio)
+    const GROQ_MODEL = 'llama-3.3-70b-versatile';
 
     // MODAL DINÂMICO E SEGURO: Substitui o 'prompt()' nativo do navegador.
     // Cria uma interface de senha (password) sem congelar a thread principal.
@@ -105,59 +101,34 @@ REGRA ESTABELECIDA:
 
         const userPrompt = `TESE: "${textoAlegacoes}"\n\nACERVO:\n${catalogoComprimido}`;
 
-        let response = null;
-        let lastError = null;
-
-        // LOOP DE FALLBACK: Tenta cada modelo da fila até obter sucesso
-        for (const model of MODELS_QUEUE) {
-            try {
-                const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-                    method: "POST",
-                    headers: { 
-                        "Authorization": `Bearer ${apiKey}`, 
-                        "Content-Type": "application/json" 
-                    },
-                    body: JSON.stringify({
-                        model: model, 
-                        messages: [
-                            { role: "system", content: systemPrompt },
-                            { role: "user", content: userPrompt }
-                        ],
-                        temperature: 0.1,
-                        max_tokens: 800
-                    })
-                });
-
-                if (!res.ok) {
-                    const contentType = res.headers.get("content-type");
-                    let errorMsg = `Erro HTTP ${res.status}`;
-                    
-                    // ERROR HANDLING BLINDADO: Verifica se é JSON antes de parsear
-                    if (contentType && contentType.includes("application/json")) {
-                        const errorData = await res.json();
-                        errorMsg = errorData?.error?.message || errorMsg;
-                    }
-                    
-                    console.warn(`[Juris IA] Falha com o modelo ${model}: ${errorMsg}. Tentando próximo da fila...`);
-                    lastError = new Error(errorMsg);
-                    continue; // Pula para o próximo modelo da fila
-                }
-                
-                response = res;
-                console.log(`[Juris IA] Sucesso utilizando o modelo: ${model}`);
-                break; // Sai do loop se teve sucesso
-                
-            } catch (networkError) {
-                // Erros de rede/CORS geralmente afetam todos os modelos, então quebramos o loop
-                console.error(`[Juris IA] Erro crítico de rede/CORS com o modelo ${model}:`, networkError);
-                lastError = networkError;
-                break; 
-            }
-        }
-
         try {
-            if (!response) {
-                throw lastError || new Error("Todos os modelos na fila de fallback falharam.");
+            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+                method: "POST",
+                headers: { 
+                    "Authorization": `Bearer ${apiKey}`, 
+                    "Content-Type": "application/json" 
+                },
+                body: JSON.stringify({
+                    model: GROQ_MODEL, 
+                    messages: [
+                        { role: "system", content: systemPrompt },
+                        { role: "user", content: userPrompt }
+                    ],
+                    temperature: 0.1,
+                    max_tokens: 800
+                })
+            });
+
+            if (!response.ok) {
+                const contentType = response.headers.get("content-type");
+                let errorMsg = `Erro HTTP ${response.status}`;
+                
+                // ERROR HANDLING BLINDADO: Verifica se é JSON antes de parsear
+                if (contentType && contentType.includes("application/json")) {
+                    const errorData = await response.json();
+                    errorMsg = errorData?.error?.message || errorMsg;
+                }
+                throw new Error(errorMsg);
             }
 
             const data = await response.json();
