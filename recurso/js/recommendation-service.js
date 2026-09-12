@@ -6,7 +6,7 @@ window.AIRecommendationManager = (function() {
     'use strict';
 
     const STORAGE_KEY = 'juris_gemini_api_key';
-    const GEMINI_MODEL = 'gemini-1.5-flash'; // Modelo veloz e altamente estável do Google
+    const GEMINI_MODEL = 'gemini-flash-latest'; // Modelo veloz e altamente estável do Google
     const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
     // MODAL DINÂMICO E SEGURO: Substitui o 'prompt()' nativo do navegador.
