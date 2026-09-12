@@ -1192,6 +1192,10 @@ async function criarTopicoPrompt() {
         exibirToast(`Tópico "${nomeLimpo}" criado.`);
         
         verificarAcervoEmSegundoPlano(nomeLimpo);
+        
+        if (window.TimeTrackerManager && typeof window.TimeTrackerManager.handleNovoTopicoCriado === 'function') {
+            window.TimeTrackerManager.handleNovoTopicoCriado();
+        }
     } catch (error) {
         console.error('[AppCore] Erro ao criar tópico:', error);
         exibirToast('Erro ao criar tópico. Tente novamente.', 'erro');
@@ -1616,6 +1620,12 @@ async function renomearAba(id) {
 
 function solicitarExclusaoAba(btnEl, id) {
     if (btnEl.dataset.confirming === "true") {
+        if (window.TopicsManager && TopicsManager.getActiveTabId() === id) {
+            if (window.TimeTrackerManager && typeof window.TimeTrackerManager.tratarExclusaoAba === 'function') {
+                window.TimeTrackerManager.tratarExclusaoAba();
+            }
+        }
+        
         topicos = topicos.filter(t => t.id !== id);
         renderizarTopicos();
         salvarBackupAutomatico();
@@ -1843,11 +1853,11 @@ async function acionarCriacaoBackup() {
 window.TimeTrackerManager = (function() {
     let _getTopicos = () => []; 
     
-    let isHabilitado = false;
+    let isAutoMode = false;
     let isRodando = false;
     let tempoSegundos = 0;
     let intervaloId = null;
-    let complexidadeAtual = null;
+    let complexidadeAtual = 'medio';
     let marcosAtingidos = { excelente: false, bom: false, cautela: false };
 
     const limites = {
@@ -1861,24 +1871,26 @@ window.TimeTrackerManager = (function() {
             _getTopicos = deps.getTopicos;
         }
         
-        // CORREÇÃO: Lê a posição da chavinha assim que o aplicativo inicia
-        const toggleEl = document.getElementById('toggle-cronometro');
+        const savedState = localStorage.getItem('juris_auto_timer');
+        isAutoMode = savedState === 'true';
+
+        const toggleEl = document.getElementById('toggle-auto-cronometro');
         if (toggleEl) {
-            isHabilitado = toggleEl.checked;
+            toggleEl.checked = isAutoMode;
+            toggleEl.addEventListener('change', (e) => {
+                isAutoMode = e.target.checked;
+                localStorage.setItem('juris_auto_timer', isAutoMode);
+                exibirToast(`Modo Automático ${isAutoMode ? 'Ativado' : 'Desativado'}.`, 'info');
+            });
         }
     }
 
-    function toggleVisibility(fromToggle = false) {
-        if (fromToggle) {
-            const toggleEl = document.getElementById('toggle-cronometro');
-            if (toggleEl) isHabilitado = toggleEl.checked;
-        }
-        
+    function toggleVisibility() {
         const container = document.getElementById('efficiency-tracker-container');
         const isHistorico = document.body.dataset.activeTab === 'historico';
         const temTopico = _getTopicos().length > 0;
         
-        const deveExibir = isHabilitado && isHistorico && temTopico;
+        const deveExibir = isHistorico && temTopico;
         
         container.style.display = deveExibir ? 'flex' : 'none';
         if (deveExibir) sincronizarCor();
@@ -1888,7 +1900,6 @@ window.TimeTrackerManager = (function() {
         document.getElementById('modal-tracker-backdrop').style.display = 'block';
         document.getElementById('modal-tracker-config').style.display = 'block';
 
-        // Ativa o desfoque de fundo
         if (typeof window.toggleFocoModal === 'function') window.toggleFocoModal(true);
         
         const svgIcon = isRodando 
@@ -1903,13 +1914,15 @@ window.TimeTrackerManager = (function() {
     function fecharModal() {
         document.getElementById('modal-tracker-backdrop').style.display = 'none';
         document.getElementById('modal-tracker-config').style.display = 'none';
-
-        // Desativa o desfoque de fundo
         if (typeof window.toggleFocoModal === 'function') window.toggleFocoModal(false);
     }
 
-    function iniciar() {
-        complexidadeAtual = document.getElementById('tracker-complexity-select').value;
+    function iniciar(isSilencioso = false) {
+        const selectEl = document.getElementById('tracker-complexity-select');
+        if (selectEl && selectEl.value) {
+            complexidadeAtual = selectEl.value;
+        }
+
         marcosAtingidos = { excelente: false, bom: false, cautela: false };
         isRodando = true;
         fecharModal();
@@ -1923,13 +1936,14 @@ window.TimeTrackerManager = (function() {
         if (intervaloId) clearInterval(intervaloId);
         intervaloId = setInterval(tick, 1000);
 
-        exibirToast(`Cronômetro ativado. Foco na análise!`, 'info');
+        if (!isSilencioso) {
+            exibirToast(`Cronômetro ativado. Foco na análise!`, 'info');
+        }
     }
 
-    function parar() {
+    function pararSilencioso() {
         isRodando = false;
         if (intervaloId) clearInterval(intervaloId);
-        fecharModal();
         
         const dot = document.getElementById('efficiency-tracker-dot');
         const pill = document.getElementById('efficiency-tracker-pill');
@@ -1940,15 +1954,18 @@ window.TimeTrackerManager = (function() {
             dot.style.boxShadow = 'none';
         }
         
-        if(pill) {
-            pill.classList.remove('milestone-1', 'milestone-2', 'milestone-3');
-        }
-        
-        const tempoFinal = document.getElementById('efficiency-tracker-time').textContent;
-        exibirToast(`Tópico concluído. Tempo de tela: ${tempoFinal}`, 'sucesso');
+        if(pill) pill.classList.remove('milestone-1', 'milestone-2', 'milestone-3');
         
         tempoSegundos = 0;
         atualizarDisplay();
+    }
+
+    function parar() {
+        const timeEl = document.getElementById('efficiency-tracker-time');
+        const tempoFinal = timeEl ? timeEl.textContent : '00:00';
+        pararSilencioso();
+        fecharModal();
+        exibirToast(`Tópico concluído. Tempo de tela: ${tempoFinal}`, 'sucesso');
     }
 
     function tick() {
@@ -1994,8 +2011,6 @@ window.TimeTrackerManager = (function() {
     }
 
     function sincronizarCor() {
-        if (!isHabilitado) return;
-        
         const topicosData = _getTopicos();
         const activeTabId = typeof TopicsManager !== 'undefined' ? TopicsManager.getActiveTabId() : null;
         let cor = '#ccc'; 
@@ -2018,7 +2033,27 @@ window.TimeTrackerManager = (function() {
         }
     }
 
-    return { init, toggleVisibility, handleClick, fecharModal, iniciar, parar, sincronizarCor };
+    function handleNovoTopicoCriado() {
+        if (!isAutoMode) return;
+        if (isRodando) pararSilencioso();
+
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                iniciar(true);
+            });
+        });
+    }
+
+    function tratarExclusaoAba() {
+        if (isRodando) {
+            pararSilencioso();
+        }
+    }
+
+    return { 
+        init, toggleVisibility, handleClick, fecharModal, iniciar, parar, 
+        sincronizarCor, handleNovoTopicoCriado, tratarExclusaoAba 
+    };
 })();
 
 /* ================================================
