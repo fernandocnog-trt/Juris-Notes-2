@@ -273,6 +273,33 @@ window.JurisUtils.descobrirRuidosEstruturais = function(textoPagA, textoPagB) {
     return ruidos;
 };
 
+window.JurisUtils.criarRegexDeRepeticao = function(textoExemplo) {
+    if (!textoExemplo || typeof textoExemplo !== 'string') return null;
+
+    // 1. PRÉ-LIMPEZA ESTRATÉGICA
+    let snippet = (typeof this.limparTextoPDF === 'function') 
+        ? this.limparTextoPDF(textoExemplo) 
+        : textoExemplo.trim();
+    
+    // Tolerância levemente ajustada para 20 caracteres para facilitar o uso
+    if (snippet.length < 20) return null; 
+
+    // 2. Escapa caracteres sensíveis de Regex (., /, (, ), etc)
+    let pattern = snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    
+    // 3. TOLERÂNCIA NUMÉRICA (Fuzzy Digits)
+    pattern = pattern.replace(/\d+/g, '[\\d\\s]+');
+
+    // 4. TOLERÂNCIA DE PONTUAÇÃO (Fuzzy Punctuation)
+    pattern = pattern.replace(/[-–—_]/g, '[-–—_\\s]*');
+    
+    // 5. TOLERÂNCIA DE ESPAÇAMENTO 
+    pattern = pattern.replace(/\s+/g, '\\s+');
+    
+    // 6. Retorna a regra com uma "gordura" nas bordas
+    return new RegExp('\\s*' + pattern + '\\s*', 'gi');
+};
+
 window.JurisUtils.limparTextoPDF = function(texto) {
         if (!texto || typeof texto !== 'string') return '';
         return texto
