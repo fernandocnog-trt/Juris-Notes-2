@@ -5,10 +5,9 @@
 window.AIRecommendationManager = (function() {
     'use strict';
 
-    const STORAGE_KEY = 'juris_groq_api_key';
-    
-    // MODELO OFICIAL GROQ (Alta performance e raciocínio)
-    const GROQ_MODEL = 'llama-3.3-70b-versatile';
+    const STORAGE_KEY = 'juris_gemini_api_key';
+    const GEMINI_MODEL = 'gemini-1.5-flash'; // Modelo veloz e altamente estável do Google
+    const BASE_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
     // MODAL DINÂMICO E SEGURO: Substitui o 'prompt()' nativo do navegador.
     // Cria uma interface de senha (password) sem congelar a thread principal.
@@ -23,12 +22,12 @@ window.AIRecommendationManager = (function() {
             const modal = document.createElement('div');
             modal.style.cssText = 'background:#ffffff;padding:28px;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.2);width:90%;max-width:420px;font-family:system-ui, -apple-system, sans-serif;';
             modal.innerHTML = `
-                <h3 style="margin-top:0;color:#1a1a1a;font-size:18px;">🔑 Configurações de IA (Groq)</h3>
+                <h3 style="margin-top:0;color:#1a1a1a;font-size:18px;">🔑 Configurações de IA (Google Gemini)</h3>
                 <p style="font-size:14px;color:#666;line-height:1.5;margin-bottom:20px;">
-                    Insira sua API Key da Groq para habilitar a recomendação inteligente de modelos. 
+                    Insira sua API Key do Google AI Studio para habilitar a recomendação inteligente de modelos. 
                     <strong>Sua chave é criptografada e salva apenas localmente no seu navegador.</strong>
                 </p>
-                <input type="password" id="juris-ai-key-input" placeholder="gsk_..." autocomplete="off" style="width:100%;padding:12px;margin-bottom:20px;border:1px solid #ddd;border-radius:6px;font-size:14px;box-sizing:border-box;transition:border 0.2s;">
+                <input type="password" id="juris-ai-key-input" placeholder="AIza..." autocomplete="off" style="width:100%;padding:12px;margin-bottom:20px;border:1px solid #ddd;border-radius:6px;font-size:14px;box-sizing:border-box;transition:border 0.2s;">
                 <div style="display:flex;justify-content:flex-end;gap:12px;">
                     <button id="juris-ai-cancel" style="padding:10px 18px;border:1px solid #ddd;background:white;color:#333;border-radius:6px;cursor:pointer;font-weight:500;">Cancelar</button>
                     <button id="juris-ai-save" style="padding:10px 18px;border:none;background:#2563eb;color:white;border-radius:6px;cursor:pointer;font-weight:500;box-shadow:0 2px 4px rgba(37,99,235,0.2);">Salvar e Analisar</button>
@@ -91,54 +90,49 @@ window.AIRecommendationManager = (function() {
         if (btnIcon) btnIcon.classList.add('is-thinking');
         window.exibirToast?.('IA analisando o Acervo...', 'info');
 
-        // OTIMIZAÇÃO DE PROMPT: Separação de System (Regras) e User (Dados)
-        const systemPrompt = `Atue como um indexador jurídico especialista e rigoroso. 
+        // PROMPT OTIMIZADO (Gemini): Unificando Regras e Contexto
+        const fullPrompt = `Atue como um indexador jurídico especialista e rigoroso. 
 Sua única função é analisar a tese e encontrar os modelos compatíveis no acervo fornecido. 
 REGRA ESTABELECIDA:
 - Se houver modelos compatíveis, responda OBRIGATORIAMENTE no formato exato: [IDs: mod-xxx, mod-yyy]
 - Se NÃO houver NENHUM modelo compatível com o tema, responda OBRIGATORIAMENTE: [IDs: NENHUM]
-- Não adicione explicações, saudações, markdown ou qualquer outro texto fora do formato exigido.`;
+- Não adicione explicações, saudações, markdown ou qualquer outro texto fora do formato exigido.
 
-        const userPrompt = `TESE: "${textoAlegacoes}"\n\nACERVO:\n${catalogoComprimido}`;
+TESE: "${textoAlegacoes}"
+
+ACERVO:
+${catalogoComprimido}`;
 
         try {
-            const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            // A API do Gemini exige a chave via Query Parameter
+            const response = await fetch(`${BASE_URL}?key=${apiKey}`, {
                 method: "POST",
-                headers: { 
-                    "Authorization": `Bearer ${apiKey}`, 
-                    "Content-Type": "application/json" 
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    model: GROQ_MODEL, 
-                    messages: [
-                        { role: "system", content: systemPrompt },
-                        { role: "user", content: userPrompt }
-                    ],
-                    temperature: 0.1
+                    contents: [{ parts: [{ text: fullPrompt }] }],
+                    generationConfig: { temperature: 0.1 }
                 })
             });
 
             if (!response.ok) {
-                const contentType = response.headers.get("content-type");
                 let errorMsg = `Erro HTTP ${response.status}`;
-                
-                // ERROR HANDLING BLINDADO: Verifica se é JSON antes de parsear
-                if (contentType && contentType.includes("application/json")) {
+                try {
                     const errorData = await response.json();
-                    errorMsg = errorData?.error?.message || errorMsg;
-                }
+                    errorMsg = errorData.error?.message || errorMsg;
+                } catch (e) { }
                 
-                // AUTO-LIMPEZA: Se a chave for inválida ou revogada, remove do local storage
-                if (response.status === 401) {
+                // AUTO-LIMPEZA (Gemini): 400 (Bad Request) ou 403 (Forbidden) geralmente ocorrem em chaves ruins
+                if (response.status === 400 || response.status === 403 || response.status === 401) {
                     localStorage.removeItem(STORAGE_KEY);
-                    errorMsg = "Sua API Key expirou ou é inválida. A chave antiga foi limpa. Tente novamente.";
+                    errorMsg = "Sua API Key do Google é inválida ou expirou. A chave foi limpa. Tente novamente.";
                 }
                 
                 throw new Error(errorMsg);
             }
 
             const data = await response.json();
-            let respostaBruta = data?.choices?.[0]?.message?.content || "";
+            // Mapeamento específico da árvore JSON do Gemini
+            let respostaBruta = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
             // [NOVO] PIPELINE DE SANITIZAÇÃO ESTRUTURAL BLINDADO
             // 1. Remove cadeia de pensamentos (Chain of Thought)
