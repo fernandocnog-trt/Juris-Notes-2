@@ -1184,7 +1184,8 @@ async function criarTopicoPrompt() {
         }
 
         const cor = TopicsManager.obterCor(topicos.length);
-        topicos.push({ id: 'topico-' + Date.now(), nome: nomeLimpo, cor, anotacoes: [] });
+        const novoTopicoId = 'topico-' + Date.now();
+        topicos.push({ id: novoTopicoId, nome: nomeLimpo, cor, anotacoes: [] });
 
         renderizarTopicos();
         salvarBackupAutomatico();
@@ -1194,7 +1195,7 @@ async function criarTopicoPrompt() {
         verificarAcervoEmSegundoPlano(nomeLimpo);
         
         if (window.TimeTrackerManager && typeof window.TimeTrackerManager.handleNovoTopicoCriado === 'function') {
-            window.TimeTrackerManager.handleNovoTopicoCriado();
+            window.TimeTrackerManager.handleNovoTopicoCriado(novoTopicoId);
         }
     } catch (error) {
         console.error('[AppCore] Erro ao criar tópico:', error);
@@ -1917,7 +1918,7 @@ window.TimeTrackerManager = (function() {
         if (typeof window.toggleFocoModal === 'function') window.toggleFocoModal(false);
     }
 
-    function iniciar(isSilencioso = false) {
+    function iniciar(isSilencioso = false, topicoIdForce = null) {
         const selectEl = document.getElementById('tracker-complexity-select');
         if (selectEl && selectEl.value) {
             complexidadeAtual = selectEl.value;
@@ -1927,7 +1928,7 @@ window.TimeTrackerManager = (function() {
         isRodando = true;
         fecharModal();
         
-        sincronizarCor();
+        sincronizarCor(topicoIdForce);
         document.getElementById('efficiency-tracker-dot').classList.add('pulsing');
         
         const pill = document.getElementById('efficiency-tracker-pill');
@@ -2010,9 +2011,10 @@ window.TimeTrackerManager = (function() {
         }
     }
 
-    function sincronizarCor() {
+    function sincronizarCor(topicoIdForce = null) {
         const topicosData = _getTopicos();
-        const activeTabId = typeof TopicsManager !== 'undefined' ? TopicsManager.getActiveTabId() : null;
+        // Usa o ID forçado (novo tópico) se fornecido, senão cai no fallback de leitura do DOM
+        const activeTabId = topicoIdForce || (typeof TopicsManager !== 'undefined' ? TopicsManager.getActiveTabId() : null);
         let cor = '#ccc'; 
         
         if (activeTabId && topicosData.length > 0) {
@@ -2033,14 +2035,14 @@ window.TimeTrackerManager = (function() {
         }
     }
 
-    function handleNovoTopicoCriado() {
+    function handleNovoTopicoCriado(novoTopicoId = null) {
         if (!isAutoMode) return;
         if (isRodando) pararSilencioso();
 
+        // Aguarda a thread de UI, mas força a injeção da cor 
+        // ignorando a latência do DOM.
         requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                iniciar(true);
-            });
+            iniciar(true, novoTopicoId);
         });
     }
 
