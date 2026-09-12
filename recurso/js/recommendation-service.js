@@ -114,8 +114,7 @@ REGRA ESTABELECIDA:
                         { role: "system", content: systemPrompt },
                         { role: "user", content: userPrompt }
                     ],
-                    temperature: 0.1,
-                    max_tokens: 800
+                    temperature: 0.1
                 })
             });
 
@@ -128,11 +127,28 @@ REGRA ESTABELECIDA:
                     const errorData = await response.json();
                     errorMsg = errorData?.error?.message || errorMsg;
                 }
+                
+                // AUTO-LIMPEZA: Se a chave for inválida ou revogada, remove do local storage
+                if (response.status === 401) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    errorMsg = "Sua API Key expirou ou é inválida. A chave antiga foi limpa. Tente novamente.";
+                }
+                
                 throw new Error(errorMsg);
             }
 
             const data = await response.json();
-            const respostaBruta = data?.choices?.[0]?.message?.content || "";
+            let respostaBruta = data?.choices?.[0]?.message?.content || "";
+
+            // [NOVO] PIPELINE DE SANITIZAÇÃO ESTRUTURAL BLINDADO
+            // 1. Remove cadeia de pensamentos (Chain of Thought)
+            respostaBruta = respostaBruta.replace(/<think>[\s\S]*?(?:<\/think>|$)\s*/gi, '').trim();
+            // 2. Rede de Segurança Extrema: Se sobrar uma tag de fechamento isolada
+            if (respostaBruta.includes('</think>')) {
+                respostaBruta = respostaBruta.split('</think>').pop().trim();
+            }
+            // 3. Extrai texto de dentro de blocos Markdown (```), descartando o lixo ao redor
+            respostaBruta = respostaBruta.replace(/^```(?:markdown|text|json)?\r?\n?([\s\S]*?)\r?\n?```[\s\S]*$/i, '$1').trim();
 
             if (respostaBruta.includes("NENHUM")) {
                 window.exibirToast?.('Nenhum modelo de alta afinidade encontrado.', 'aviso');
