@@ -772,12 +772,8 @@ window.ExportManager = (function () {
 
         // 2. CAMADA MANUAL (Regras da Borracha Mágica — LGPD)
         const regras = _carregarRegrasFiltro();
-        if (regras[docTipo] && window.JurisUtils && window.JurisUtils.criarRegexDeRepeticao) {
-            const regex = window.JurisUtils.criarRegexDeRepeticao(regras[docTipo]);
-            if (regex) {
-                // Substituição invisível de alto desempenho para não poluir tokens da IA
-                textoProcessado = textoProcessado.replace(regex, '\n'); 
-            }
+        if (regras[docTipo] && window.JurisUtils && window.JurisUtils.removerTrechoFuzzy) {
+            textoProcessado = window.JurisUtils.removerTrechoFuzzy(textoProcessado, regras[docTipo], MARCADOR_OFICIAL_LGPD, false);
         }
 
         return textoProcessado;
