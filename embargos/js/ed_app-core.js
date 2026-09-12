@@ -197,6 +197,23 @@ window.sincronizarHighlightsGerais = function() {
    ================================================ */
 window.JurisUtils = window.JurisUtils || {};
 
+window.JurisUtils.criarRegexDeRepeticao = function(textoExemplo) {
+    if (!textoExemplo || typeof textoExemplo !== 'string') return null;
+
+    let snippet = (typeof this.limparTextoPDF === 'function') 
+        ? this.limparTextoPDF(textoExemplo) 
+        : textoExemplo.trim();
+    
+    if (snippet.length < 20) return null; 
+
+    let pattern = snippet.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    pattern = pattern.replace(/\d+/g, '[\\d\\s]+');
+    pattern = pattern.replace(/[-–—_]/g, '[-–—_\\s]*');
+    pattern = pattern.replace(/\s+/g, '\\s+');
+    
+    return new RegExp('\\s*' + pattern + '\\s*', 'gi');
+};
+
 window.JurisUtils.limparTextoPDF = function(texto) {
     if (!texto || typeof texto !== 'string') return '';
     return texto
