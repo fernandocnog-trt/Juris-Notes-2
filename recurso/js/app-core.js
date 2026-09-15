@@ -1432,38 +1432,35 @@ window.navegarParaAnotacao = function(topicoId, anotacaoIndex) {
 
     exibirToast('Localizando anotação no fichário...');
 
-    const scrollContainer = document.getElementById('history-container');
-    const topicoTarget = topicos.find(t => t.id === topicoId);
-    const uuidTarget = topicoTarget && topicoTarget.anotacoes[anotacaoIndex] ? topicoTarget.anotacoes[anotacaoIndex].uuid : null;
-    const targetId = uuidTarget ? `timeline-wrapper-${uuidTarget}` : `timeline-wrapper-${anotacaoIndex}`;
-    const targetElement = document.getElementById(targetId);
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            const scrollContainer = document.getElementById('history-container');
+            const topicoTarget = topicos.find(t => t.id === topicoId);
+            const uuidTarget = topicoTarget && topicoTarget.anotacoes[anotacaoIndex] ? topicoTarget.anotacoes[anotacaoIndex].uuid : null;
+            const targetId = uuidTarget ? `timeline-wrapper-${uuidTarget}` : `timeline-wrapper-${anotacaoIndex}`;
+            const targetElement = document.getElementById(targetId);
 
-    if (!targetElement) {
-        exibirToast('Não foi possível localizar o card alvo. Ele pode ter sido excluído.', 'erro');
-        return;
-    }
+            if (!targetElement) {
+                exibirToast('Não foi possível localizar o card alvo. Ele pode ter sido excluído.', 'erro');
+                return;
+            }
 
-    if (scrollContainer) {
-        scrollContainer.classList.add('scroll-anchor-off');
-        window.aguardarEstabilizacaoLayout(targetElement).then(() => {
-            const containerRect = scrollContainer.getBoundingClientRect();
-            const targetRect = targetElement.getBoundingClientRect();
-            const offset = (targetRect.top - containerRect.top) + scrollContainer.scrollTop - 16;
-            const reduz = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-            
-            scrollContainer.scrollTo({ top: offset, behavior: reduz ? 'auto' : 'smooth' });
-            
-            clearTimeout(window._anchorOffTimerAppCore);
-            window._anchorOffTimerAppCore = setTimeout(() => scrollContainer.classList.remove('scroll-anchor-off'), 600);
+            if (scrollContainer) {
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const targetRect = targetElement.getBoundingClientRect();
+                const offset = (targetRect.top - containerRect.top) + scrollContainer.scrollTop - 16;
+                
+                scrollContainer.scrollTo({ top: offset, behavior: 'smooth' });
 
-            const card = targetElement.querySelector('.main-card-wrapper > .annotation-card');
-            if (card) {
-                card.classList.remove('card-flash-focus');
-                void card.offsetWidth; 
-                card.classList.add('card-flash-focus');
+                const card = targetElement.querySelector('.main-card-wrapper > .annotation-card');
+                if (card) {
+                    card.classList.remove('card-flash-focus');
+                    void card.offsetWidth; 
+                    card.classList.add('card-flash-focus');
+                }
             }
         });
-    }
+    });
 };
 
 function irParaPagina() {

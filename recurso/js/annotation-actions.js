@@ -13,48 +13,6 @@ function gerarUUIDSeguro() {
     return 'id-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
 }
 
-/* ================================================
-HELPERS DE SCROLL SEGURO (Contrato determinístico — v2.2.1)
-Autocontidos: não dependem de observadores nem eventos externos.
-================================================ */
-let _citacaoScrollCtrl = null;
-let _anchorOffTimer = null;
-
-/**
- * Resolve quando o alvo para de se mover na tela (2 frames idênticos)
- * ou ao atingir o teto de segurança (~30 frames). SEMPRE resolve:
- * não existe cenário de Promise pendente / UI travada.
- */
-function aguardarEstabilizacaoLayout(alvo, maxFrames = 30) {
-    return new Promise((resolve) => {
-        let ultima = alvo.getBoundingClientRect().top;
-        let framesEstaveis = 0;
-        let framesDecorridos = 0;
-        const quadro = () => {
-            const atual = alvo.getBoundingClientRect().top;
-            framesEstaveis = (atual === ultima) ? framesEstaveis + 1 : 0;
-            ultima = atual;
-            framesDecorridos++;
-            if (framesEstaveis >= 2 || framesDecorridos >= maxFrames) return resolve();
-            requestAnimationFrame(quadro);
-        };
-        requestAnimationFrame(quadro);
-    });
-}
-
-function _ligarAnchorOff(container) {
-    container.classList.add('scroll-anchor-off');
-    clearTimeout(_anchorOffTimer);
-}
-
-function _desligarAnchorOff(container, ms = 600) {
-    clearTimeout(_anchorOffTimer);
-    _anchorOffTimer = setTimeout(() => container.classList.remove('scroll-anchor-off'), ms);
-}
-
-// Expõe para reuso em app-core.js (padrão já usado no codebase: window.*)
-window.aguardarEstabilizacaoLayout = aguardarEstabilizacaoLayout;
-
 /* --- MENUS CONTEXTUAIS --- */
 function abrirMenuAnotacao(topicoId, index, event) {
     event.stopPropagation();
@@ -1284,42 +1242,35 @@ window.adicionarCitacaoExpressa = function(topicoId, parentIndex, cIdx) {
     if(window.salvarBackupAutomatico) salvarBackupAutomatico();
     if(window.exibirToast) exibirToast('Citação expressa vinculada ao Card!', 'sucesso');
 
-    // 8. MICROINTERAÇÃO DE UX (Scroll Suave e Destaque Visual) — v2.2.1
-    // Contrato determinístico: o scroll só inicia com o layout comprovadamente estável.
-    const ctrl = { id: Symbol('citacao-scroll') };
-    _citacaoScrollCtrl = ctrl; // Guard: um clique mais recente invalida a rolagem anterior
+    // 8. MICROINTERAÇÃO DE UX (Scroll Suave e Destaque Visual)
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            const masterWrapper = document.getElementById(`timeline-wrapper-${cardMestre.uuid || parentIndex}`);
+            if (!masterWrapper) return;
 
-    const masterWrapper = document.getElementById(`timeline-wrapper-${cardMestre.uuid || parentIndex}`);
-    const scrollContainer = document.getElementById('history-container');
-    if (!masterWrapper || !scrollContainer) return;
-
-    // Endereçamento determinístico pelo uuid do nó novo (fallback posicional seguro p/ pilhas)
-    const subNodes = masterWrapper.querySelectorAll('.sub-annotations-wrapper .sub-annotation-item');
-    const targetNode =
-        masterWrapper.querySelector(`.sub-annotation-item[data-uuid="${novoNoComando.uuid}"]`) ||
-        (subNodes.length ? subNodes[subNodes.length - 1] : null);
-    if (!targetNode) return;
-
-    aguardarEstabilizacaoLayout(targetNode).then(() => {
-        if (_citacaoScrollCtrl !== ctrl) return; // Clique mais recente assumiu o controle
-
-        _ligarAnchorOff(scrollContainer);
-
-        const containerRect = scrollContainer.getBoundingClientRect();
-        const targetRect = targetNode.getBoundingClientRect();
-        const offset = (targetRect.top - containerRect.top) + scrollContainer.scrollTop - 20;
-        const reduzMovimento = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-        scrollContainer.scrollTo({ top: offset, behavior: reduzMovimento ? 'auto' : 'smooth' });
-
-        const innerCard = targetNode.querySelector('.sub-annotation-card');
-        if (innerCard) {
-            innerCard.classList.remove('card-flash-focus');
-            void innerCard.offsetWidth; // Reflow isolado e intencional (reinicia a animação)
-            innerCard.classList.add('card-flash-focus');
-        }
-
-        _desligarAnchorOff(scrollContainer);
+            // Busca o último sub-nó adicionado a este master
+            const subNodes = masterWrapper.querySelectorAll('.sub-annotations-wrapper .sub-annotation-item');
+            if (subNodes.length === 0) return;
+            const targetNode = subNodes[subNodes.length - 1];
+            
+            const scrollContainer = document.getElementById('history-container');
+            if (targetNode && scrollContainer) {
+                // Cálculo matemático seguro para scroll relativo
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const targetRect = targetNode.getBoundingClientRect();
+                const offset = (targetRect.top - containerRect.top) + scrollContainer.scrollTop - 20;
+                
+                scrollContainer.scrollTo({ top: offset, behavior: 'smooth' });
+                
+                // Aplica a classe de flash visual
+                const innerCard = targetNode.querySelector('.sub-annotation-card');
+                if (innerCard) {
+                    innerCard.classList.remove('card-flash-focus');
+                    void innerCard.offsetWidth; // Força reflow
+                    innerCard.classList.add('card-flash-focus');
+                }
+            }
+        });
     });
 };
 
