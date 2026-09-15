@@ -1199,6 +1199,79 @@ function fecharTooltipRapido() {
     }
 }
 
+window.adicionarCitacaoExpressa = function(topicoId, parentIndex) {
+    const topico = topicos.find(t => t.id === topicoId);
+    if (!topico) return;
+
+    // 1. O alvo será sempre o Card Mestre, conforme definido pelo escopo
+    const cardMestre = topico.anotacoes[parentIndex];
+    
+    // 2. Extração segura dos metadados
+    const docNome = cardMestre.documento || cardMestre.polo || 'Documento';
+    const idInfo = cardMestre.pjeId || 'não informado';
+    const flInfo = cardMestre.pagina || 'não informada';
+    
+    // 3. SANITIZAÇÃO CRÍTICA (Evita Prompt Injection e quebra de Markdown)
+    // Limpamos ruidos do PDF, removemos quebras e substituimos " por '
+    let textoCru = cardMestre.conteudo || "";
+    if (window.JurisUtils && window.JurisUtils.limparTextoPDF) {
+        textoCru = window.JurisUtils.limparTextoPDF(textoCru);
+    }
+    textoCru = textoCru.replace(/\n/g, ' ').replace(/"/g, "'");
+
+    // 4. Engenharia de Prompt (Formatação imperativa, Markdown protegido)
+    const comandoLiteral = `Transcreva expressamente o trecho do documento **${docNome}** (Id. ${idInfo} - fl. ${flInfo}), inserindo a seguinte citação literal entre aspas e em itálico:\n\n*"${textoCru}"*`;
+
+    // 5. Criação do Objeto "Nó de Ideia" classificado como Comando
+    const novoNoComando = {
+        uuid: gerarUUIDSeguro(),
+        texto: comandoLiteral,
+        intencao: 'comando', 
+        revisada: false,
+        timestamp: Date.now()
+    };
+
+    // 6. Mutação de Estado
+    if (!cardMestre.subAnotacoes) cardMestre.subAnotacoes = [];
+    cardMestre.subAnotacoes.push(novoNoComando);
+
+    // 7. Commit e Re-renderização
+    renderizarTopicos();
+    if(window.salvarBackupAutomatico) salvarBackupAutomatico();
+    if(window.exibirToast) exibirToast('Citação expressa vinculada ao Card!', 'sucesso');
+
+    // 8. MICROINTERAÇÃO DE UX (Scroll Suave e Destaque Visual)
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            const masterWrapper = document.getElementById(`timeline-wrapper-${cardMestre.uuid || parentIndex}`);
+            if (!masterWrapper) return;
+
+            // Busca o último sub-nó adicionado a este master
+            const subNodes = masterWrapper.querySelectorAll('.sub-annotations-wrapper .sub-annotation-item');
+            if (subNodes.length === 0) return;
+            const targetNode = subNodes[subNodes.length - 1];
+            
+            const scrollContainer = document.getElementById('history-container');
+            if (targetNode && scrollContainer) {
+                // Cálculo matemático seguro para scroll relativo
+                const containerRect = scrollContainer.getBoundingClientRect();
+                const targetRect = targetNode.getBoundingClientRect();
+                const offset = (targetRect.top - containerRect.top) + scrollContainer.scrollTop - 20;
+                
+                scrollContainer.scrollTo({ top: offset, behavior: 'smooth' });
+                
+                // Aplica a classe de flash visual
+                const innerCard = targetNode.querySelector('.sub-annotation-card');
+                if (innerCard) {
+                    innerCard.classList.remove('card-flash-focus');
+                    void innerCard.offsetWidth; // Força reflow
+                    innerCard.classList.add('card-flash-focus');
+                }
+            }
+        });
+    });
+};
+
 // NOVO: Função Global e Segura de Cópia da Degravação
 window.copiarDegravacao = function(topicoId, uuidCard) {
     const topico = topicos.find(t => t.id === topicoId);
