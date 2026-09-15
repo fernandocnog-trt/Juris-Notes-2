@@ -14,7 +14,6 @@
     contain: layout paint; 
     transform: translateZ(0); 
 }
-
 /* NOVO: âncora nativa desativada SOMENTE enquanto o JS conduz o scroll.
    Nota: Safari ignora overflow-anchor (sem suporte) — inofensivo, pois a
    estabilização determinística do JS (Fase 2) cobre esse navegador. */
