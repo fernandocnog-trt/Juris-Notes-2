@@ -688,14 +688,11 @@ window.TopicsManager = (function () {
 
             const paramMove = isCorrelacionado ? `'${activeTabId}', ${index}, ${cIdx}` : `'${activeTabId}', ${index}, null`;
             
-            // [NOVO] Renderiza o botão EXCLUSIVAMENTE para Cards Mestres (não correlacionados) do tipo Texto.
-            const btnCitacaoExpressa = (!isCorrelacionado && tipoDoItem === 'texto') 
-                ? `<button class="btn-citacao-expressa" title="Adicionar Citação Expressa" onclick="window.adicionarCitacaoExpressa('${activeTabId}', ${index})">
-                    <svg viewBox="0 0 24 24" fill="#c62828" stroke="#ffffff" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"></circle>
-                        <line x1="12" y1="8" x2="12" y2="16"></line>
-                        <line x1="8" y1="12" x2="16" y2="12"></line>
-                    </svg>
+            const paramCitacao = isCorrelacionado && cIdx != null ? `'${activeTabId}', ${index}, ${cIdx}` : `'${activeTabId}', ${index}, null`;
+            
+            const btnCitacaoExpressa = (tipoDoItem === 'texto') 
+                ? `<button class="btn-citacao-expressa" title="Adicionar Citação Expressa" onclick="window.adicionarCitacaoExpressa(${paramCitacao})">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                    </button>` 
                 : '';
             

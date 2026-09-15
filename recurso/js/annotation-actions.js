@@ -1199,27 +1199,29 @@ function fecharTooltipRapido() {
     }
 }
 
-window.adicionarCitacaoExpressa = function(topicoId, parentIndex) {
+window.adicionarCitacaoExpressa = function(topicoId, parentIndex, cIdx) {
     const topico = topicos.find(t => t.id === topicoId);
     if (!topico) return;
 
-    // 1. O alvo será sempre o Card Mestre, conforme definido pelo escopo
+    // 1. Resolve o Alvo: Card Mestre ou Item Correlacionado
     const cardMestre = topico.anotacoes[parentIndex];
+    const alvo = (cIdx !== null && cIdx !== undefined) 
+        ? cardMestre.itensCorrelacionados[cIdx] 
+        : cardMestre;
     
-    // 2. Extração segura dos metadados
-    const docNome = cardMestre.documento || cardMestre.polo || 'Documento';
-    const idInfo = cardMestre.pjeId || 'não informado';
-    const flInfo = cardMestre.pagina || 'não informada';
+    // 2. Extração segura dos metadados do alvo correto
+    const docNome = alvo.documento || alvo.polo || 'Documento';
+    const idInfo = alvo.pjeId || 'não informado';
+    const flInfo = alvo.pagina || 'não informada';
     
     // 3. SANITIZAÇÃO CRÍTICA (Evita Prompt Injection e quebra de Markdown)
-    // Limpamos ruidos do PDF, removemos quebras e substituimos " por '
-    let textoCru = cardMestre.conteudo || "";
+    let textoCru = alvo.conteudo || "";
     if (window.JurisUtils && window.JurisUtils.limparTextoPDF) {
         textoCru = window.JurisUtils.limparTextoPDF(textoCru);
     }
     textoCru = textoCru.replace(/\n/g, ' ').replace(/"/g, "'");
 
-    // 4. Engenharia de Prompt (Formatação imperativa, Markdown protegido)
+    // 4. Engenharia de Prompt
     const comandoLiteral = `Transcreva expressamente o trecho do documento **${docNome}** (Id. ${idInfo} - fl. ${flInfo}), inserindo a seguinte citação literal entre aspas e em itálico:\n\n*"${textoCru}"*`;
 
     // 5. Criação do Objeto "Nó de Ideia" classificado como Comando
@@ -1231,9 +1233,9 @@ window.adicionarCitacaoExpressa = function(topicoId, parentIndex) {
         timestamp: Date.now()
     };
 
-    // 6. Mutação de Estado
-    if (!cardMestre.subAnotacoes) cardMestre.subAnotacoes = [];
-    cardMestre.subAnotacoes.push(novoNoComando);
+    // 6. Mutação de Estado (Sempre ancorado ao alvo específico extraído)
+    if (!alvo.subAnotacoes) alvo.subAnotacoes = [];
+    alvo.subAnotacoes.push(novoNoComando);
 
     // 7. Commit e Re-renderização
     renderizarTopicos();
