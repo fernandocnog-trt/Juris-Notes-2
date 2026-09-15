@@ -7,6 +7,7 @@
 let _menuAnotacaoCtx = null;
 let _menuSubAnotacaoCtx = null;
 let _editContext = null;
+let _scrollMicrointeracaoAtiva = null;
 
 function gerarUUIDSeguro() {
     if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
@@ -1203,75 +1204,110 @@ window.adicionarCitacaoExpressa = function(topicoId, parentIndex, cIdx) {
     const topico = topicos.find(t => t.id === topicoId);
     if (!topico) return;
 
-    // 1. Resolve o Alvo: Card Mestre ou Item Correlacionado
     const cardMestre = topico.anotacoes[parentIndex];
     const alvo = (cIdx !== null && cIdx !== undefined) 
         ? cardMestre.itensCorrelacionados[cIdx] 
         : cardMestre;
     
-    // 2. Extração segura dos metadados do alvo correto
     const docNome = alvo.documento || alvo.polo || 'Documento';
     const idInfo = alvo.pjeId || 'não informado';
     const flInfo = alvo.pagina || 'não informada';
     
-    // 3. SANITIZAÇÃO CRÍTICA (Evita Prompt Injection e quebra de Markdown)
     let textoCru = alvo.conteudo || "";
     if (window.JurisUtils && window.JurisUtils.limparTextoPDF) {
         textoCru = window.JurisUtils.limparTextoPDF(textoCru);
     }
     textoCru = textoCru.replace(/\n/g, ' ').replace(/"/g, "'");
 
-    // 4. Engenharia de Prompt
     const comandoLiteral = `Transcreva expressamente o trecho do documento **${docNome}** (Id. ${idInfo} - fl. ${flInfo}), inserindo a seguinte citação literal entre aspas e em itálico:\n\n*"${textoCru}"*`;
 
-    // 5. Criação do Objeto "Nó de Ideia" classificado como Comando
     const novoNoComando = {
-        uuid: gerarUUIDSeguro(),
+        uuid: gerarUUIDSeguro(), // UUID gerado usado para âncora
         texto: comandoLiteral,
         intencao: 'comando', 
         revisada: false,
         timestamp: Date.now()
     };
 
-    // 6. Mutação de Estado (Sempre ancorado ao alvo específico extraído)
     if (!alvo.subAnotacoes) alvo.subAnotacoes = [];
     alvo.subAnotacoes.push(novoNoComando);
 
-    // 7. Commit e Re-renderização
     renderizarTopicos();
     if(window.salvarBackupAutomatico) salvarBackupAutomatico();
     if(window.exibirToast) exibirToast('Citação expressa vinculada ao Card!', 'sucesso');
 
-    // 8. MICROINTERAÇÃO DE UX (Scroll Suave e Destaque Visual)
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            const masterWrapper = document.getElementById(`timeline-wrapper-${cardMestre.uuid || parentIndex}`);
-            if (!masterWrapper) return;
+    // MICROINTERAÇÃO DE UX COM ESTABILIZAÇÃO DE LAYOUT (ANTI-THRASHING)
+    
+    // 1. Guard contra Race Condition (Duplo clique)
+    if (_scrollMicrointeracaoAtiva) {
+        cancelAnimationFrame(_scrollMicrointeracaoAtiva);
+    }
 
-            // Busca o último sub-nó adicionado a este master
-            const subNodes = masterWrapper.querySelectorAll('.sub-annotations-wrapper .sub-annotation-item');
-            if (subNodes.length === 0) return;
-            const targetNode = subNodes[subNodes.length - 1];
+    const scrollContainer = document.getElementById('history-container');
+    if (!scrollContainer) return;
+
+    let framesEstaveis = 0;
+    let lastTop = -1;
+    let frameCount = 0;
+
+    // 2. Desliga a âncora nativa temporariamente para evitar conflitos
+    scrollContainer.classList.add('scroll-anchor-off');
+
+    function checkLayoutStabilization() {
+        frameCount++;
+        // Busca via O(1) rastreável pelo UUID, independente se virou Pilha ou trocou de ordem
+        const targetNode = document.querySelector(`[data-uuid="${novoNoComando.uuid}"]`);
+        
+        if (targetNode) {
+            const currentTop = targetNode.getBoundingClientRect().top;
             
-            const scrollContainer = document.getElementById('history-container');
-            if (targetNode && scrollContainer) {
-                // Cálculo matemático seguro para scroll relativo
+            if (currentTop === lastTop) {
+                framesEstaveis++;
+            } else {
+                framesEstaveis = 0;
+                lastTop = currentTop;
+            }
+
+            // O Layout estabilizou (2 frames imóveis) ou atingiu limite de fallback (~30 frames)
+            if (framesEstaveis >= 2 || frameCount > 30) {
                 const containerRect = scrollContainer.getBoundingClientRect();
                 const targetRect = targetNode.getBoundingClientRect();
+                
                 const offset = (targetRect.top - containerRect.top) + scrollContainer.scrollTop - 20;
                 
-                scrollContainer.scrollTo({ top: offset, behavior: 'smooth' });
+                // Suporte à Acessibilidade (Redução de Movimento)
+                const motionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+                const scrollBehavior = motionQuery.matches ? 'auto' : 'smooth';
                 
-                // Aplica a classe de flash visual
+                scrollContainer.scrollTo({ top: offset, behavior: scrollBehavior });
+                
                 const innerCard = targetNode.querySelector('.sub-annotation-card');
                 if (innerCard) {
                     innerCard.classList.remove('card-flash-focus');
-                    void innerCard.offsetWidth; // Força reflow
+                    void innerCard.offsetWidth; // Reflow isolado seguro
                     innerCard.classList.add('card-flash-focus');
                 }
+
+                // Devolve a âncora nativa após a animação (aprox 600ms)
+                setTimeout(() => {
+                    scrollContainer.classList.remove('scroll-anchor-off');
+                }, 600);
+                
+                _scrollMicrointeracaoAtiva = null;
+                return; // Encerra o loop
             }
-        });
-    });
+        } else if (frameCount > 30) {
+            // Node não encontrado (ex: deletado no meio do processo)
+            scrollContainer.classList.remove('scroll-anchor-off');
+            _scrollMicrointeracaoAtiva = null;
+            return;
+        }
+
+        // Continua monitorando no próximo frame
+        _scrollMicrointeracaoAtiva = requestAnimationFrame(checkLayoutStabilization);
+    }
+
+    _scrollMicrointeracaoAtiva = requestAnimationFrame(checkLayoutStabilization);
 };
 
 // NOVO: Função Global e Segura de Cópia da Degravação

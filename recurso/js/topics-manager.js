@@ -761,7 +761,7 @@ window.TopicsManager = (function () {
                     const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : `sub-annotation-item`;
         
                     subCardsHTMLArray.push(`
-                        <div class="${itemWrapperClass}" data-source="${sub.viewSource}">
+                        <div class="${itemWrapperClass}" data-source="${sub.viewSource}" data-uuid="${sub.uuid}">
                             <div class="sub-annotation-card ${bordaFaseClass}">
                                 <div class="sub-badge has-intent intencao-${intencao}" title="Opções" onclick="abrirMenuSubAnotacao('${activeTabId}', ${index}, '${sub.viewSource}', ${sub.localIndex}, event)">
                                     ${iconSVG} ${numero}.${gerarLetra(sIdx)}
@@ -1070,7 +1070,7 @@ window.TopicsManager = (function () {
                 const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : 'sub-annotation-item';
 
                 subCardsHTMLArray.push(`
-                <div class="${itemWrapperClass}" data-source="${teseViewSource}">
+                <div class="${itemWrapperClass}" data-source="${teseViewSource}" data-uuid="${dRender.uuid}">
                     <div class="sub-annotation-card" style="border-left: 5px solid ${corTema}; border-color: ${rgbaTeseBorda};">
                         <div class="sub-badge has-intent intencao-${intencao}" title="Opções" onclick="abrirMenuSubAnotacao('${tabId}', null, '${teseViewSource.replace(/'/g, "\\'")}', ${sIdx}, event)">
                              ${iconSVG} T.${sIdx + 1}
@@ -1355,7 +1355,7 @@ window.TopicsManager = (function () {
                         const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : 'sub-annotation-item';
                         
                         globaisArray.push(`
-                        <div class="${itemWrapperClass}" data-source="global">
+                        <div class="${itemWrapperClass}" data-source="global" data-uuid="${dRender.uuid}">
                             <div class="sub-annotation-card borda-global">
                                 <div class="sub-badge has-intent intencao-${intencao}" onclick="abrirMenuSubAnotacao('${activeTabId}', null, 'global', ${sIdx}, event)">${iconSVG} G.${sIdx + 1}</div>
                                 <div class="sub-text-content" data-raw-text="${escaparHTML(dRender.texto)}" data-raw-title="Diretriz Global" ondblclick="TopicsManager.abrirModoLeitura(this)">${renderizarMarkdownSeguro(escaparHTML(dRender.texto))}</div>

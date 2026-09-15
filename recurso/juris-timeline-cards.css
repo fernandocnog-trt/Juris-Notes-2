@@ -1706,3 +1706,10 @@ BOTÃO DE PLAY DO CARD DE ÁUDIO — REFINAMENTO
     margin-bottom: 6px;
     text-transform: uppercase;
 }
+
+/* ================================================
+   UTILITÁRIOS E PREVENÇÃO DE LAYOUT THRASHING
+   ================================================ */
+.scroll-anchor-off {
+    overflow-anchor: none !important;
+}
