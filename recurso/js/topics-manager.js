@@ -1355,7 +1355,7 @@ window.TopicsManager = (function () {
                         const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : 'sub-annotation-item';
                         
                         globaisArray.push(`
-                        <div class="${itemWrapperClass}" data-source="global">
+                        <div class="${itemWrapperClass}" data-source="global" data-uuid="${dRender.uuid || ''}">
                             <div class="sub-annotation-card borda-global">
                                 <div class="sub-badge has-intent intencao-${intencao}" onclick="abrirMenuSubAnotacao('${activeTabId}', null, 'global', ${sIdx}, event)">${iconSVG} G.${sIdx + 1}</div>
                                 <div class="sub-text-content" data-raw-text="${escaparHTML(dRender.texto)}" data-raw-title="Diretriz Global" ondblclick="TopicsManager.abrirModoLeitura(this)">${renderizarMarkdownSeguro(escaparHTML(dRender.texto))}</div>
@@ -1454,8 +1454,6 @@ window.TopicsManager = (function () {
                 posicionarNosDeIdeia(container);
                 requestAnimationFrame(() => {
                     desenharConexoes();
-                    document.getElementById('history-container')
-                        ?.dispatchEvent(new CustomEvent('juris:layout-settled', { bubbles: false }));
                 });
             }
             
