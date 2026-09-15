@@ -761,7 +761,7 @@ window.TopicsManager = (function () {
                     const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : `sub-annotation-item`;
         
                     subCardsHTMLArray.push(`
-                        <div class="${itemWrapperClass}" data-source="${sub.viewSource}">
+                        <div class="${itemWrapperClass}" data-source="${sub.viewSource}" data-uuid="${sub.uuid || ''}">
                             <div class="sub-annotation-card ${bordaFaseClass}">
                                 <div class="sub-badge has-intent intencao-${intencao}" title="Opções" onclick="abrirMenuSubAnotacao('${activeTabId}', ${index}, '${sub.viewSource}', ${sub.localIndex}, event)">
                                     ${iconSVG} ${numero}.${gerarLetra(sIdx)}
@@ -1070,7 +1070,7 @@ window.TopicsManager = (function () {
                 const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : 'sub-annotation-item';
 
                 subCardsHTMLArray.push(`
-                <div class="${itemWrapperClass}" data-source="${teseViewSource}">
+                <div class="${itemWrapperClass}" data-source="${teseViewSource}" data-uuid="${dRender.uuid || ''}">
                     <div class="sub-annotation-card" style="border-left: 5px solid ${corTema}; border-color: ${rgbaTeseBorda};">
                         <div class="sub-badge has-intent intencao-${intencao}" title="Opções" onclick="abrirMenuSubAnotacao('${tabId}', null, '${teseViewSource.replace(/'/g, "\\'")}', ${sIdx}, event)">
                              ${iconSVG} T.${sIdx + 1}
@@ -1454,6 +1454,8 @@ window.TopicsManager = (function () {
                 posicionarNosDeIdeia(container);
                 requestAnimationFrame(() => {
                     desenharConexoes();
+                    document.getElementById('history-container')
+                        ?.dispatchEvent(new CustomEvent('juris:layout-settled', { bubbles: false }));
                 });
             }
             

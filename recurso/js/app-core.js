@@ -1445,19 +1445,26 @@ window.navegarParaAnotacao = function(topicoId, anotacaoIndex) {
                 return;
             }
 
-            if (scrollContainer) {
-                const containerRect = scrollContainer.getBoundingClientRect();
-                const targetRect = targetElement.getBoundingClientRect();
-                const offset = (targetRect.top - containerRect.top) + scrollContainer.scrollTop - 16;
-                
-                scrollContainer.scrollTo({ top: offset, behavior: 'smooth' });
+            if (scrollContainer && typeof window.aguardarEstabilizacaoLayout === 'function') {
+                scrollContainer.classList.add('scroll-anchor-off');
+                window.aguardarEstabilizacaoLayout(targetElement).then(() => {
+                    const containerRect = scrollContainer.getBoundingClientRect();
+                    const targetRect = targetElement.getBoundingClientRect();
+                    const offset = (targetRect.top - containerRect.top) + scrollContainer.scrollTop - 16;
+                    
+                    const reduz = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+                    scrollContainer.scrollTo({ top: offset, behavior: reduz ? 'auto' : 'smooth' });
+                    
+                    const card = targetElement.querySelector('.main-card-wrapper > .annotation-card');
+                    if (card) {
+                        card.classList.remove('card-flash-focus');
+                        void card.offsetWidth; 
+                        card.classList.add('card-flash-focus');
+                    }
 
-                const card = targetElement.querySelector('.main-card-wrapper > .annotation-card');
-                if (card) {
-                    card.classList.remove('card-flash-focus');
-                    void card.offsetWidth; 
-                    card.classList.add('card-flash-focus');
-                }
+                    clearTimeout(window._anchorOffTimerAppCore);
+                    window._anchorOffTimerAppCore = setTimeout(() => scrollContainer.classList.remove('scroll-anchor-off'), 600);
+                });
             }
         });
     });
