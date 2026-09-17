@@ -144,5 +144,102 @@ window.DebugTelemetry = (function () {
         document.addEventListener('DOMContentLoaded', () => setTimeout(cssProbe, 1500));
     }
 
-    return { mark, snapshot, toggle, selfTest, cssProbe, isEnabled: () => enabled };
+    /* --- EXTENSÃO: TELEMETRIA DE LAYOUT CAUSAL (COM HEURÍSTICA H1-H4) --- */
+    const LayoutTracker = (function() {
+        if (!enabled) return { noteDelivery:()=>{}, observeWithSeed:(el,ro)=>ro.observe(el), beginPass:()=>{}, endPass:()=>{}, mark:()=>{}, dump:()=>{}, incMutation:()=>{} };
+
+        const ring = [];
+        const heightCache = new WeakMap();
+        let currentPass = null;
+
+        // Helper para medir a barra de rolagem (Scrollbar Gutter)
+        function getGutter() {
+            const hc = document.getElementById('history-container');
+            return hc ? hc.offsetWidth - hc.clientWidth : 0;
+        }
+
+        function beginPass(label) {
+            currentPass = { type: 'pass', label, start: performance.now(), mutations: 0, gutterStart: getGutter() };
+        }
+
+        function endPass() {
+            if (currentPass) {
+                currentPass.end = performance.now();
+                currentPass.gutterEnd = getGutter();
+                ring.push(currentPass);
+                if (ring.length > 500) ring.shift();
+            }
+            currentPass = null;
+        }
+
+        function mark(label, details = {}) {
+            ring.push({ type: 'mark', label, t: performance.now(), gutter: getGutter(), ...details });
+            if (ring.length > 500) ring.shift();
+        }
+
+        function noteDelivery(entries, isGuardActive) {
+            const now = performance.now();
+            const currentGutter = getGutter();
+            const deliveryLog = { type: 'delivery', t: now, suprimido: isGuardActive, gutter: currentGutter, deltas: [] };
+
+            for (const entry of entries) {
+                if (!entry.target) continue;
+                const newHeight = Math.round(entry.contentRect.height);
+                const cacheData = heightCache.get(entry.target);
+                
+                if (!cacheData) continue;
+
+                // Ignora First-Seen (Seed)
+                if (!cacheData.isFirstSeen && Math.abs(newHeight - cacheData.h) >= 2) {
+                    deliveryLog.deltas.push({ el: entry.target.className || entry.target.tagName, delta: newHeight - cacheData.h });
+                }
+                
+                heightCache.set(entry.target, { h: newHeight, isFirstSeen: false });
+            }
+
+            if (deliveryLog.deltas.length > 0 || isGuardActive) {
+                ring.push(deliveryLog);
+                if (ring.length > 500) ring.shift();
+            }
+        }
+
+        function observeWithSeed(el, ro) {
+            if (!el) return;
+            heightCache.set(el, { h: Math.round(el.getBoundingClientRect().height), isFirstSeen: true });
+            ro.observe(el);
+        }
+
+        function incMutation() { if (currentPass) currentPass.mutations++; }
+
+        // O Analisador de Assinaturas (Executado quando o Dev solicita o Dump)
+        function dump() {
+            console.table(ring);
+            console.info("🔍 Analisando assinaturas de Layout Thrashing...");
+            
+            let flipsGutter = 0;
+            let instantScrolls = 0;
+            let deltasTexto = 0;
+
+            ring.forEach((item, i) => {
+                const prev = ring[i - 1];
+                if (prev && item.gutter !== undefined && prev.gutter !== undefined && item.gutter !== prev.gutter) flipsGutter++;
+                if (item.type === 'mark' && item.details?.behavior === 'instant' && (item.details?.diff > 4 || item.details?.diff === undefined)) instantScrolls++;
+                if (item.type === 'delivery' && item.deltas.length > 0) deltasTexto++;
+            });
+
+            if (flipsGutter > 2 && deltasTexto > 2) {
+                console.error("🚨 DIAGNÓSTICO: Hipótese 2 Confirmada -> Ciclo mediado por Scrollbar (Gutter Flips). A barra de rolagem está aparecendo/sumindo e forçando quebra de textos.");
+            } else if (instantScrolls > 5 && deltasTexto === 0) {
+                console.warn("⚠️ DIAGNÓSTICO: Hipótese 3 Confirmada -> Conflito de Scroll (Tug-of-war). O ResizeObserver é INOCENTE. O tremor é causado pela orquestração do scroll no JS.");
+            } else if (deltasTexto > 5 && flipsGutter === 0) {
+                console.error("🚨 DIAGNÓSTICO: Hipótese 1 Confirmada -> Loop Geométrico Puro. O cálculo de top/minHeight está se retroalimentando sem envolver a barra de rolagem.");
+            } else {
+                console.log("✅ Nenhum padrão claro de Thrashing contínuo detectado na janela atual.");
+            }
+        }
+
+        return { noteDelivery, observeWithSeed, beginPass, endPass, mark, incMutation, dump };
+    })();
+
+    return { mark, snapshot, toggle, selfTest, cssProbe, LayoutTracker, isEnabled: () => enabled };
 })();

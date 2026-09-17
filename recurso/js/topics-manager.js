@@ -44,6 +44,10 @@ window.TopicsManager = (function () {
     function restaurarScroll() {
         const historyContainer = document.getElementById('history-container');
         
+        if (window.DebugTelemetry?.LayoutTracker) {
+            window.DebugTelemetry.LayoutTracker.mark('scroll-restore', { yOffset: _scrollGuard.yOffset, behavior: _scrollGuard.suprimido ? 'smooth-zero' : 'instant' });
+        }
+
         if (_scrollGuard.suprimido) {
             if (historyContainer) historyContainer.scrollTo({ top: 0, behavior: 'smooth' });
             _scrollGuard.suprimido = false;
@@ -69,6 +73,9 @@ window.TopicsManager = (function () {
         if (!historyContainer || !_scrollGuard.podeRestaurar) return;
         
         if (Math.abs(historyContainer.scrollTop - _scrollGuard.yOffset) > 4) {
+            if (window.DebugTelemetry?.LayoutTracker) {
+                window.DebugTelemetry.LayoutTracker.mark('scroll-reassert', { diff: Math.abs(historyContainer.scrollTop - _scrollGuard.yOffset), behavior: 'instant' });
+            }
             historyContainer.scrollTo({ top: _scrollGuard.yOffset, behavior: 'instant' });
         }
         _scrollGuard.podeRestaurar = false;
@@ -143,6 +150,8 @@ window.TopicsManager = (function () {
     const _lastHeights = new Map(); 
 
     const resizeObserver = new ResizeObserver((entries) => {
+        if (window.DebugTelemetry?.LayoutTracker) window.DebugTelemetry.LayoutTracker.noteDelivery(entries, _isUpdatingLayout);
+
         if (_isUpdatingLayout) return;
         let needsRedraw = false;
 
@@ -169,14 +178,26 @@ window.TopicsManager = (function () {
                 requestAnimationFrame(() => {
                     const container = document.getElementById('timeline-container');
                     if (container && container.offsetParent !== null) {
+                        if (window.DebugTelemetry?.LayoutTracker) window.DebugTelemetry.LayoutTracker.beginPass('layout-sync');
+                        
                         posicionarNosDeIdeia(container);
                         desenharConexoes();
+                        
+                        if (window.DebugTelemetry?.LayoutTracker) window.DebugTelemetry.LayoutTracker.endPass();
                     }
                     setTimeout(() => { _isUpdatingLayout = false; }, 50);
                 });
             }, 32); 
         }
     });
+
+    function anexarAoObserverComSeguranca(el) {
+        if (window.DebugTelemetry?.LayoutTracker) {
+            window.DebugTelemetry.LayoutTracker.observeWithSeed(el, resizeObserver);
+        } else {
+            resizeObserver.observe(el);
+        }
+    }
 
     // Funções Privadas do Modo de Leitura Centralizado
     let _textoLeituraAtualMarkdown = "";
@@ -1492,7 +1513,7 @@ window.TopicsManager = (function () {
             
         requestAnimationFrame(() => {
             document.querySelectorAll('.sub-text-content, .card-texto').forEach(el => {
-                if (typeof resizeObserver !== 'undefined') resizeObserver.observe(el);
+                if (typeof resizeObserver !== 'undefined') anexarAoObserverComSeguranca(el);
                 
                 if (el.scrollHeight > el.clientHeight) {
                     el.classList.add('is-truncated');
@@ -1506,9 +1527,9 @@ window.TopicsManager = (function () {
             });
 
             const historyContainer = document.getElementById('history-container');
-            if (historyContainer && typeof resizeObserver !== 'undefined') resizeObserver.observe(historyContainer);
+            if (historyContainer && typeof resizeObserver !== 'undefined') anexarAoObserverComSeguranca(historyContainer);
             
-            if (headerEl && typeof resizeObserver !== 'undefined') resizeObserver.observe(headerEl);
+            if (headerEl && typeof resizeObserver !== 'undefined') anexarAoObserverComSeguranca(headerEl);
 
             document.querySelectorAll('.image-resize-wrapper').forEach(wrapper => {
                 wrapper.addEventListener('mouseup', () => desenharConexoes());
@@ -1586,6 +1607,7 @@ window.TopicsManager = (function () {
             });
 
             subWrapper.style.minHeight = currentY + 'px';
+            if (window.DebugTelemetry?.LayoutTracker) window.DebugTelemetry.LayoutTracker.incMutation();
         });
     }
 
