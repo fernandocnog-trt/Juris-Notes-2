@@ -13,7 +13,6 @@
     display: none; 
     contain: layout paint; 
     transform: translateZ(0); 
-    scrollbar-gutter: stable; /* largura constante com/sem scrollbar: mata a oscilação de re-wrap de texto */
 }
 .topics-tab-bar { 
     display: flex; 
