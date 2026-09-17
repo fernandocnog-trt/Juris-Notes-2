@@ -1560,48 +1560,67 @@ window.TopicsManager = (function () {
     }
 
     /**
-     * Motor Geométrico: Mede a última linha e preenche o espaço restante com abas inativas.
-     * Evita Layout Thrashing através de leitura em massa (Passe A) seguida de mutação (Passe B)
+     * Motor Geométrico Otimizado (Batching Global de Leitura e Escrita)
+     * Elimina 100% do Layout Thrashing (Forced Synchronous Layout) isolando o Paint do Recalculate Style
      */
     function posicionarNosDeIdeia(container) {
-        const masterItems = container.querySelectorAll('.timeline-item-master');
-        
-        masterItems.forEach(master => {
+        const masterItems = Array.from(container.querySelectorAll('.timeline-item-master'));
+
+        // ==========================================
+        // PASSE A: APENAS LEITURAS (READS)
+        // O navegador calcula isso instantaneamente sem reflows
+        // ==========================================
+        const allMeasurements = masterItems.map(master => {
             const mainCard = master.querySelector('.main-card-wrapper > .annotation-card');
             const subWrapper = master.querySelector('.sub-annotations-wrapper');
-            const subItems = master.querySelectorAll('.sub-annotation-item');
+            const subItems = Array.from(master.querySelectorAll('.sub-annotation-item'));
 
-            if (!mainCard || subItems.length === 0 || !subWrapper) return;
+            if (!mainCard || subItems.length === 0 || !subWrapper) return null;
 
             const wrapperRect = subWrapper.getBoundingClientRect();
-            
-            // Passe A: Leituras (Evita Layout Thrashing)
-            const measurements = Array.from(subItems).map(subItem => {
+
+            const itemMeasurements = subItems.map(subItem => {
                 const sourceRef = subItem.dataset.source;
                 let sourceCard = mainCard;
+                
                 if (sourceRef !== 'main') {
                     const correlatedWrapper = master.querySelector(`.correlated-item-wrapper[data-cidx="${sourceRef}"]`);
                     if (correlatedWrapper) sourceCard = correlatedWrapper.querySelector('.annotation-card');
                 }
-                
-                // TRAVA DE SEGURANÇA: Previne o bug de sobreposição ao trocar abas no navegador
+
+                // Proteção contra aba invisível
                 if (sourceCard.offsetHeight === 0) return null;
+
+                const sourceRect = sourceCard.getBoundingClientRect();
 
                 return {
                     el: subItem,
-                    sourceCenterY: (sourceCard.getBoundingClientRect().top - wrapperRect.top) + (sourceCard.getBoundingClientRect().height / 2),
+                    sourceCenterY: (sourceRect.top - wrapperRect.top) + (sourceRect.height / 2),
                     height: subItem.offsetHeight
                 };
-            }).filter(m => m !== null); // Remove os itens inválidos da contagem
+            }).filter(m => m !== null);
 
-            if (measurements.length === 0) return; // Aborta mutação em views ocultas
+            return {
+                subWrapper,
+                itemMeasurements
+            };
+        }).filter(m => m !== null);
 
-            // Passe B: Mutações
+        // Se não há nada para medir, encerra silenciosamente
+        if (allMeasurements.length === 0) return;
+
+        // ==========================================
+        // PASSE B: APENAS ESCRITAS (WRITES)
+        // Aplica tudo na tela em um único frame
+        // ==========================================
+        allMeasurements.forEach(data => {
             let currentY = 0;
-            measurements.forEach(m => {
+            
+            data.itemMeasurements.forEach(m => {
                 let desiredTop = m.sourceCenterY - (m.height / 2);
                 if (desiredTop < currentY) desiredTop = currentY;
                 
+                // Mutações visuais
                 m.el.style.position = 'absolute';
                 m.el.style.top = desiredTop + 'px';
                 m.el.style.width = '100%';
@@ -1609,7 +1628,9 @@ window.TopicsManager = (function () {
                 currentY = desiredTop + m.height + 16;
             });
 
-            subWrapper.style.minHeight = currentY + 'px';
+            // Garantia estrutural (evita que elementos voem pela página)
+            data.subWrapper.style.position = 'relative';
+            data.subWrapper.style.minHeight = currentY + 'px';
             if (window.DebugTelemetry?.LayoutTracker) window.DebugTelemetry.LayoutTracker.incMutation();
         });
     }
