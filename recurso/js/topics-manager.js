@@ -1211,7 +1211,7 @@ window.TopicsManager = (function () {
     // Função _ajustarAbasFantasmas() removida - Substituída por arquitetura de Scroll Horizontal
 
     /**
-     * Re-renderiza o fichário inteiro.
+     * Re-renderiza o fichário inteiro (Com Transição Assíncrona e Máscara de Carregamento)
      */
     function renderizarFichario(topicosArray) {
         capturarScroll();
@@ -1221,117 +1221,314 @@ window.TopicsManager = (function () {
 
         if (!headerEl || !contentEl) return;
 
-        if (topicosArray.length === 0) {
+        // 1. INJETA E MOSTRA O SPINNER DE CARREGAMENTO IMEDIATAMENTE
+        let loadingOverlay = document.getElementById('juris-global-spinner');
+        if (!loadingOverlay) {
+            loadingOverlay = document.createElement('div');
+            loadingOverlay.id = 'juris-global-spinner';
+            loadingOverlay.className = 'juris-loading-overlay';
+            loadingOverlay.innerHTML = `
+                <div class="juris-spinner"></div>
+                <div class="juris-loading-text">Organizando Mapa Mental...</div>
+            `;
+            // Coloca o spinner sobre a área de conteúdo
+            contentEl.parentElement.appendChild(loadingOverlay);
+        }
+        loadingOverlay.classList.add('is-active');
+
+        // ==========================================
+        // 2. PAUSA ESTRATÉGICA (Yield to Main Thread)
+        // Dá tempo para o navegador pintar o Spinner na tela ANTES de travar o processador
+        // ==========================================
+        setTimeout(() => {
+            if (topicosArray.length === 0) {
+                headerEl.innerHTML = '';
+                contentEl.innerHTML = `
+                    <p class="empty-state">
+                        Nenhum tópico criado.<br>
+                        Use o botão <strong>+</strong> na barra lateral para criar um Tópico Recursal.
+                    </p>`;
+                contentEl.style.borderTop       = 'none';
+                contentEl.style.backgroundColor = 'transparent';
+                loadingOverlay.classList.remove('is-active');
+                restaurarScroll();
+                return;
+            }
+
+            contentEl.style.borderTop = '';
+            contentEl.style.backgroundColor = '';
+
+            if (!activeTabId || !topicosArray.some(t => t.id === activeTabId)) {
+                activeTabId = topicosArray[0].id;
+            }
+
+            const scrollAnterior = headerEl.scrollLeft;
+            let abaAtivaNode = null;
+
             headerEl.innerHTML = '';
-            contentEl.innerHTML = `
-                <p class="empty-state">
-                    Nenhum tópico criado.<br>
-                    Use o botão <strong>+</strong> na barra lateral para criar um Tópico Recursal.
-                </p>`;
-            contentEl.style.borderTop       = 'none';
-            contentEl.style.backgroundColor = 'transparent';
-            restaurarScroll();
-            return;
-        }
+            [...topicosArray].reverse().forEach(topico => {
+                const isActive = topico.id === activeTabId;
+                const btn      = document.createElement('div');
 
-        contentEl.style.borderTop = '';
-        contentEl.style.backgroundColor = '';
+                btn.className        = `topic-tab-btn ${isActive ? 'active' : ''}`;
+                btn.title            = topico.nome; 
+                
+                const corContraste = obterCorContraste(topico.cor);
+                btn.style.setProperty('--tab-bg', topico.cor);
+                btn.style.setProperty('--tab-color', corContraste);
 
-        if (!activeTabId || !topicosArray.some(t => t.id === activeTabId)) {
-            activeTabId = topicosArray[0].id;
-        }
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'tab-label';
+                labelSpan.textContent = topico.nome;
+                btn.appendChild(labelSpan);
 
-        const scrollAnterior = headerEl.scrollLeft;
-        let abaAtivaNode = null;
+                btn.onclick = () => {
+                    activeTabId = topico.id;
+                    renderizarFichario(topicosArray);
+                };
 
-        headerEl.innerHTML = '';
-        [...topicosArray].reverse().forEach(topico => {
-            const isActive = topico.id === activeTabId;
-            const btn      = document.createElement('div');
+                headerEl.appendChild(btn);
+                
+                if (isActive) abaAtivaNode = btn;
+            });
 
-            btn.className        = `topic-tab-btn ${isActive ? 'active' : ''}`;
-            btn.title            = topico.nome; 
+            const topicoAtivo = topicosArray.find(t => t.id === activeTabId);
+            if (!topicoAtivo) {
+                loadingOverlay.classList.remove('is-active');
+                return;
+            }
+
+            _activeTopicoCor = topicoAtivo.cor;
+            contentEl.style.setProperty('--active-tab-color', _activeTopicoCor);
+
+            requestAnimationFrame(() => {
+                headerEl.scrollTo({ left: scrollAnterior, behavior: 'auto' });
+            });
+            const corTextoTese = obterCorContraste(_activeTopicoCor);
+
+            const preambleHtml = `
+                <div class="topic-preamble-panel">
+                    <div class="preamble-card preamble-alegacao ${!topicoAtivo.alegacoes ? 'is-empty' : ''}" onclick="abrirEdicaoPreambulo('${activeTabId}', 'alegacoes')">
+                        <div class="preamble-icon ai-trigger-btn" 
+                             title="✨ Inteligência Artificial: Buscar modelos compatíveis" 
+                             onclick="event.stopPropagation(); AIRecommendationManager.buscarModelosCompativeis('${activeTabId}', decodeURIComponent('${encodeURIComponent(topicoAtivo.alegacoes || '').replace(/'/g, "%27")}'))">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" class="ai-sparkle" style="display:none; transform-origin: 12px 12px;"></path>
+                            </svg>
+                        </div>
+                        <div class="preamble-content">
+                            <span class="preamble-title">Razões Recursais</span>
+                            ${topicoAtivo.alegacoes ? renderizarMarkdownSeguro(escaparHTML(topicoAtivo.alegacoes)) : '<span class="preamble-empty">Clique para redigir as alegações recursais...</span>'}
+                        </div>
+                    </div>
+                    <div class="preamble-card preamble-origem ${!topicoAtivo.fundamentos ? 'is-empty' : ''}" onclick="abrirEdicaoPreambulo('${activeTabId}', 'fundamentos')">
+                        <div class="preamble-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 21V7l6-4 6 4v14"></path></svg>
+                        </div>
+                        <div class="preamble-content">
+                            <span class="preamble-title">Fundamentos da Origem</span>
+                            ${topicoAtivo.fundamentos ? renderizarMarkdownSeguro(escaparHTML(topicoAtivo.fundamentos)) : '<span class="preamble-empty">Clique para redigir os fundamentos da sentença...</span>'}
+                        </div>
+                    </div>
+                    <div class="preamble-card preamble-veredito ${!topicoAtivo.veredito ? 'is-empty' : ''}" onclick="abrirEdicaoPreambulo('${activeTabId}', 'veredito')">
+                        <div class="preamble-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+                        </div>
+                        <div class="preamble-content">
+                            <span class="preamble-title">Veredito / Conclusão</span>
+                            ${topicoAtivo.veredito ? renderizarMarkdownSeguro(escaparHTML(topicoAtivo.veredito)) : '<span class="preamble-empty">Clique para definir o veredito final deste tópico...</span>'}
+                        </div>
+                    </div>
+                </div>`;
+
+            let conteudoCentralHtml = '';
+
+            const temAnotacoes = topicoAtivo.anotacoes && topicoAtivo.anotacoes.length > 0;
+            const temGlobais = topicoAtivo.diretrizesGlobais && topicoAtivo.diretrizesGlobais.length > 0;
+            const forcadoAberto = _topicosComGlobaisAbertas.has(activeTabId);
+
+            if (!temAnotacoes && !temGlobais && !forcadoAberto) {
+                conteudoCentralHtml = `
+                    <p class="empty-state" style="margin-top: 20px;">
+                        A Matriz Dialética está vazia. Adicione extrações das provas ou clique no Globo no cabeçalho para inserir Diretrizes Globais.
+                    </p>`;
+                const novoHtml = preambleHtml + conteudoCentralHtml;
+                
+                if (typeof resizeObserver !== 'undefined') resizeObserver.disconnect();
+                if (typeof morphdom !== 'undefined') {
+                    morphdom(contentEl, `<div id="topics-tab-content" class="topics-content-area" style="${contentEl.style.cssText}">${novoHtml}</div>`, {
+                        childrenOnly: true,
+                        getNodeKey: function(node) {
+                            if (node.id) return node.id;
+                        }
+                    });
+                } else {
+                    contentEl.innerHTML = novoHtml;
+                }
+                
+                _sincronizarBtnGlobais(false, false);
+                loadingOverlay.classList.remove('is-active');
+                restaurarScroll();
+                return;
+            }
+
+            let sumarioHtml = '';
+            const tesesValidas = topicoAtivo.anotacoes.filter(an => an.tese && an.tese.trim() !== '');
+            if (tesesValidas.length > 0) {
+                sumarioHtml = `
+                <div class="thesis-summary-panel">`;
+
+                topicoAtivo.anotacoes.forEach((an, idx) => {
+                    if (an.tese && an.tese.trim() !== '') {
+                        const fasesPresentes = new Set();
+                        
+                        fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(an.documento) : 4);
+                        
+                        if (an.itensCorrelacionados?.length) {
+                            an.itensCorrelacionados.forEach(ic => fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(ic.documento) : 4));
+                        }
+
+                        if (an.itensCorrelacionados?.length) {
+                            an.itensCorrelacionados.forEach(ic => {
+                                if (ic.subAnotacoes && ic.subAnotacoes.length > 0) {
+                                    fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(ic.documento) : 4);
+                                }
+                            });
+                        }
+
+                        const cores = [];
+                        if(fasesPresentes.has(1)) cores.push('var(--fase-1-bg)');
+                        if(fasesPresentes.has(2)) cores.push('var(--fase-2-bg)');
+                        if(fasesPresentes.has(3)) cores.push('var(--fase-3-bg)');
+                        if(fasesPresentes.has(4)) cores.push('var(--fase-4-bg)');
+                        
+                        let bgStyle = '';
+                        if(cores.length > 0) {
+                            const step = 100 / cores.length;
+                            const gradients = cores.map((cor, i) => `${cor} ${i * step}%, ${cor} ${(i + 1) * step}%`);
+                            bgStyle = `style="background: linear-gradient(to right, ${gradients.join(', ')}), #ffffff;"`; 
+                        }
+
+                        const matureClass = fasesPresentes.size === 4 ? 'mature' : '';
+                        const txt = escaparHTML(an.tese);
+
+                        sumarioHtml += `
+                            <div class="thesis-badge ${matureClass}" onclick="abrirModalTese('${activeTabId}', ${idx})">
+                                <div class="thesis-badge-inner" ${bgStyle}>
+                                    <span class="num" style="background-color: ${_activeTopicoCor}; color: ${corTextoTese};">${idx + 1}</span> 
+                                    <span class="texto-tese">${txt}</span>
+                                </div>
+                            </div>`;
+                    }
+                });
+                sumarioHtml += '</div>';
+            }
             
-            const corContraste = obterCorContraste(topico.cor);
-            btn.style.setProperty('--tab-bg', topico.cor);
-            btn.style.setProperty('--tab-color', corContraste);
+            let cardsHTML = '';
+            let ultimaTeseRenderizada = null;
 
-            const labelSpan = document.createElement('span');
-            labelSpan.className = 'tab-label';
-            labelSpan.textContent = topico.nome;
-            btn.appendChild(labelSpan);
-
-            btn.onclick = () => {
-                activeTabId = topico.id;
-                renderizarFichario(topicosArray);
+            const renderContext = {
+                romanCounter: 0,
+                romanMap: new Map()
             };
 
-            headerEl.appendChild(btn);
-            
-            if (isActive) abaAtivaNode = btn;
-        });
+            topicoAtivo.anotacoes.forEach((an, index) => {
+                const chaveTeseCrua = an.tese || "Tese Não Nomeada";
+                const diretrizes = (topicoAtivo.diretrizesPorTese && topicoAtivo.diretrizesPorTese[chaveTeseCrua]) 
+                                    ? topicoAtivo.diretrizesPorTese[chaveTeseCrua] 
+                                    : [];
+                
+                const isTesePreenchida = (an.tese && an.tese.trim() !== '');
 
-        const topicoAtivo = topicosArray.find(t => t.id === activeTabId);
-        if (!topicoAtivo) return;
+                if (chaveTeseCrua !== ultimaTeseRenderizada) {
+                    if (isTesePreenchida || diretrizes.length > 0) {
+                        const tituloExibicao = isTesePreenchida ? an.tese : "Tese Não Nomeada";
+                        cardsHTML += _gerarHtmlTeseGroup(tituloExibicao, diretrizes, activeTabId, _activeTopicoCor, index, renderContext);
+                    }
+                    ultimaTeseRenderizada = chaveTeseCrua;
+                }
+                
+                cardsHTML += criarCard(an, index, topicoAtivo.anotacoes, renderContext);
+            });
 
-        _activeTopicoCor = topicoAtivo.cor;
-        contentEl.style.setProperty('--active-tab-color', _activeTopicoCor);
+            let htmlDiretrizesGlobais = '';
+            let globaisHtml = ''; 
 
-        requestAnimationFrame(() => {
-            headerEl.scrollTo({ left: scrollAnterior, behavior: 'auto' });
-        });
-        const corTextoTese = obterCorContraste(_activeTopicoCor);
+            if (temGlobais || forcadoAberto) {
+                if (temGlobais) {
+                    const gruposGProcessados = new Set();
+                    const globaisArray = [];
 
-        const preambleHtml = `
-            <div class="topic-preamble-panel">
-                <div class="preamble-card preamble-alegacao ${!topicoAtivo.alegacoes ? 'is-empty' : ''}" onclick="abrirEdicaoPreambulo('${activeTabId}', 'alegacoes')">
-                    <div class="preamble-icon ai-trigger-btn" 
-                         title="✨ Inteligência Artificial: Buscar modelos compatíveis" 
-                         onclick="event.stopPropagation(); AIRecommendationManager.buscarModelosCompativeis('${activeTabId}', decodeURIComponent('${encodeURIComponent(topicoAtivo.alegacoes || '').replace(/'/g, "%27")}'))">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" class="ai-sparkle" style="display:none; transform-origin: 12px 12px;"></path>
-                        </svg>
+                    topicoAtivo.diretrizesGlobais.forEach((d, sIdx) => {
+                        const dRender = { ...d, viewSource: 'global' };
+
+                        if (!dRender.grupoId) {
+                            const intencao = dRender.intencao || 'premissa';
+                            const iconSVG = obterIconeIntencao(intencao);
+                            const isRevisada = dRender.revisada === true;
+                            const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : 'sub-annotation-item';
+                            
+                            globaisArray.push(`
+                            <div class="${itemWrapperClass}" data-source="global">
+                                <div class="sub-annotation-card borda-global">
+                                    <div class="sub-badge has-intent intencao-${intencao}" onclick="abrirMenuSubAnotacao('${activeTabId}', null, 'global', ${sIdx}, event)">${iconSVG} G.${sIdx + 1}</div>
+                                    <div class="sub-text-content" data-raw-text="${escaparHTML(dRender.texto)}" data-raw-title="Diretriz Global" ondblclick="TopicsManager.abrirModoLeitura(this)">${renderizarMarkdownSeguro(escaparHTML(dRender.texto))}</div>
+                                    <div class="btn-read-mode-trigger sub-read-badge" data-raw-text="${escaparHTML(dRender.texto)}" data-raw-title="Diretriz Global" onclick="TopicsManager.abrirModoLeitura(this)"><svg><use href="#icon-book-open"></use></svg></div>
+                                    <button class="btn-copiar-zen" onclick="navigator.clipboard.writeText('${escaparHTML(dRender.texto).replace(/'/g, "\\'")}')" title="Copiar">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                        Copiar
+                                    </button>
+                                    ${_gerarBtnRevisaoHtml(activeTabId, null, 'global', sIdx, intencao, isRevisada)}
+                                </div>
+                            </div>`);
+                        } else {
+                            if (!gruposGProcessados.has(dRender.grupoId)) {
+                                gruposGProcessados.add(dRender.grupoId);
+                                globaisArray.push(_gerarHtmlPilha(dRender, renderContext, activeTabId));
+                            }
+                        }
+                    });
+                    globaisHtml = globaisArray.join('');
+                }
+
+                htmlDiretrizesGlobais = `
+                <div class="timeline-item-master align-left nivel-hierarquico nivel-global" id="timeline-wrapper-globais-${activeTabId}">
+                    <div class="main-card-wrapper">
+                        <div class="annotation-number-area">
+                            <div class="timeline-icon-box" title="Diretrizes Globais do Tópico">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                            </div>
+                        </div>
+                        <div class="annotation-card">
+                                <div class="card-header" style="justify-content: space-between; margin-bottom: 0;">
+                                    <div class="hierarquia-titulo">Diretrizes Globais do Tópico</div>
+                                    <div class="card-actions-bar" style="margin-top: 0; padding-top: 0; border-top: none;">
+                                        <button title="Adicionar Diretriz Global" onclick="adicionarDiretrizEstrutural('global', '${activeTabId}', null, event)">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                     </div>
-                    <div class="preamble-content">
-                        <span class="preamble-title">Razões Recursais</span>
-                        ${topicoAtivo.alegacoes ? renderizarMarkdownSeguro(escaparHTML(topicoAtivo.alegacoes)) : '<span class="preamble-empty">Clique para redigir as alegações recursais...</span>'}
+                    <div class="sub-annotations-wrapper" style="position: relative; min-height: auto;">
+                        ${globaisHtml}
                     </div>
-                </div>
-                <div class="preamble-card preamble-origem ${!topicoAtivo.fundamentos ? 'is-empty' : ''}" onclick="abrirEdicaoPreambulo('${activeTabId}', 'fundamentos')">
-                    <div class="preamble-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 21V7l6-4 6 4v14"></path></svg>
-                    </div>
-                    <div class="preamble-content">
-                        <span class="preamble-title">Fundamentos da Origem</span>
-                        ${topicoAtivo.fundamentos ? renderizarMarkdownSeguro(escaparHTML(topicoAtivo.fundamentos)) : '<span class="preamble-empty">Clique para redigir os fundamentos da sentença...</span>'}
-                    </div>
-                </div>
-                <div class="preamble-card preamble-veredito ${!topicoAtivo.veredito ? 'is-empty' : ''}" onclick="abrirEdicaoPreambulo('${activeTabId}', 'veredito')">
-                    <div class="preamble-icon">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                    </div>
-                    <div class="preamble-content">
-                        <span class="preamble-title">Veredito / Conclusão</span>
-                        ${topicoAtivo.veredito ? renderizarMarkdownSeguro(escaparHTML(topicoAtivo.veredito)) : '<span class="preamble-empty">Clique para definir o veredito final deste tópico...</span>'}
-                    </div>
-                </div>
-            </div>`;
+                </div>`;
+            }
 
-        let conteudoCentralHtml = '';
+            conteudoCentralHtml = sumarioHtml + `
+                <div class="timeline-container" id="timeline-container">
+                    <svg id="connections-canvas"></svg>
+                    ${htmlDiretrizesGlobais}
+                    ${cardsHTML}
+                </div>`;
 
-        const temAnotacoes = topicoAtivo.anotacoes && topicoAtivo.anotacoes.length > 0;
-        const temGlobais = topicoAtivo.diretrizesGlobais && topicoAtivo.diretrizesGlobais.length > 0;
-        const forcadoAberto = _topicosComGlobaisAbertas.has(activeTabId);
-
-        if (!temAnotacoes && !temGlobais && !forcadoAberto) {
-            conteudoCentralHtml = `
-                <p class="empty-state" style="margin-top: 20px;">
-                    A Matriz Dialética está vazia. Adicione extrações das provas ou clique no Globo no cabeçalho para inserir Diretrizes Globais.
-                </p>`;
+            // 3. ESCRITA NO DOM (Processo Pesado)
             const novoHtml = preambleHtml + conteudoCentralHtml;
-            
+                
             if (typeof resizeObserver !== 'undefined') resizeObserver.disconnect();
+
             if (typeof morphdom !== 'undefined') {
                 morphdom(contentEl, `<div id="topics-tab-content" class="topics-content-area" style="${contentEl.style.cssText}">${novoHtml}</div>`, {
                     childrenOnly: true,
@@ -1342,221 +1539,77 @@ window.TopicsManager = (function () {
             } else {
                 contentEl.innerHTML = novoHtml;
             }
-            
-            _sincronizarBtnGlobais(false, false);
-                restaurarScroll();
-                return;
-            }
-
-        let sumarioHtml = '';
-        const tesesValidas = topicoAtivo.anotacoes.filter(an => an.tese && an.tese.trim() !== '');
-        if (tesesValidas.length > 0) {
-            sumarioHtml = `
-            <div class="thesis-summary-panel">`;
-
-            topicoAtivo.anotacoes.forEach((an, idx) => {
-                if (an.tese && an.tese.trim() !== '') {
-                    const fasesPresentes = new Set();
-                    
-                    fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(an.documento) : 4);
-                    
-                    if (an.itensCorrelacionados?.length) {
-                        an.itensCorrelacionados.forEach(ic => fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(ic.documento) : 4));
-                    }
-
-                    if (an.itensCorrelacionados?.length) {
-                        an.itensCorrelacionados.forEach(ic => {
-                            if (ic.subAnotacoes && ic.subAnotacoes.length > 0) {
-                                fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(ic.documento) : 4);
-                            }
-                        });
-                    }
-
-                    const cores = [];
-                    if(fasesPresentes.has(1)) cores.push('var(--fase-1-bg)');
-                    if(fasesPresentes.has(2)) cores.push('var(--fase-2-bg)');
-                    if(fasesPresentes.has(3)) cores.push('var(--fase-3-bg)');
-                    if(fasesPresentes.has(4)) cores.push('var(--fase-4-bg)');
-                    
-                    let bgStyle = '';
-                    if(cores.length > 0) {
-                        const step = 100 / cores.length;
-                        const gradients = cores.map((cor, i) => `${cor} ${i * step}%, ${cor} ${(i + 1) * step}%`);
-                        bgStyle = `style="background: linear-gradient(to right, ${gradients.join(', ')}), #ffffff;"`; 
-                    }
-
-                    const matureClass = fasesPresentes.size === 4 ? 'mature' : '';
-                    const txt = escaparHTML(an.tese);
-
-                    sumarioHtml += `
-                        <div class="thesis-badge ${matureClass}" onclick="abrirModalTese('${activeTabId}', ${idx})">
-                            <div class="thesis-badge-inner" ${bgStyle}>
-                                <span class="num" style="background-color: ${_activeTopicoCor}; color: ${corTextoTese};">${idx + 1}</span> 
-                                <span class="texto-tese">${txt}</span>
-                            </div>
-                        </div>`;
-                }
-            });
-            sumarioHtml += '</div>';
-        }
-        
-        let cardsHTML = '';
-        let ultimaTeseRenderizada = null;
-
-        const renderContext = {
-            romanCounter: 0,
-            romanMap: new Map()
-        };
-
-        topicoAtivo.anotacoes.forEach((an, index) => {
-            const chaveTeseCrua = an.tese || "Tese Não Nomeada";
-            const diretrizes = (topicoAtivo.diretrizesPorTese && topicoAtivo.diretrizesPorTese[chaveTeseCrua]) 
-                                ? topicoAtivo.diretrizesPorTese[chaveTeseCrua] 
-                                : [];
-            
-            const isTesePreenchida = (an.tese && an.tese.trim() !== '');
-
-            if (chaveTeseCrua !== ultimaTeseRenderizada) {
-                if (isTesePreenchida || diretrizes.length > 0) {
-                    const tituloExibicao = isTesePreenchida ? an.tese : "Tese Não Nomeada";
-                    cardsHTML += _gerarHtmlTeseGroup(tituloExibicao, diretrizes, activeTabId, _activeTopicoCor, index, renderContext);
-                }
-                ultimaTeseRenderizada = chaveTeseCrua;
-            }
-            
-            cardsHTML += criarCard(an, index, topicoAtivo.anotacoes, renderContext);
-        });
-
-        let htmlDiretrizesGlobais = '';
-        let globaisHtml = ''; 
-
-        if (temGlobais || forcadoAberto) {
-            if (temGlobais) {
-                const gruposGProcessados = new Set();
-                const globaisArray = [];
-
-                topicoAtivo.diretrizesGlobais.forEach((d, sIdx) => {
-                    const dRender = { ...d, viewSource: 'global' };
-
-                    if (!dRender.grupoId) {
-                        const intencao = dRender.intencao || 'premissa';
-                        const iconSVG = obterIconeIntencao(intencao);
-                        const isRevisada = dRender.revisada === true;
-                        const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : 'sub-annotation-item';
-                        
-                        globaisArray.push(`
-                        <div class="${itemWrapperClass}" data-source="global">
-                            <div class="sub-annotation-card borda-global">
-                                <div class="sub-badge has-intent intencao-${intencao}" onclick="abrirMenuSubAnotacao('${activeTabId}', null, 'global', ${sIdx}, event)">${iconSVG} G.${sIdx + 1}</div>
-                                <div class="sub-text-content" data-raw-text="${escaparHTML(dRender.texto)}" data-raw-title="Diretriz Global" ondblclick="TopicsManager.abrirModoLeitura(this)">${renderizarMarkdownSeguro(escaparHTML(dRender.texto))}</div>
-                                <div class="btn-read-mode-trigger sub-read-badge" data-raw-text="${escaparHTML(dRender.texto)}" data-raw-title="Diretriz Global" onclick="TopicsManager.abrirModoLeitura(this)"><svg><use href="#icon-book-open"></use></svg></div>
-                                <button class="btn-copiar-zen" onclick="navigator.clipboard.writeText('${escaparHTML(dRender.texto).replace(/'/g, "\\'")}')" title="Copiar">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                                    Copiar
-                                </button>
-                                ${_gerarBtnRevisaoHtml(activeTabId, null, 'global', sIdx, intencao, isRevisada)}
-                            </div>
-                        </div>`);
-                    } else {
-                        if (!gruposGProcessados.has(dRender.grupoId)) {
-                            gruposGProcessados.add(dRender.grupoId);
-                            globaisArray.push(_gerarHtmlPilha(dRender, renderContext, activeTabId));
+                
+            // ==========================================
+            // 4. SEGUNDA PAUSA (Fila de Geometria)
+            // Espera o HTML recém-injetado ganhar dimensões reais no navegador
+            // ==========================================
+            requestAnimationFrame(() => {
+                
+                // Reconecta observadores e tratamentos de texto longo
+                document.querySelectorAll('.sub-text-content, .card-texto').forEach(el => {
+                    if (typeof resizeObserver !== 'undefined') {
+                        if (typeof anexarAoObserverComSeguranca === 'function') {
+                            anexarAoObserverComSeguranca(el);
+                        } else {
+                            resizeObserver.observe(el);
                         }
                     }
+                    
+                    if (el.scrollHeight > el.clientHeight) {
+                        el.classList.add('is-truncated');
+                        const parentCard = el.closest('.annotation-card, .sub-annotation-card');
+                        if (parentCard) parentCard.classList.add('has-truncated-text');
+                    } else {
+                        el.classList.remove('is-truncated');
+                        const parentCard = el.closest('.annotation-card, .sub-annotation-card');
+                        if (parentCard) parentCard.classList.remove('has-truncated-text');
+                    }
                 });
-                globaisHtml = globaisArray.join('');
-            }
 
-            htmlDiretrizesGlobais = `
-            <div class="timeline-item-master align-left nivel-hierarquico nivel-global" id="timeline-wrapper-globais-${activeTabId}">
-                <div class="main-card-wrapper">
-                    <div class="annotation-number-area">
-                        <div class="timeline-icon-box" title="Diretrizes Globais do Tópico">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                        </div>
-                    </div>
-                    <div class="annotation-card">
-                            <div class="card-header" style="justify-content: space-between; margin-bottom: 0;">
-                                <div class="hierarquia-titulo">Diretrizes Globais do Tópico</div>
-                                <div class="card-actions-bar" style="margin-top: 0; padding-top: 0; border-top: none;">
-                                    <button title="Adicionar Diretriz Global" onclick="adicionarDiretrizEstrutural('global', '${activeTabId}', null, event)">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                </div>
-                <div class="sub-annotations-wrapper" style="position: relative; min-height: auto;">
-                    ${globaisHtml}
-                </div>
-            </div>`;
-        }
-
-        conteudoCentralHtml = sumarioHtml + `
-            <div class="timeline-container" id="timeline-container">
-                <svg id="connections-canvas"></svg>
-                ${htmlDiretrizesGlobais}
-                ${cardsHTML}
-            </div>`;
-
-        const novoHtml = preambleHtml + conteudoCentralHtml;
-            
-        if (typeof resizeObserver !== 'undefined') resizeObserver.disconnect();
-
-        if (typeof morphdom !== 'undefined') {
-            morphdom(contentEl, `<div id="topics-tab-content" class="topics-content-area" style="${contentEl.style.cssText}">${novoHtml}</div>`, {
-                childrenOnly: true,
-                getNodeKey: function(node) {
-                    if (node.id) return node.id;
+                const historyContainer = document.getElementById('history-container');
+                if (historyContainer && typeof resizeObserver !== 'undefined') {
+                    if (typeof anexarAoObserverComSeguranca === 'function') anexarAoObserverComSeguranca(historyContainer);
+                    else resizeObserver.observe(historyContainer);
                 }
-            });
-        } else {
-            contentEl.innerHTML = novoHtml;
-        }
-            
-        requestAnimationFrame(() => {
-            document.querySelectorAll('.sub-text-content, .card-texto').forEach(el => {
-                if (typeof resizeObserver !== 'undefined') anexarAoObserverComSeguranca(el);
                 
-                if (el.scrollHeight > el.clientHeight) {
-                    el.classList.add('is-truncated');
-                    const parentCard = el.closest('.annotation-card, .sub-annotation-card');
-                    if (parentCard) parentCard.classList.add('has-truncated-text');
+                const headerElLive = document.getElementById('topics-tabs-header');
+                if (headerElLive && typeof resizeObserver !== 'undefined') {
+                    if (typeof anexarAoObserverComSeguranca === 'function') anexarAoObserverComSeguranca(headerElLive);
+                    else resizeObserver.observe(headerElLive);
+                }
+
+                document.querySelectorAll('.image-resize-wrapper').forEach(wrapper => {
+                    wrapper.addEventListener('mouseup', () => desenharConexoes());
+                    wrapper.addEventListener('mouseleave', () => desenharConexoes());
+                });
+
+                // 5. CÁLCULOS MATEMÁTICOS DE POSIÇÃO E LINHAS
+                const container = document.getElementById('timeline-container');
+                if (container) {
+                    posicionarNosDeIdeia(container);
+                    restaurarScroll();
+                    
+                    // Terceira Pausa: Espera o CSS de posição aplicar antes de riscar as linhas
+                    requestAnimationFrame(() => {
+                        desenharConexoes();
+                        _reassertScroll();
+                        
+                        // 6. TUDO PRONTO: REMOVE A CORTINA DE LOADING
+                        loadingOverlay.classList.remove('is-active');
+                    });
                 } else {
-                    el.classList.remove('is-truncated');
-                    const parentCard = el.closest('.annotation-card, .sub-annotation-card');
-                    if (parentCard) parentCard.classList.remove('has-truncated-text');
+                    restaurarScroll();
+                    loadingOverlay.classList.remove('is-active');
                 }
-            });
-
-            const historyContainer = document.getElementById('history-container');
-            if (historyContainer && typeof resizeObserver !== 'undefined') anexarAoObserverComSeguranca(historyContainer);
-            
-            if (headerEl && typeof resizeObserver !== 'undefined') anexarAoObserverComSeguranca(headerEl);
-
-            document.querySelectorAll('.image-resize-wrapper').forEach(wrapper => {
-                wrapper.addEventListener('mouseup', () => desenharConexoes());
-                wrapper.addEventListener('mouseleave', () => desenharConexoes());
-            });
-
-            const container = document.getElementById('timeline-container');
-            if (container) {
-                posicionarNosDeIdeia(container);
-                restaurarScroll();
                 
-                requestAnimationFrame(() => {
-                    desenharConexoes();
-                    _reassertScroll();
-                });
-            } else {
-                restaurarScroll();
-            }
+                _atualizarMarcadoresDeIdeia(topicoAtivo);
+                atualizarContadorNotasOcultas();
+            });
             
-            _atualizarMarcadoresDeIdeia(topicoAtivo);
-            atualizarContadorNotasOcultas();
-        });
-        
-        _sincronizarBtnGlobais(temGlobais, forcadoAberto);
+            _sincronizarBtnGlobais(temGlobais, forcadoAberto);
+
+        }, 15); // Fim do setTimeout
     }
 
     /**
