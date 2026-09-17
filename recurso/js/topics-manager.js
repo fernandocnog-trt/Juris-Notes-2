@@ -44,10 +44,6 @@ window.TopicsManager = (function () {
     function restaurarScroll() {
         const historyContainer = document.getElementById('history-container');
         
-        if (window.DebugTelemetry?.LayoutTracker) {
-            window.DebugTelemetry.LayoutTracker.mark('scroll-restore', { yOffset: _scrollGuard.yOffset, behavior: _scrollGuard.suprimido ? 'smooth-zero' : 'instant' });
-        }
-
         if (_scrollGuard.suprimido) {
             if (historyContainer) historyContainer.scrollTo({ top: 0, behavior: 'smooth' });
             _scrollGuard.suprimido = false;
@@ -73,9 +69,6 @@ window.TopicsManager = (function () {
         if (!historyContainer || !_scrollGuard.podeRestaurar) return;
         
         if (Math.abs(historyContainer.scrollTop - _scrollGuard.yOffset) > 4) {
-            if (window.DebugTelemetry?.LayoutTracker) {
-                window.DebugTelemetry.LayoutTracker.mark('scroll-reassert', { diff: Math.abs(historyContainer.scrollTop - _scrollGuard.yOffset), behavior: 'instant' });
-            }
             historyContainer.scrollTo({ top: _scrollGuard.yOffset, behavior: 'instant' });
         }
         _scrollGuard.podeRestaurar = false;
@@ -150,11 +143,6 @@ window.TopicsManager = (function () {
     const _lastHeights = new Map(); 
 
     const resizeObserver = new ResizeObserver((entries) => {
-        // SE O DISJUNTOR CAIU, PARA TUDO IMEDIATAMENTE!
-        if (window.__CIRCUIT_BREAKER) return; 
-
-        if (window.DebugTelemetry?.LayoutTracker) window.DebugTelemetry.LayoutTracker.noteDelivery(entries, _isUpdatingLayout);
-
         if (_isUpdatingLayout) return;
         let needsRedraw = false;
 
@@ -181,26 +169,14 @@ window.TopicsManager = (function () {
                 requestAnimationFrame(() => {
                     const container = document.getElementById('timeline-container');
                     if (container && container.offsetParent !== null) {
-                        if (window.DebugTelemetry?.LayoutTracker) window.DebugTelemetry.LayoutTracker.beginPass('layout-sync');
-                        
                         posicionarNosDeIdeia(container);
                         desenharConexoes();
-                        
-                        if (window.DebugTelemetry?.LayoutTracker) window.DebugTelemetry.LayoutTracker.endPass();
                     }
                     setTimeout(() => { _isUpdatingLayout = false; }, 50);
                 });
             }, 32); 
         }
     });
-
-    function anexarAoObserverComSeguranca(el) {
-        if (window.DebugTelemetry?.LayoutTracker) {
-            window.DebugTelemetry.LayoutTracker.observeWithSeed(el, resizeObserver);
-        } else {
-            resizeObserver.observe(el);
-        }
-    }
 
     // Funções Privadas do Modo de Leitura Centralizado
     let _textoLeituraAtualMarkdown = "";
@@ -1211,7 +1187,7 @@ window.TopicsManager = (function () {
     // Função _ajustarAbasFantasmas() removida - Substituída por arquitetura de Scroll Horizontal
 
     /**
-     * Re-renderiza o fichário inteiro (Com Transição Assíncrona e Máscara de Carregamento)
+     * Re-renderiza o fichário inteiro.
      */
     function renderizarFichario(topicosArray) {
         capturarScroll();
@@ -1221,314 +1197,117 @@ window.TopicsManager = (function () {
 
         if (!headerEl || !contentEl) return;
 
-        // 1. INJETA E MOSTRA O SPINNER DE CARREGAMENTO IMEDIATAMENTE
-        let loadingOverlay = document.getElementById('juris-global-spinner');
-        if (!loadingOverlay) {
-            loadingOverlay = document.createElement('div');
-            loadingOverlay.id = 'juris-global-spinner';
-            loadingOverlay.className = 'juris-loading-overlay';
-            loadingOverlay.innerHTML = `
-                <div class="juris-spinner"></div>
-                <div class="juris-loading-text">Organizando Mapa Mental...</div>
-            `;
-            // Coloca o spinner sobre a área de conteúdo
-            contentEl.parentElement.appendChild(loadingOverlay);
-        }
-        loadingOverlay.classList.add('is-active');
-
-        // ==========================================
-        // 2. PAUSA ESTRATÉGICA (Yield to Main Thread)
-        // Dá tempo para o navegador pintar o Spinner na tela ANTES de travar o processador
-        // ==========================================
-        setTimeout(() => {
-            if (topicosArray.length === 0) {
-                headerEl.innerHTML = '';
-                contentEl.innerHTML = `
-                    <p class="empty-state">
-                        Nenhum tópico criado.<br>
-                        Use o botão <strong>+</strong> na barra lateral para criar um Tópico Recursal.
-                    </p>`;
-                contentEl.style.borderTop       = 'none';
-                contentEl.style.backgroundColor = 'transparent';
-                loadingOverlay.classList.remove('is-active');
-                restaurarScroll();
-                return;
-            }
-
-            contentEl.style.borderTop = '';
-            contentEl.style.backgroundColor = '';
-
-            if (!activeTabId || !topicosArray.some(t => t.id === activeTabId)) {
-                activeTabId = topicosArray[0].id;
-            }
-
-            const scrollAnterior = headerEl.scrollLeft;
-            let abaAtivaNode = null;
-
+        if (topicosArray.length === 0) {
             headerEl.innerHTML = '';
-            [...topicosArray].reverse().forEach(topico => {
-                const isActive = topico.id === activeTabId;
-                const btn      = document.createElement('div');
+            contentEl.innerHTML = `
+                <p class="empty-state">
+                    Nenhum tópico criado.<br>
+                    Use o botão <strong>+</strong> na barra lateral para criar um Tópico Recursal.
+                </p>`;
+            contentEl.style.borderTop       = 'none';
+            contentEl.style.backgroundColor = 'transparent';
+            restaurarScroll();
+            return;
+        }
 
-                btn.className        = `topic-tab-btn ${isActive ? 'active' : ''}`;
-                btn.title            = topico.nome; 
-                
-                const corContraste = obterCorContraste(topico.cor);
-                btn.style.setProperty('--tab-bg', topico.cor);
-                btn.style.setProperty('--tab-color', corContraste);
+        contentEl.style.borderTop = '';
+        contentEl.style.backgroundColor = '';
 
-                const labelSpan = document.createElement('span');
-                labelSpan.className = 'tab-label';
-                labelSpan.textContent = topico.nome;
-                btn.appendChild(labelSpan);
+        if (!activeTabId || !topicosArray.some(t => t.id === activeTabId)) {
+            activeTabId = topicosArray[0].id;
+        }
 
-                btn.onclick = () => {
-                    activeTabId = topico.id;
-                    renderizarFichario(topicosArray);
-                };
+        const scrollAnterior = headerEl.scrollLeft;
+        let abaAtivaNode = null;
 
-                headerEl.appendChild(btn);
-                
-                if (isActive) abaAtivaNode = btn;
-            });
+        headerEl.innerHTML = '';
+        [...topicosArray].reverse().forEach(topico => {
+            const isActive = topico.id === activeTabId;
+            const btn      = document.createElement('div');
 
-            const topicoAtivo = topicosArray.find(t => t.id === activeTabId);
-            if (!topicoAtivo) {
-                loadingOverlay.classList.remove('is-active');
-                return;
-            }
-
-            _activeTopicoCor = topicoAtivo.cor;
-            contentEl.style.setProperty('--active-tab-color', _activeTopicoCor);
-
-            requestAnimationFrame(() => {
-                headerEl.scrollTo({ left: scrollAnterior, behavior: 'auto' });
-            });
-            const corTextoTese = obterCorContraste(_activeTopicoCor);
-
-            const preambleHtml = `
-                <div class="topic-preamble-panel">
-                    <div class="preamble-card preamble-alegacao ${!topicoAtivo.alegacoes ? 'is-empty' : ''}" onclick="abrirEdicaoPreambulo('${activeTabId}', 'alegacoes')">
-                        <div class="preamble-icon ai-trigger-btn" 
-                             title="✨ Inteligência Artificial: Buscar modelos compatíveis" 
-                             onclick="event.stopPropagation(); AIRecommendationManager.buscarModelosCompativeis('${activeTabId}', decodeURIComponent('${encodeURIComponent(topicoAtivo.alegacoes || '').replace(/'/g, "%27")}'))">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" class="ai-sparkle" style="display:none; transform-origin: 12px 12px;"></path>
-                            </svg>
-                        </div>
-                        <div class="preamble-content">
-                            <span class="preamble-title">Razões Recursais</span>
-                            ${topicoAtivo.alegacoes ? renderizarMarkdownSeguro(escaparHTML(topicoAtivo.alegacoes)) : '<span class="preamble-empty">Clique para redigir as alegações recursais...</span>'}
-                        </div>
-                    </div>
-                    <div class="preamble-card preamble-origem ${!topicoAtivo.fundamentos ? 'is-empty' : ''}" onclick="abrirEdicaoPreambulo('${activeTabId}', 'fundamentos')">
-                        <div class="preamble-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 21V7l6-4 6 4v14"></path></svg>
-                        </div>
-                        <div class="preamble-content">
-                            <span class="preamble-title">Fundamentos da Origem</span>
-                            ${topicoAtivo.fundamentos ? renderizarMarkdownSeguro(escaparHTML(topicoAtivo.fundamentos)) : '<span class="preamble-empty">Clique para redigir os fundamentos da sentença...</span>'}
-                        </div>
-                    </div>
-                    <div class="preamble-card preamble-veredito ${!topicoAtivo.veredito ? 'is-empty' : ''}" onclick="abrirEdicaoPreambulo('${activeTabId}', 'veredito')">
-                        <div class="preamble-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
-                        </div>
-                        <div class="preamble-content">
-                            <span class="preamble-title">Veredito / Conclusão</span>
-                            ${topicoAtivo.veredito ? renderizarMarkdownSeguro(escaparHTML(topicoAtivo.veredito)) : '<span class="preamble-empty">Clique para definir o veredito final deste tópico...</span>'}
-                        </div>
-                    </div>
-                </div>`;
-
-            let conteudoCentralHtml = '';
-
-            const temAnotacoes = topicoAtivo.anotacoes && topicoAtivo.anotacoes.length > 0;
-            const temGlobais = topicoAtivo.diretrizesGlobais && topicoAtivo.diretrizesGlobais.length > 0;
-            const forcadoAberto = _topicosComGlobaisAbertas.has(activeTabId);
-
-            if (!temAnotacoes && !temGlobais && !forcadoAberto) {
-                conteudoCentralHtml = `
-                    <p class="empty-state" style="margin-top: 20px;">
-                        A Matriz Dialética está vazia. Adicione extrações das provas ou clique no Globo no cabeçalho para inserir Diretrizes Globais.
-                    </p>`;
-                const novoHtml = preambleHtml + conteudoCentralHtml;
-                
-                if (typeof resizeObserver !== 'undefined') resizeObserver.disconnect();
-                if (typeof morphdom !== 'undefined') {
-                    morphdom(contentEl, `<div id="topics-tab-content" class="topics-content-area" style="${contentEl.style.cssText}">${novoHtml}</div>`, {
-                        childrenOnly: true,
-                        getNodeKey: function(node) {
-                            if (node.id) return node.id;
-                        }
-                    });
-                } else {
-                    contentEl.innerHTML = novoHtml;
-                }
-                
-                _sincronizarBtnGlobais(false, false);
-                loadingOverlay.classList.remove('is-active');
-                restaurarScroll();
-                return;
-            }
-
-            let sumarioHtml = '';
-            const tesesValidas = topicoAtivo.anotacoes.filter(an => an.tese && an.tese.trim() !== '');
-            if (tesesValidas.length > 0) {
-                sumarioHtml = `
-                <div class="thesis-summary-panel">`;
-
-                topicoAtivo.anotacoes.forEach((an, idx) => {
-                    if (an.tese && an.tese.trim() !== '') {
-                        const fasesPresentes = new Set();
-                        
-                        fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(an.documento) : 4);
-                        
-                        if (an.itensCorrelacionados?.length) {
-                            an.itensCorrelacionados.forEach(ic => fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(ic.documento) : 4));
-                        }
-
-                        if (an.itensCorrelacionados?.length) {
-                            an.itensCorrelacionados.forEach(ic => {
-                                if (ic.subAnotacoes && ic.subAnotacoes.length > 0) {
-                                    fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(ic.documento) : 4);
-                                }
-                            });
-                        }
-
-                        const cores = [];
-                        if(fasesPresentes.has(1)) cores.push('var(--fase-1-bg)');
-                        if(fasesPresentes.has(2)) cores.push('var(--fase-2-bg)');
-                        if(fasesPresentes.has(3)) cores.push('var(--fase-3-bg)');
-                        if(fasesPresentes.has(4)) cores.push('var(--fase-4-bg)');
-                        
-                        let bgStyle = '';
-                        if(cores.length > 0) {
-                            const step = 100 / cores.length;
-                            const gradients = cores.map((cor, i) => `${cor} ${i * step}%, ${cor} ${(i + 1) * step}%`);
-                            bgStyle = `style="background: linear-gradient(to right, ${gradients.join(', ')}), #ffffff;"`; 
-                        }
-
-                        const matureClass = fasesPresentes.size === 4 ? 'mature' : '';
-                        const txt = escaparHTML(an.tese);
-
-                        sumarioHtml += `
-                            <div class="thesis-badge ${matureClass}" onclick="abrirModalTese('${activeTabId}', ${idx})">
-                                <div class="thesis-badge-inner" ${bgStyle}>
-                                    <span class="num" style="background-color: ${_activeTopicoCor}; color: ${corTextoTese};">${idx + 1}</span> 
-                                    <span class="texto-tese">${txt}</span>
-                                </div>
-                            </div>`;
-                    }
-                });
-                sumarioHtml += '</div>';
-            }
+            btn.className        = `topic-tab-btn ${isActive ? 'active' : ''}`;
+            btn.title            = topico.nome; 
             
-            let cardsHTML = '';
-            let ultimaTeseRenderizada = null;
+            const corContraste = obterCorContraste(topico.cor);
+            btn.style.setProperty('--tab-bg', topico.cor);
+            btn.style.setProperty('--tab-color', corContraste);
 
-            const renderContext = {
-                romanCounter: 0,
-                romanMap: new Map()
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'tab-label';
+            labelSpan.textContent = topico.nome;
+            btn.appendChild(labelSpan);
+
+            btn.onclick = () => {
+                activeTabId = topico.id;
+                renderizarFichario(topicosArray);
             };
 
-            topicoAtivo.anotacoes.forEach((an, index) => {
-                const chaveTeseCrua = an.tese || "Tese Não Nomeada";
-                const diretrizes = (topicoAtivo.diretrizesPorTese && topicoAtivo.diretrizesPorTese[chaveTeseCrua]) 
-                                    ? topicoAtivo.diretrizesPorTese[chaveTeseCrua] 
-                                    : [];
-                
-                const isTesePreenchida = (an.tese && an.tese.trim() !== '');
+            headerEl.appendChild(btn);
+            
+            if (isActive) abaAtivaNode = btn;
+        });
 
-                if (chaveTeseCrua !== ultimaTeseRenderizada) {
-                    if (isTesePreenchida || diretrizes.length > 0) {
-                        const tituloExibicao = isTesePreenchida ? an.tese : "Tese Não Nomeada";
-                        cardsHTML += _gerarHtmlTeseGroup(tituloExibicao, diretrizes, activeTabId, _activeTopicoCor, index, renderContext);
-                    }
-                    ultimaTeseRenderizada = chaveTeseCrua;
-                }
-                
-                cardsHTML += criarCard(an, index, topicoAtivo.anotacoes, renderContext);
-            });
+        const topicoAtivo = topicosArray.find(t => t.id === activeTabId);
+        if (!topicoAtivo) return;
 
-            let htmlDiretrizesGlobais = '';
-            let globaisHtml = ''; 
+        _activeTopicoCor = topicoAtivo.cor;
+        contentEl.style.setProperty('--active-tab-color', _activeTopicoCor);
 
-            if (temGlobais || forcadoAberto) {
-                if (temGlobais) {
-                    const gruposGProcessados = new Set();
-                    const globaisArray = [];
+        requestAnimationFrame(() => {
+            headerEl.scrollTo({ left: scrollAnterior, behavior: 'auto' });
+        });
+        const corTextoTese = obterCorContraste(_activeTopicoCor);
 
-                    topicoAtivo.diretrizesGlobais.forEach((d, sIdx) => {
-                        const dRender = { ...d, viewSource: 'global' };
-
-                        if (!dRender.grupoId) {
-                            const intencao = dRender.intencao || 'premissa';
-                            const iconSVG = obterIconeIntencao(intencao);
-                            const isRevisada = dRender.revisada === true;
-                            const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : 'sub-annotation-item';
-                            
-                            globaisArray.push(`
-                            <div class="${itemWrapperClass}" data-source="global">
-                                <div class="sub-annotation-card borda-global">
-                                    <div class="sub-badge has-intent intencao-${intencao}" onclick="abrirMenuSubAnotacao('${activeTabId}', null, 'global', ${sIdx}, event)">${iconSVG} G.${sIdx + 1}</div>
-                                    <div class="sub-text-content" data-raw-text="${escaparHTML(dRender.texto)}" data-raw-title="Diretriz Global" ondblclick="TopicsManager.abrirModoLeitura(this)">${renderizarMarkdownSeguro(escaparHTML(dRender.texto))}</div>
-                                    <div class="btn-read-mode-trigger sub-read-badge" data-raw-text="${escaparHTML(dRender.texto)}" data-raw-title="Diretriz Global" onclick="TopicsManager.abrirModoLeitura(this)"><svg><use href="#icon-book-open"></use></svg></div>
-                                    <button class="btn-copiar-zen" onclick="navigator.clipboard.writeText('${escaparHTML(dRender.texto).replace(/'/g, "\\'")}')" title="Copiar">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                                        Copiar
-                                    </button>
-                                    ${_gerarBtnRevisaoHtml(activeTabId, null, 'global', sIdx, intencao, isRevisada)}
-                                </div>
-                            </div>`);
-                        } else {
-                            if (!gruposGProcessados.has(dRender.grupoId)) {
-                                gruposGProcessados.add(dRender.grupoId);
-                                globaisArray.push(_gerarHtmlPilha(dRender, renderContext, activeTabId));
-                            }
-                        }
-                    });
-                    globaisHtml = globaisArray.join('');
-                }
-
-                htmlDiretrizesGlobais = `
-                <div class="timeline-item-master align-left nivel-hierarquico nivel-global" id="timeline-wrapper-globais-${activeTabId}">
-                    <div class="main-card-wrapper">
-                        <div class="annotation-number-area">
-                            <div class="timeline-icon-box" title="Diretrizes Globais do Tópico">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                            </div>
-                        </div>
-                        <div class="annotation-card">
-                                <div class="card-header" style="justify-content: space-between; margin-bottom: 0;">
-                                    <div class="hierarquia-titulo">Diretrizes Globais do Tópico</div>
-                                    <div class="card-actions-bar" style="margin-top: 0; padding-top: 0; border-top: none;">
-                                        <button title="Adicionar Diretriz Global" onclick="adicionarDiretrizEstrutural('global', '${activeTabId}', null, event)">
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
+        const preambleHtml = `
+            <div class="topic-preamble-panel">
+                <div class="preamble-card preamble-alegacao ${!topicoAtivo.alegacoes ? 'is-empty' : ''}" onclick="abrirEdicaoPreambulo('${activeTabId}', 'alegacoes')">
+                    <div class="preamble-icon ai-trigger-btn" 
+                         title="✨ Inteligência Artificial: Buscar modelos compatíveis" 
+                         onclick="event.stopPropagation(); AIRecommendationManager.buscarModelosCompativeis('${activeTabId}', decodeURIComponent('${encodeURIComponent(topicoAtivo.alegacoes || '').replace(/'/g, "%27")}'))">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                            <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" class="ai-sparkle" style="display:none; transform-origin: 12px 12px;"></path>
+                        </svg>
                     </div>
-                    <div class="sub-annotations-wrapper" style="position: relative; min-height: auto;">
-                        ${globaisHtml}
+                    <div class="preamble-content">
+                        <span class="preamble-title">Razões Recursais</span>
+                        ${topicoAtivo.alegacoes ? renderizarMarkdownSeguro(escaparHTML(topicoAtivo.alegacoes)) : '<span class="preamble-empty">Clique para redigir as alegações recursais...</span>'}
                     </div>
-                </div>`;
-            }
+                </div>
+                <div class="preamble-card preamble-origem ${!topicoAtivo.fundamentos ? 'is-empty' : ''}" onclick="abrirEdicaoPreambulo('${activeTabId}', 'fundamentos')">
+                    <div class="preamble-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 7v14M21 7v14M6 21V7l6-4 6 4v14"></path></svg>
+                    </div>
+                    <div class="preamble-content">
+                        <span class="preamble-title">Fundamentos da Origem</span>
+                        ${topicoAtivo.fundamentos ? renderizarMarkdownSeguro(escaparHTML(topicoAtivo.fundamentos)) : '<span class="preamble-empty">Clique para redigir os fundamentos da sentença...</span>'}
+                    </div>
+                </div>
+                <div class="preamble-card preamble-veredito ${!topicoAtivo.veredito ? 'is-empty' : ''}" onclick="abrirEdicaoPreambulo('${activeTabId}', 'veredito')">
+                    <div class="preamble-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+                    </div>
+                    <div class="preamble-content">
+                        <span class="preamble-title">Veredito / Conclusão</span>
+                        ${topicoAtivo.veredito ? renderizarMarkdownSeguro(escaparHTML(topicoAtivo.veredito)) : '<span class="preamble-empty">Clique para definir o veredito final deste tópico...</span>'}
+                    </div>
+                </div>
+            </div>`;
 
-            conteudoCentralHtml = sumarioHtml + `
-                <div class="timeline-container" id="timeline-container">
-                    <svg id="connections-canvas"></svg>
-                    ${htmlDiretrizesGlobais}
-                    ${cardsHTML}
-                </div>`;
+        let conteudoCentralHtml = '';
 
-            // 3. ESCRITA NO DOM (Processo Pesado)
+        const temAnotacoes = topicoAtivo.anotacoes && topicoAtivo.anotacoes.length > 0;
+        const temGlobais = topicoAtivo.diretrizesGlobais && topicoAtivo.diretrizesGlobais.length > 0;
+        const forcadoAberto = _topicosComGlobaisAbertas.has(activeTabId);
+
+        if (!temAnotacoes && !temGlobais && !forcadoAberto) {
+            conteudoCentralHtml = `
+                <p class="empty-state" style="margin-top: 20px;">
+                    A Matriz Dialética está vazia. Adicione extrações das provas ou clique no Globo no cabeçalho para inserir Diretrizes Globais.
+                </p>`;
             const novoHtml = preambleHtml + conteudoCentralHtml;
-                
+            
             if (typeof resizeObserver !== 'undefined') resizeObserver.disconnect();
-
             if (typeof morphdom !== 'undefined') {
                 morphdom(contentEl, `<div id="topics-tab-content" class="topics-content-area" style="${contentEl.style.cssText}">${novoHtml}</div>`, {
                     childrenOnly: true,
@@ -1539,141 +1318,266 @@ window.TopicsManager = (function () {
             } else {
                 contentEl.innerHTML = novoHtml;
             }
-                
-            // ==========================================
-            // 4. SEGUNDA PAUSA (Fila de Geometria)
-            // Espera o HTML recém-injetado ganhar dimensões reais no navegador
-            // ==========================================
-            requestAnimationFrame(() => {
-                
-                // Reconecta observadores e tratamentos de texto longo
-                document.querySelectorAll('.sub-text-content, .card-texto').forEach(el => {
-                    if (typeof resizeObserver !== 'undefined') {
-                        if (typeof anexarAoObserverComSeguranca === 'function') {
-                            anexarAoObserverComSeguranca(el);
-                        } else {
-                            resizeObserver.observe(el);
+            
+            _sincronizarBtnGlobais(false, false);
+                restaurarScroll();
+                return;
+            }
+
+        let sumarioHtml = '';
+        const tesesValidas = topicoAtivo.anotacoes.filter(an => an.tese && an.tese.trim() !== '');
+        if (tesesValidas.length > 0) {
+            sumarioHtml = `
+            <div class="thesis-summary-panel">`;
+
+            topicoAtivo.anotacoes.forEach((an, idx) => {
+                if (an.tese && an.tese.trim() !== '') {
+                    const fasesPresentes = new Set();
+                    
+                    fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(an.documento) : 4);
+                    
+                    if (an.itensCorrelacionados?.length) {
+                        an.itensCorrelacionados.forEach(ic => fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(ic.documento) : 4));
+                    }
+
+                    if (an.itensCorrelacionados?.length) {
+                        an.itensCorrelacionados.forEach(ic => {
+                            if (ic.subAnotacoes && ic.subAnotacoes.length > 0) {
+                                fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(ic.documento) : 4);
+                            }
+                        });
+                    }
+
+                    const cores = [];
+                    if(fasesPresentes.has(1)) cores.push('var(--fase-1-bg)');
+                    if(fasesPresentes.has(2)) cores.push('var(--fase-2-bg)');
+                    if(fasesPresentes.has(3)) cores.push('var(--fase-3-bg)');
+                    if(fasesPresentes.has(4)) cores.push('var(--fase-4-bg)');
+                    
+                    let bgStyle = '';
+                    if(cores.length > 0) {
+                        const step = 100 / cores.length;
+                        const gradients = cores.map((cor, i) => `${cor} ${i * step}%, ${cor} ${(i + 1) * step}%`);
+                        bgStyle = `style="background: linear-gradient(to right, ${gradients.join(', ')}), #ffffff;"`; 
+                    }
+
+                    const matureClass = fasesPresentes.size === 4 ? 'mature' : '';
+                    const txt = escaparHTML(an.tese);
+
+                    sumarioHtml += `
+                        <div class="thesis-badge ${matureClass}" onclick="abrirModalTese('${activeTabId}', ${idx})">
+                            <div class="thesis-badge-inner" ${bgStyle}>
+                                <span class="num" style="background-color: ${_activeTopicoCor}; color: ${corTextoTese};">${idx + 1}</span> 
+                                <span class="texto-tese">${txt}</span>
+                            </div>
+                        </div>`;
+                }
+            });
+            sumarioHtml += '</div>';
+        }
+        
+        let cardsHTML = '';
+        let ultimaTeseRenderizada = null;
+
+        const renderContext = {
+            romanCounter: 0,
+            romanMap: new Map()
+        };
+
+        topicoAtivo.anotacoes.forEach((an, index) => {
+            const chaveTeseCrua = an.tese || "Tese Não Nomeada";
+            const diretrizes = (topicoAtivo.diretrizesPorTese && topicoAtivo.diretrizesPorTese[chaveTeseCrua]) 
+                                ? topicoAtivo.diretrizesPorTese[chaveTeseCrua] 
+                                : [];
+            
+            const isTesePreenchida = (an.tese && an.tese.trim() !== '');
+
+            if (chaveTeseCrua !== ultimaTeseRenderizada) {
+                if (isTesePreenchida || diretrizes.length > 0) {
+                    const tituloExibicao = isTesePreenchida ? an.tese : "Tese Não Nomeada";
+                    cardsHTML += _gerarHtmlTeseGroup(tituloExibicao, diretrizes, activeTabId, _activeTopicoCor, index, renderContext);
+                }
+                ultimaTeseRenderizada = chaveTeseCrua;
+            }
+            
+            cardsHTML += criarCard(an, index, topicoAtivo.anotacoes, renderContext);
+        });
+
+        let htmlDiretrizesGlobais = '';
+        let globaisHtml = ''; 
+
+        if (temGlobais || forcadoAberto) {
+            if (temGlobais) {
+                const gruposGProcessados = new Set();
+                const globaisArray = [];
+
+                topicoAtivo.diretrizesGlobais.forEach((d, sIdx) => {
+                    const dRender = { ...d, viewSource: 'global' };
+
+                    if (!dRender.grupoId) {
+                        const intencao = dRender.intencao || 'premissa';
+                        const iconSVG = obterIconeIntencao(intencao);
+                        const isRevisada = dRender.revisada === true;
+                        const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : 'sub-annotation-item';
+                        
+                        globaisArray.push(`
+                        <div class="${itemWrapperClass}" data-source="global">
+                            <div class="sub-annotation-card borda-global">
+                                <div class="sub-badge has-intent intencao-${intencao}" onclick="abrirMenuSubAnotacao('${activeTabId}', null, 'global', ${sIdx}, event)">${iconSVG} G.${sIdx + 1}</div>
+                                <div class="sub-text-content" data-raw-text="${escaparHTML(dRender.texto)}" data-raw-title="Diretriz Global" ondblclick="TopicsManager.abrirModoLeitura(this)">${renderizarMarkdownSeguro(escaparHTML(dRender.texto))}</div>
+                                <div class="btn-read-mode-trigger sub-read-badge" data-raw-text="${escaparHTML(dRender.texto)}" data-raw-title="Diretriz Global" onclick="TopicsManager.abrirModoLeitura(this)"><svg><use href="#icon-book-open"></use></svg></div>
+                                <button class="btn-copiar-zen" onclick="navigator.clipboard.writeText('${escaparHTML(dRender.texto).replace(/'/g, "\\'")}')" title="Copiar">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                                    Copiar
+                                </button>
+                                ${_gerarBtnRevisaoHtml(activeTabId, null, 'global', sIdx, intencao, isRevisada)}
+                            </div>
+                        </div>`);
+                    } else {
+                        if (!gruposGProcessados.has(dRender.grupoId)) {
+                            gruposGProcessados.add(dRender.grupoId);
+                            globaisArray.push(_gerarHtmlPilha(dRender, renderContext, activeTabId));
                         }
                     }
-                    
-                    if (el.scrollHeight > el.clientHeight) {
-                        el.classList.add('is-truncated');
-                        const parentCard = el.closest('.annotation-card, .sub-annotation-card');
-                        if (parentCard) parentCard.classList.add('has-truncated-text');
-                    } else {
-                        el.classList.remove('is-truncated');
-                        const parentCard = el.closest('.annotation-card, .sub-annotation-card');
-                        if (parentCard) parentCard.classList.remove('has-truncated-text');
-                    }
                 });
+                globaisHtml = globaisArray.join('');
+            }
 
-                const historyContainer = document.getElementById('history-container');
-                if (historyContainer && typeof resizeObserver !== 'undefined') {
-                    if (typeof anexarAoObserverComSeguranca === 'function') anexarAoObserverComSeguranca(historyContainer);
-                    else resizeObserver.observe(historyContainer);
-                }
-                
-                const headerElLive = document.getElementById('topics-tabs-header');
-                if (headerElLive && typeof resizeObserver !== 'undefined') {
-                    if (typeof anexarAoObserverComSeguranca === 'function') anexarAoObserverComSeguranca(headerElLive);
-                    else resizeObserver.observe(headerElLive);
-                }
+            htmlDiretrizesGlobais = `
+            <div class="timeline-item-master align-left nivel-hierarquico nivel-global" id="timeline-wrapper-globais-${activeTabId}">
+                <div class="main-card-wrapper">
+                    <div class="annotation-number-area">
+                        <div class="timeline-icon-box" title="Diretrizes Globais do Tópico">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+                        </div>
+                    </div>
+                    <div class="annotation-card">
+                            <div class="card-header" style="justify-content: space-between; margin-bottom: 0;">
+                                <div class="hierarquia-titulo">Diretrizes Globais do Tópico</div>
+                                <div class="card-actions-bar" style="margin-top: 0; padding-top: 0; border-top: none;">
+                                    <button title="Adicionar Diretriz Global" onclick="adicionarDiretrizEstrutural('global', '${activeTabId}', null, event)">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                </div>
+                <div class="sub-annotations-wrapper" style="position: relative; min-height: auto;">
+                    ${globaisHtml}
+                </div>
+            </div>`;
+        }
 
-                document.querySelectorAll('.image-resize-wrapper').forEach(wrapper => {
-                    wrapper.addEventListener('mouseup', () => desenharConexoes());
-                    wrapper.addEventListener('mouseleave', () => desenharConexoes());
-                });
+        conteudoCentralHtml = sumarioHtml + `
+            <div class="timeline-container" id="timeline-container">
+                <svg id="connections-canvas"></svg>
+                ${htmlDiretrizesGlobais}
+                ${cardsHTML}
+            </div>`;
 
-                // 5. CÁLCULOS MATEMÁTICOS DE POSIÇÃO E LINHAS
-                const container = document.getElementById('timeline-container');
-                if (container) {
-                    posicionarNosDeIdeia(container);
-                    restaurarScroll();
-                    
-                    // Terceira Pausa: Espera o CSS de posição aplicar antes de riscar as linhas
-                    requestAnimationFrame(() => {
-                        desenharConexoes();
-                        _reassertScroll();
-                        
-                        // 6. TUDO PRONTO: REMOVE A CORTINA DE LOADING
-                        loadingOverlay.classList.remove('is-active');
-                    });
-                } else {
-                    restaurarScroll();
-                    loadingOverlay.classList.remove('is-active');
-                }
-                
-                _atualizarMarcadoresDeIdeia(topicoAtivo);
-                atualizarContadorNotasOcultas();
-            });
+        const novoHtml = preambleHtml + conteudoCentralHtml;
             
-            _sincronizarBtnGlobais(temGlobais, forcadoAberto);
+        if (typeof resizeObserver !== 'undefined') resizeObserver.disconnect();
 
-        }, 15); // Fim do setTimeout
+        if (typeof morphdom !== 'undefined') {
+            morphdom(contentEl, `<div id="topics-tab-content" class="topics-content-area" style="${contentEl.style.cssText}">${novoHtml}</div>`, {
+                childrenOnly: true,
+                getNodeKey: function(node) {
+                    if (node.id) return node.id;
+                }
+            });
+        } else {
+            contentEl.innerHTML = novoHtml;
+        }
+            
+        requestAnimationFrame(() => {
+            document.querySelectorAll('.sub-text-content, .card-texto').forEach(el => {
+                if (typeof resizeObserver !== 'undefined') resizeObserver.observe(el);
+                
+                if (el.scrollHeight > el.clientHeight) {
+                    el.classList.add('is-truncated');
+                    const parentCard = el.closest('.annotation-card, .sub-annotation-card');
+                    if (parentCard) parentCard.classList.add('has-truncated-text');
+                } else {
+                    el.classList.remove('is-truncated');
+                    const parentCard = el.closest('.annotation-card, .sub-annotation-card');
+                    if (parentCard) parentCard.classList.remove('has-truncated-text');
+                }
+            });
+
+            const historyContainer = document.getElementById('history-container');
+            if (historyContainer && typeof resizeObserver !== 'undefined') resizeObserver.observe(historyContainer);
+            
+            if (headerEl && typeof resizeObserver !== 'undefined') resizeObserver.observe(headerEl);
+
+            document.querySelectorAll('.image-resize-wrapper').forEach(wrapper => {
+                wrapper.addEventListener('mouseup', () => desenharConexoes());
+                wrapper.addEventListener('mouseleave', () => desenharConexoes());
+            });
+
+            const container = document.getElementById('timeline-container');
+            if (container) {
+                posicionarNosDeIdeia(container);
+                restaurarScroll();
+                
+                requestAnimationFrame(() => {
+                    desenharConexoes();
+                    _reassertScroll();
+                });
+            } else {
+                restaurarScroll();
+            }
+            
+            _atualizarMarcadoresDeIdeia(topicoAtivo);
+            atualizarContadorNotasOcultas();
+        });
+        
+        _sincronizarBtnGlobais(temGlobais, forcadoAberto);
     }
 
     /**
-     * Motor Geométrico Otimizado (Batching Global de Leitura e Escrita)
-     * Elimina 100% do Layout Thrashing (Forced Synchronous Layout) isolando o Paint do Recalculate Style
+     * Motor Geométrico: Mede a última linha e preenche o espaço restante com abas inativas.
+     * Evita Layout Thrashing através de leitura em massa (Passe A) seguida de mutação (Passe B)
      */
     function posicionarNosDeIdeia(container) {
-        const masterItems = Array.from(container.querySelectorAll('.timeline-item-master'));
-
-        // ==========================================
-        // PASSE A: APENAS LEITURAS (READS)
-        // O navegador calcula isso instantaneamente sem reflows
-        // ==========================================
-        const allMeasurements = masterItems.map(master => {
+        const masterItems = container.querySelectorAll('.timeline-item-master');
+        
+        masterItems.forEach(master => {
             const mainCard = master.querySelector('.main-card-wrapper > .annotation-card');
             const subWrapper = master.querySelector('.sub-annotations-wrapper');
-            const subItems = Array.from(master.querySelectorAll('.sub-annotation-item'));
+            const subItems = master.querySelectorAll('.sub-annotation-item');
 
-            if (!mainCard || subItems.length === 0 || !subWrapper) return null;
+            if (!mainCard || subItems.length === 0 || !subWrapper) return;
 
             const wrapperRect = subWrapper.getBoundingClientRect();
-
-            const itemMeasurements = subItems.map(subItem => {
+            
+            // Passe A: Leituras (Evita Layout Thrashing)
+            const measurements = Array.from(subItems).map(subItem => {
                 const sourceRef = subItem.dataset.source;
                 let sourceCard = mainCard;
-                
                 if (sourceRef !== 'main') {
                     const correlatedWrapper = master.querySelector(`.correlated-item-wrapper[data-cidx="${sourceRef}"]`);
                     if (correlatedWrapper) sourceCard = correlatedWrapper.querySelector('.annotation-card');
                 }
-
-                // Proteção contra aba invisível
+                
+                // TRAVA DE SEGURANÇA: Previne o bug de sobreposição ao trocar abas no navegador
                 if (sourceCard.offsetHeight === 0) return null;
-
-                const sourceRect = sourceCard.getBoundingClientRect();
 
                 return {
                     el: subItem,
-                    sourceCenterY: (sourceRect.top - wrapperRect.top) + (sourceRect.height / 2),
+                    sourceCenterY: (sourceCard.getBoundingClientRect().top - wrapperRect.top) + (sourceCard.getBoundingClientRect().height / 2),
                     height: subItem.offsetHeight
                 };
-            }).filter(m => m !== null);
+            }).filter(m => m !== null); // Remove os itens inválidos da contagem
 
-            return {
-                subWrapper,
-                itemMeasurements
-            };
-        }).filter(m => m !== null);
+            if (measurements.length === 0) return; // Aborta mutação em views ocultas
 
-        // Se não há nada para medir, encerra silenciosamente
-        if (allMeasurements.length === 0) return;
-
-        // ==========================================
-        // PASSE B: APENAS ESCRITAS (WRITES)
-        // Aplica tudo na tela em um único frame
-        // ==========================================
-        allMeasurements.forEach(data => {
+            // Passe B: Mutações
             let currentY = 0;
-            
-            data.itemMeasurements.forEach(m => {
+            measurements.forEach(m => {
                 let desiredTop = m.sourceCenterY - (m.height / 2);
                 if (desiredTop < currentY) desiredTop = currentY;
                 
-                // Mutações visuais
                 m.el.style.position = 'absolute';
                 m.el.style.top = desiredTop + 'px';
                 m.el.style.width = '100%';
@@ -1681,119 +1585,109 @@ window.TopicsManager = (function () {
                 currentY = desiredTop + m.height + 16;
             });
 
-            // Garantia estrutural (evita que elementos voem pela página)
-            data.subWrapper.style.position = 'relative';
-            data.subWrapper.style.minHeight = currentY + 'px';
-            if (window.DebugTelemetry?.LayoutTracker) window.DebugTelemetry.LayoutTracker.incMutation();
+            subWrapper.style.minHeight = currentY + 'px';
         });
     }
 
     /**
-     * Motor Dinâmico de Conexões Sinuosas (BLINDADO COM rAF DEBOUNCE)
-     * Resolve o Crash de GPU e Forced Synchronous Layout
+     * Motor Dinâmico de Conexões Sinuosas
+     * @param {boolean} isZenActive - Indica se o Modo Zen está ativo (injetado para evitar reflows no loop)
      */
-    let _conexaoRafId = null;
-
     function desenharConexoes(isZenActive = false) {
-        // O PORTEIRO: Se já tem um desenho agendado para este frame, cancela e agenda o mais atual.
-        // Isso impede que o navegador desenhe o SVG 50x por segundo travando a CPU.
-        if (_conexaoRafId) {
-            cancelAnimationFrame(_conexaoRafId);
+        const container = document.getElementById('timeline-container');
+        const svg = document.getElementById('connections-canvas');
+        if (!container || !svg) return;
+
+        const containerRect = container.getBoundingClientRect();
+        let svgContent = '';
+
+        // 1. LINHA VERMELHA (ESPINHA DORSAL): Conecta Grupo a Grupo (incluindo Teses)
+        // CORREÇÃO TOPOLÓGICA: Alterado de :not(.nivel-hierarquico) para :not(.nivel-global) 
+        // para que a linha ancore corretamente nos cards de Tese.
+        const masterItemsForSpine = Array.from(container.querySelectorAll('.timeline-item-master:not(.nivel-global)'));
+
+        for (let i = 0; i < masterItemsForSpine.length - 1; i++) {
+            const currentGroup = masterItemsForSpine[i];
+            const nextGroup = masterItemsForSpine[i + 1];
+
+            const currentCorrelated = currentGroup.querySelectorAll('.correlated-item-wrapper > .annotation-card');
+            let cardAtual = currentCorrelated.length > 0 ? currentCorrelated[currentCorrelated.length - 1] : currentGroup.querySelector('.main-card-wrapper > .annotation-card');
+            const cardProx = nextGroup.querySelector('.main-card-wrapper > .annotation-card');
+
+            if (!cardAtual || !cardProx) continue;
+
+            const rectAtual = cardAtual.getBoundingClientRect();
+            const rectProx = cardProx.getBoundingClientRect();
+
+            const startX = (rectAtual.left + rectAtual.width / 2) - containerRect.left;
+            const startY = rectAtual.bottom - containerRect.top;
+            const endX = (rectProx.left + rectProx.width / 2) - containerRect.left;
+            const endY = rectProx.top - containerRect.top;
+            const ctrlY = (startY + endY) / 2;
+
+            // Constante geométrica para a haste horizontal nas pontas (8px para cada lado)
+            const tick = 8; 
+
+            // Montagem consolidada do Path:
+            // 1. Haste Superior (Move, Line)
+            // 2. Curva Sinuosa (Move, Curve)
+            // 3. Haste Inferior (Move, Line)
+            const pathD = `M ${startX - tick},${startY} L ${startX + tick},${startY} ` +
+                          `M ${startX},${startY} C ${startX},${ctrlY} ${endX},${ctrlY} ${endX},${endY} ` +
+                          `M ${endX - tick},${endY} L ${endX + tick},${endY}`;
+
+            // Injeção puramente geométrica e semântica
+            svgContent += `<path class="spine-connection" d="${pathD}" />`;
         }
 
-        _conexaoRafId = requestAnimationFrame(() => {
-            const container = document.getElementById('timeline-container');
-            const svg = document.getElementById('connections-canvas');
-            if (!container || !svg) {
-                _conexaoRafId = null;
-                return;
-            }
+        // 2. LINHAS TRACEJADAS: Conecta Master aos Sub-itens (Nós de Ideia)
+        const masterItems = container.querySelectorAll('.timeline-item-master');
+        masterItems.forEach(master => {
+            const mainCard = master.querySelector('.main-card-wrapper > .annotation-card');
+            const subItems = master.querySelectorAll('.sub-annotation-item');
+            if (!mainCard || subItems.length === 0) return;
 
-            const containerRect = container.getBoundingClientRect();
-            let svgContent = '';
-
-            // 1. LINHA VERMELHA (ESPINHA DORSAL)
-            const masterItemsForSpine = Array.from(container.querySelectorAll('.timeline-item-master:not(.nivel-global)'));
-
-            for (let i = 0; i < masterItemsForSpine.length - 1; i++) {
-                const currentGroup = masterItemsForSpine[i];
-                const nextGroup = masterItemsForSpine[i + 1];
-
-                const currentCorrelated = currentGroup.querySelectorAll('.correlated-item-wrapper > .annotation-card');
-                let cardAtual = currentCorrelated.length > 0 ? currentCorrelated[currentCorrelated.length - 1] : currentGroup.querySelector('.main-card-wrapper > .annotation-card');
-                const cardProx = nextGroup.querySelector('.main-card-wrapper > .annotation-card');
-
-                if (!cardAtual || !cardProx) continue;
-
-                const rectAtual = cardAtual.getBoundingClientRect();
-                const rectProx = cardProx.getBoundingClientRect();
-
-                const startX = (rectAtual.left + rectAtual.width / 2) - containerRect.left;
-                const startY = rectAtual.bottom - containerRect.top;
-                const endX = (rectProx.left + rectProx.width / 2) - containerRect.left;
-                const endY = rectProx.top - containerRect.top;
-                const ctrlY = (startY + endY) / 2;
-                const tick = 8; 
-
-                const pathD = `M ${startX - tick},${startY} L ${startX + tick},${startY} ` +
-                              `M ${startX},${startY} C ${startX},${ctrlY} ${endX},${ctrlY} ${endX},${endY} ` +
-                              `M ${endX - tick},${endY} L ${endX + tick},${endY}`;
-
-                svgContent += `<path class="spine-connection" d="${pathD}" />`;
-            }
-
-            // 2. LINHAS TRACEJADAS
-            const masterItems = container.querySelectorAll('.timeline-item-master');
-            masterItems.forEach(master => {
-                const mainCard = master.querySelector('.main-card-wrapper > .annotation-card');
-                const subItems = master.querySelectorAll('.sub-annotation-item');
-                if (!mainCard || subItems.length === 0) return;
-
-                const isRightAligned = master.classList.contains('align-right');
-                
-                subItems.forEach(subItem => {
-                    const subCard = subItem.querySelector('.sub-annotation-card');
-                    const subRect = subCard.getBoundingClientRect();
-                    const sourceRef = subItem.dataset.source;
-                    
-                    let sourceCard = mainCard;
-                    if (sourceRef !== 'main') {
-                        const correlatedWrapper = master.querySelector(`.correlated-item-wrapper[data-cidx="${sourceRef}"]`);
-                        if (correlatedWrapper) sourceCard = correlatedWrapper.querySelector('.annotation-card');
-                    }
-                    const sourceRect = sourceCard.getBoundingClientRect();
-
-                    const startX = isRightAligned ? sourceRect.left - containerRect.left : sourceRect.right - containerRect.left;
-                    const endX = isRightAligned ? subRect.right - containerRect.left : subRect.left - containerRect.left;
-                    const startY = (sourceRect.top + sourceRect.height / 2) - containerRect.top;
-                    const endY   = (subRect.top + subRect.height / 2) - containerRect.top;
-                    const ctrlX  = (startX + endX) / 2;
-
-                    let strokeColor = "#777";
-                    let strokeOpacity = "1";
-                    let strokeWidth = "1.5";
-                    let dashArray = "5 4";
-
-                    if (isZenActive) {
-                        if (subItem.classList.contains('is-zen-focused')) {
-                            strokeColor = "var(--active-tab-color)"; 
-                            strokeWidth = "2.5";
-                            dashArray = "none"; 
-                        } else {
-                            strokeOpacity = "0.15"; 
-                        }
-                    }
-
-                    svgContent += `<path d="M ${startX},${startY} C ${ctrlX},${startY} ${ctrlX},${endY} ${endX},${endY}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="${dashArray}" opacity="${strokeOpacity}" fill="none" stroke-linecap="round"/>`;
-                });
-            });
-
-            // ESCRITA ÚNICA E SEGURA NO DOM
-            svg.innerHTML = svgContent;
+            const isRightAligned = master.classList.contains('align-right');
             
-            // Libera a trava
-            _conexaoRafId = null;
+            subItems.forEach(subItem => {
+                const subCard = subItem.querySelector('.sub-annotation-card');
+                const subRect = subCard.getBoundingClientRect();
+                const sourceRef = subItem.dataset.source;
+                
+                let sourceCard = mainCard;
+                if (sourceRef !== 'main') {
+                    const correlatedWrapper = master.querySelector(`.correlated-item-wrapper[data-cidx="${sourceRef}"]`);
+                    if (correlatedWrapper) sourceCard = correlatedWrapper.querySelector('.annotation-card');
+                }
+                const sourceRect = sourceCard.getBoundingClientRect();
+
+                const startX = isRightAligned ? sourceRect.left - containerRect.left : sourceRect.right - containerRect.left;
+                const endX = isRightAligned ? subRect.right - containerRect.left : subRect.left - containerRect.left;
+                const startY = (sourceRect.top + sourceRect.height / 2) - containerRect.top;
+                const endY   = (subRect.top + subRect.height / 2) - containerRect.top;
+                const ctrlX  = (startX + endX) / 2;
+
+                // LÓGICA DE UX: Comportamento Visual no Modo Zen
+                let strokeColor = "#777";
+                let strokeOpacity = "1";
+                let strokeWidth = "1.5";
+                let dashArray = "5 4";
+
+                if (isZenActive) {
+                    if (subItem.classList.contains('is-zen-focused')) {
+                        strokeColor = _activeTopicoCor; // Cor da aba ativa
+                        strokeWidth = "2.5";
+                        dashArray = "none"; // Linha sólida para foco
+                    } else {
+                        strokeOpacity = "0.15"; // Esmaece os demais para acompanhar o blur do fundo
+                    }
+                }
+
+                svgContent += `<path d="M ${startX},${startY} C ${ctrlX},${startY} ${ctrlX},${endY} ${endX},${endY}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="${dashArray}" opacity="${strokeOpacity}" fill="none" stroke-linecap="round"/>`;
+            });
         });
+
+        svg.innerHTML = svgContent;
     }
 
     /**
