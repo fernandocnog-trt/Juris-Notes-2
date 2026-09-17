@@ -1615,104 +1615,111 @@ window.TopicsManager = (function () {
     }
 
     /**
-     * Motor Dinâmico de Conexões Sinuosas
-     * @param {boolean} isZenActive - Indica se o Modo Zen está ativo (injetado para evitar reflows no loop)
+     * Motor Dinâmico de Conexões Sinuosas (BLINDADO COM rAF DEBOUNCE)
+     * Resolve o Crash de GPU e Forced Synchronous Layout
      */
+    let _conexaoRafId = null;
+
     function desenharConexoes(isZenActive = false) {
-        const container = document.getElementById('timeline-container');
-        const svg = document.getElementById('connections-canvas');
-        if (!container || !svg) return;
-
-        const containerRect = container.getBoundingClientRect();
-        let svgContent = '';
-
-        // 1. LINHA VERMELHA (ESPINHA DORSAL): Conecta Grupo a Grupo (incluindo Teses)
-        // CORREÇÃO TOPOLÓGICA: Alterado de :not(.nivel-hierarquico) para :not(.nivel-global) 
-        // para que a linha ancore corretamente nos cards de Tese.
-        const masterItemsForSpine = Array.from(container.querySelectorAll('.timeline-item-master:not(.nivel-global)'));
-
-        for (let i = 0; i < masterItemsForSpine.length - 1; i++) {
-            const currentGroup = masterItemsForSpine[i];
-            const nextGroup = masterItemsForSpine[i + 1];
-
-            const currentCorrelated = currentGroup.querySelectorAll('.correlated-item-wrapper > .annotation-card');
-            let cardAtual = currentCorrelated.length > 0 ? currentCorrelated[currentCorrelated.length - 1] : currentGroup.querySelector('.main-card-wrapper > .annotation-card');
-            const cardProx = nextGroup.querySelector('.main-card-wrapper > .annotation-card');
-
-            if (!cardAtual || !cardProx) continue;
-
-            const rectAtual = cardAtual.getBoundingClientRect();
-            const rectProx = cardProx.getBoundingClientRect();
-
-            const startX = (rectAtual.left + rectAtual.width / 2) - containerRect.left;
-            const startY = rectAtual.bottom - containerRect.top;
-            const endX = (rectProx.left + rectProx.width / 2) - containerRect.left;
-            const endY = rectProx.top - containerRect.top;
-            const ctrlY = (startY + endY) / 2;
-
-            // Constante geométrica para a haste horizontal nas pontas (8px para cada lado)
-            const tick = 8; 
-
-            // Montagem consolidada do Path:
-            // 1. Haste Superior (Move, Line)
-            // 2. Curva Sinuosa (Move, Curve)
-            // 3. Haste Inferior (Move, Line)
-            const pathD = `M ${startX - tick},${startY} L ${startX + tick},${startY} ` +
-                          `M ${startX},${startY} C ${startX},${ctrlY} ${endX},${ctrlY} ${endX},${endY} ` +
-                          `M ${endX - tick},${endY} L ${endX + tick},${endY}`;
-
-            // Injeção puramente geométrica e semântica
-            svgContent += `<path class="spine-connection" d="${pathD}" />`;
+        // O PORTEIRO: Se já tem um desenho agendado para este frame, cancela e agenda o mais atual.
+        // Isso impede que o navegador desenhe o SVG 50x por segundo travando a CPU.
+        if (_conexaoRafId) {
+            cancelAnimationFrame(_conexaoRafId);
         }
 
-        // 2. LINHAS TRACEJADAS: Conecta Master aos Sub-itens (Nós de Ideia)
-        const masterItems = container.querySelectorAll('.timeline-item-master');
-        masterItems.forEach(master => {
-            const mainCard = master.querySelector('.main-card-wrapper > .annotation-card');
-            const subItems = master.querySelectorAll('.sub-annotation-item');
-            if (!mainCard || subItems.length === 0) return;
+        _conexaoRafId = requestAnimationFrame(() => {
+            const container = document.getElementById('timeline-container');
+            const svg = document.getElementById('connections-canvas');
+            if (!container || !svg) {
+                _conexaoRafId = null;
+                return;
+            }
 
-            const isRightAligned = master.classList.contains('align-right');
-            
-            subItems.forEach(subItem => {
-                const subCard = subItem.querySelector('.sub-annotation-card');
-                const subRect = subCard.getBoundingClientRect();
-                const sourceRef = subItem.dataset.source;
+            const containerRect = container.getBoundingClientRect();
+            let svgContent = '';
+
+            // 1. LINHA VERMELHA (ESPINHA DORSAL)
+            const masterItemsForSpine = Array.from(container.querySelectorAll('.timeline-item-master:not(.nivel-global)'));
+
+            for (let i = 0; i < masterItemsForSpine.length - 1; i++) {
+                const currentGroup = masterItemsForSpine[i];
+                const nextGroup = masterItemsForSpine[i + 1];
+
+                const currentCorrelated = currentGroup.querySelectorAll('.correlated-item-wrapper > .annotation-card');
+                let cardAtual = currentCorrelated.length > 0 ? currentCorrelated[currentCorrelated.length - 1] : currentGroup.querySelector('.main-card-wrapper > .annotation-card');
+                const cardProx = nextGroup.querySelector('.main-card-wrapper > .annotation-card');
+
+                if (!cardAtual || !cardProx) continue;
+
+                const rectAtual = cardAtual.getBoundingClientRect();
+                const rectProx = cardProx.getBoundingClientRect();
+
+                const startX = (rectAtual.left + rectAtual.width / 2) - containerRect.left;
+                const startY = rectAtual.bottom - containerRect.top;
+                const endX = (rectProx.left + rectProx.width / 2) - containerRect.left;
+                const endY = rectProx.top - containerRect.top;
+                const ctrlY = (startY + endY) / 2;
+                const tick = 8; 
+
+                const pathD = `M ${startX - tick},${startY} L ${startX + tick},${startY} ` +
+                              `M ${startX},${startY} C ${startX},${ctrlY} ${endX},${ctrlY} ${endX},${endY} ` +
+                              `M ${endX - tick},${endY} L ${endX + tick},${endY}`;
+
+                svgContent += `<path class="spine-connection" d="${pathD}" />`;
+            }
+
+            // 2. LINHAS TRACEJADAS
+            const masterItems = container.querySelectorAll('.timeline-item-master');
+            masterItems.forEach(master => {
+                const mainCard = master.querySelector('.main-card-wrapper > .annotation-card');
+                const subItems = master.querySelectorAll('.sub-annotation-item');
+                if (!mainCard || subItems.length === 0) return;
+
+                const isRightAligned = master.classList.contains('align-right');
                 
-                let sourceCard = mainCard;
-                if (sourceRef !== 'main') {
-                    const correlatedWrapper = master.querySelector(`.correlated-item-wrapper[data-cidx="${sourceRef}"]`);
-                    if (correlatedWrapper) sourceCard = correlatedWrapper.querySelector('.annotation-card');
-                }
-                const sourceRect = sourceCard.getBoundingClientRect();
-
-                const startX = isRightAligned ? sourceRect.left - containerRect.left : sourceRect.right - containerRect.left;
-                const endX = isRightAligned ? subRect.right - containerRect.left : subRect.left - containerRect.left;
-                const startY = (sourceRect.top + sourceRect.height / 2) - containerRect.top;
-                const endY   = (subRect.top + subRect.height / 2) - containerRect.top;
-                const ctrlX  = (startX + endX) / 2;
-
-                // LÓGICA DE UX: Comportamento Visual no Modo Zen
-                let strokeColor = "#777";
-                let strokeOpacity = "1";
-                let strokeWidth = "1.5";
-                let dashArray = "5 4";
-
-                if (isZenActive) {
-                    if (subItem.classList.contains('is-zen-focused')) {
-                        strokeColor = _activeTopicoCor; // Cor da aba ativa
-                        strokeWidth = "2.5";
-                        dashArray = "none"; // Linha sólida para foco
-                    } else {
-                        strokeOpacity = "0.15"; // Esmaece os demais para acompanhar o blur do fundo
+                subItems.forEach(subItem => {
+                    const subCard = subItem.querySelector('.sub-annotation-card');
+                    const subRect = subCard.getBoundingClientRect();
+                    const sourceRef = subItem.dataset.source;
+                    
+                    let sourceCard = mainCard;
+                    if (sourceRef !== 'main') {
+                        const correlatedWrapper = master.querySelector(`.correlated-item-wrapper[data-cidx="${sourceRef}"]`);
+                        if (correlatedWrapper) sourceCard = correlatedWrapper.querySelector('.annotation-card');
                     }
-                }
+                    const sourceRect = sourceCard.getBoundingClientRect();
 
-                svgContent += `<path d="M ${startX},${startY} C ${ctrlX},${startY} ${ctrlX},${endY} ${endX},${endY}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="${dashArray}" opacity="${strokeOpacity}" fill="none" stroke-linecap="round"/>`;
+                    const startX = isRightAligned ? sourceRect.left - containerRect.left : sourceRect.right - containerRect.left;
+                    const endX = isRightAligned ? subRect.right - containerRect.left : subRect.left - containerRect.left;
+                    const startY = (sourceRect.top + sourceRect.height / 2) - containerRect.top;
+                    const endY   = (subRect.top + subRect.height / 2) - containerRect.top;
+                    const ctrlX  = (startX + endX) / 2;
+
+                    let strokeColor = "#777";
+                    let strokeOpacity = "1";
+                    let strokeWidth = "1.5";
+                    let dashArray = "5 4";
+
+                    if (isZenActive) {
+                        if (subItem.classList.contains('is-zen-focused')) {
+                            strokeColor = "var(--active-tab-color)"; 
+                            strokeWidth = "2.5";
+                            dashArray = "none"; 
+                        } else {
+                            strokeOpacity = "0.15"; 
+                        }
+                    }
+
+                    svgContent += `<path d="M ${startX},${startY} C ${ctrlX},${startY} ${ctrlX},${endY} ${endX},${endY}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="${dashArray}" opacity="${strokeOpacity}" fill="none" stroke-linecap="round"/>`;
+                });
             });
-        });
 
-        svg.innerHTML = svgContent;
+            // ESCRITA ÚNICA E SEGURA NO DOM
+            svg.innerHTML = svgContent;
+            
+            // Libera a trava
+            _conexaoRafId = null;
+        });
     }
 
     /**
