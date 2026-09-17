@@ -45,10 +45,7 @@ window.TopicsManager = (function () {
         const historyContainer = document.getElementById('history-container');
         
         if (_scrollGuard.suprimido) {
-            if (historyContainer) {
-                if (window.LayoutTelemetry) LayoutTelemetry.markScroll('restaurarScroll-suprimido', { behavior: 'smooth' });
-                historyContainer.scrollTo({ top: 0, behavior: 'smooth' });
-            }
+            if (historyContainer) historyContainer.scrollTo({ top: 0, behavior: 'smooth' });
             _scrollGuard.suprimido = false;
             _scrollGuard.podeRestaurar = false;
             _ultimaAbaRenderizada = activeTabId;
@@ -56,7 +53,6 @@ window.TopicsManager = (function () {
         }
 
         if (_scrollGuard.podeRestaurar && historyContainer) {
-            if (window.LayoutTelemetry) LayoutTelemetry.markScroll('restaurarScroll', { yOffset: _scrollGuard.yOffset, behavior: 'instant' });
             historyContainer.scrollTo({
                 top: _scrollGuard.yOffset,
                 behavior: 'instant' 
@@ -73,7 +69,6 @@ window.TopicsManager = (function () {
         if (!historyContainer || !_scrollGuard.podeRestaurar) return;
         
         if (Math.abs(historyContainer.scrollTop - _scrollGuard.yOffset) > 4) {
-            if (window.LayoutTelemetry) LayoutTelemetry.markScroll('_reassertScroll', { delta: Math.abs(historyContainer.scrollTop - _scrollGuard.yOffset), behavior: 'instant' });
             historyContainer.scrollTo({ top: _scrollGuard.yOffset, behavior: 'instant' });
         }
         _scrollGuard.podeRestaurar = false;
@@ -145,22 +140,28 @@ window.TopicsManager = (function () {
        ================================================ */
     let _layoutDebounceTimer = null;
     let _isUpdatingLayout = false;
-    const _lastHeights = new WeakMap(); // Correção C2: chave = o próprio nó (sem colisão de strings, sem leak pós-morphdom)
+    const _lastHeights = new Map(); 
 
     const resizeObserver = new ResizeObserver((entries) => {
-        // Correção C1: hook ANTES da guarda — contabiliza inclusive entregas engolidas
-        if (window.LayoutTelemetry) LayoutTelemetry.noteDelivery(entries, _isUpdatingLayout);
         if (_isUpdatingLayout) return;
         let needsRedraw = false;
+
         for (const entry of entries) {
+            // 1. FILTRO DE ELEMENTOS OCULTOS: Ignora abas inativas ou nós desmontados
             if (!entry.target || entry.target.offsetParent === null) continue;
+
             const currentHeight = Math.round(entry.contentRect.height);
-            const lastHeight = _lastHeights.get(entry.target) || 0;
+            const elementId = entry.target.id || entry.target.dataset.uuid || 'dom-node';
+            const lastHeight = _lastHeights.get(elementId) || 0;
+
+            // 2. THRESHOLD DELTA: Ignora variações sub-pixel que geram loop infinito
             if (currentHeight > 10 && Math.abs(currentHeight - lastHeight) >= 3) {
-                _lastHeights.set(entry.target, currentHeight);
+                _lastHeights.set(elementId, currentHeight);
                 needsRedraw = true;
             }
         }
+
+        // 3. EXECUÇÃO EM LOTE VIA REQUEST ANIMATION FRAME
         if (needsRedraw) {
             clearTimeout(_layoutDebounceTimer);
             _layoutDebounceTimer = setTimeout(() => {
@@ -168,22 +169,14 @@ window.TopicsManager = (function () {
                 requestAnimationFrame(() => {
                     const container = document.getElementById('timeline-container');
                     if (container && container.offsetParent !== null) {
-                        const pass = window.LayoutTelemetry ? LayoutTelemetry.beginPass('observer-debounce') : null;
                         posicionarNosDeIdeia(container);
                         desenharConexoes();
-                        if (pass) LayoutTelemetry.endPass();
                     }
                     setTimeout(() => { _isUpdatingLayout = false; }, 50);
                 });
-            }, 32);
+            }, 32); 
         }
     });
-
-    // Seed de altura no observe: elimina a passagem espúria pós-render (fantasma de log)
-    function _observarComSeed(el) {
-        _lastHeights.set(el, Math.round(el.getBoundingClientRect().height));
-        resizeObserver.observe(el);
-    }
 
     // Funções Privadas do Modo de Leitura Centralizado
     let _textoLeituraAtualMarkdown = "";
@@ -1198,7 +1191,6 @@ window.TopicsManager = (function () {
      */
     function renderizarFichario(topicosArray) {
         capturarScroll();
-        if (window.LayoutTelemetry) LayoutTelemetry.contRender();
 
         const headerEl  = document.getElementById('topics-tabs-header');
         const contentEl = document.getElementById('topics-tab-content');
@@ -1499,78 +1491,48 @@ window.TopicsManager = (function () {
         }
             
         requestAnimationFrame(() => {
-            const passRender = window.LayoutTelemetry ? LayoutTelemetry.beginPass('render-rAF') : null;
-            const elsTexto = document.querySelectorAll('.sub-text-content, .card-texto');
-            // 1º: toggles de truncamento (escritas), antes de qualquer seed
-            elsTexto.forEach(el => {
-                const parentCard = el.closest('.annotation-card, .sub-annotation-card');
+            document.querySelectorAll('.sub-text-content, .card-texto').forEach(el => {
+                if (typeof resizeObserver !== 'undefined') resizeObserver.observe(el);
+                
                 if (el.scrollHeight > el.clientHeight) {
                     el.classList.add('is-truncated');
+                    const parentCard = el.closest('.annotation-card, .sub-annotation-card');
                     if (parentCard) parentCard.classList.add('has-truncated-text');
                 } else {
                     el.classList.remove('is-truncated');
+                    const parentCard = el.closest('.annotation-card, .sub-annotation-card');
                     if (parentCard) parentCard.classList.remove('has-truncated-text');
                 }
             });
-            // 2º: seed + observe em lote (uma única passada de leitura → sem thrashing)
-            elsTexto.forEach(el => _observarComSeed(el));
+
             const historyContainer = document.getElementById('history-container');
-            if (historyContainer && typeof resizeObserver !== 'undefined') _observarComSeed(historyContainer);
-            if (headerEl && typeof resizeObserver !== 'undefined') _observarComSeed(headerEl);
+            if (historyContainer && typeof resizeObserver !== 'undefined') resizeObserver.observe(historyContainer);
+            
+            if (headerEl && typeof resizeObserver !== 'undefined') resizeObserver.observe(headerEl);
+
             document.querySelectorAll('.image-resize-wrapper').forEach(wrapper => {
                 wrapper.addEventListener('mouseup', () => desenharConexoes());
                 wrapper.addEventListener('mouseleave', () => desenharConexoes());
             });
+
             const container = document.getElementById('timeline-container');
             if (container) {
                 posicionarNosDeIdeia(container);
                 restaurarScroll();
+                
                 requestAnimationFrame(() => {
-                    const passRender2 = window.LayoutTelemetry ? LayoutTelemetry.beginPass('render-rAF2') : null;
                     desenharConexoes();
                     _reassertScroll();
-                    if (passRender2) LayoutTelemetry.endPass();
                 });
             } else {
                 restaurarScroll();
             }
+            
             _atualizarMarcadoresDeIdeia(topicoAtivo);
             atualizarContadorNotasOcultas();
-            if (passRender) LayoutTelemetry.endPass();
         });
         
         _sincronizarBtnGlobais(temGlobais, forcadoAberto);
-    }
-
-    /* ================================================
-       HISTERESE DE MIN-HEIGHT (Quebra-Loop de Oscilação)
-       - Crescimento: aplica imediato (previne sobreposição de nós).
-       - Encolhimento estrutural (> 48px): aplica imediato.
-       - Encolhimento pequeno: só após confirmação em 2 passagens
-         (mata o flip-flop 176↔192 sem impedir ajustes legítimos).
-       ================================================ */
-    const _wrapperConf = new WeakMap();
-    const HISTERESE_ENCOLHER_PX = 48;
-    function _aplicarMinHeight(wrapper, novaAltura) {
-        const atual = parseInt(wrapper.style.minHeight, 10) || 0;
-        if (novaAltura >= atual) {
-            wrapper.style.minHeight = novaAltura + 'px';
-            _wrapperConf.delete(wrapper);
-            return;
-        }
-        if (atual - novaAltura > HISTERESE_ENCOLHER_PX) {
-            wrapper.style.minHeight = novaAltura + 'px';
-            _wrapperConf.delete(wrapper);
-            return;
-        }
-        const conf = _wrapperConf.get(wrapper) || { computada: null };
-        if (conf.computada === novaAltura) {
-            wrapper.style.minHeight = novaAltura + 'px';
-            _wrapperConf.delete(wrapper);
-        } else {
-            conf.computada = novaAltura;
-            _wrapperConf.set(wrapper, conf);
-        }
     }
 
     /**
@@ -1578,7 +1540,6 @@ window.TopicsManager = (function () {
      * Evita Layout Thrashing através de leitura em massa (Passe A) seguida de mutação (Passe B)
      */
     function posicionarNosDeIdeia(container) {
-        if (window.LayoutTelemetry) LayoutTelemetry.contPos();
         const masterItems = container.querySelectorAll('.timeline-item-master');
         
         masterItems.forEach(master => {
@@ -1620,15 +1581,11 @@ window.TopicsManager = (function () {
                 m.el.style.position = 'absolute';
                 m.el.style.top = desiredTop + 'px';
                 m.el.style.width = '100%';
-                if (window.LayoutTelemetry) LayoutTelemetry.mark('topWrite');
                 
                 currentY = desiredTop + m.height + 16;
             });
 
-            if (window.LayoutTelemetry) {
-                LayoutTelemetry.mark('minHeightApply', { de: subWrapper.style.minHeight || '0px', para: currentY + 'px' });
-            }
-            _aplicarMinHeight(subWrapper, currentY);
+            subWrapper.style.minHeight = currentY + 'px';
         });
     }
 
@@ -1640,7 +1597,6 @@ window.TopicsManager = (function () {
         const container = document.getElementById('timeline-container');
         const svg = document.getElementById('connections-canvas');
         if (!container || !svg) return;
-        if (window.LayoutTelemetry) LayoutTelemetry.contSvg();
 
         const containerRect = container.getBoundingClientRect();
         let svgContent = '';
@@ -1731,7 +1687,6 @@ window.TopicsManager = (function () {
             });
         });
 
-        if (window.LayoutTelemetry) LayoutTelemetry.mark('svgRewrite');
         svg.innerHTML = svgContent;
     }
 
@@ -1754,10 +1709,8 @@ window.TopicsManager = (function () {
             if (!start) start = timestamp;
             const progress = timestamp - start;
             
-            const passZen = window.LayoutTelemetry ? LayoutTelemetry.beginPass('zen-sync') : null;
             // Desenha com base nas posições intermediárias calculadas pelo CSS
             desenharConexoes(isZenModeActive);
-            if (passZen) LayoutTelemetry.endPass();
 
             if (progress < duration) {
                 requestAnimationFrame(step);
