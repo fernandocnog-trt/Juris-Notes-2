@@ -150,6 +150,9 @@ window.TopicsManager = (function () {
     const _lastHeights = new Map(); 
 
     const resizeObserver = new ResizeObserver((entries) => {
+        // SE O DISJUNTOR CAIU, PARA TUDO IMEDIATAMENTE!
+        if (window.__CIRCUIT_BREAKER) return; 
+
         if (window.DebugTelemetry?.LayoutTracker) window.DebugTelemetry.LayoutTracker.noteDelivery(entries, _isUpdatingLayout);
 
         if (_isUpdatingLayout) return;

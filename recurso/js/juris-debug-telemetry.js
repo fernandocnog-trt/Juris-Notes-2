@@ -155,9 +155,13 @@ window.DebugTelemetry = (function () {
             lastDeliveries.push(now);
             lastDeliveries = lastDeliveries.filter(t => now - t <= THRASH_WINDOW_MS);
             
-            if (lastDeliveries.length > 5) {
-                mark('M11-LOOP'); // Acende no HUD visual
-                console.error(`🚨 [TELEMETRIA] Thrashing Detectado: ${lastDeliveries.length} recálculos em ${THRASH_WINDOW_MS}ms. Faça o dump no console!`);
+            // DISJUNTOR DE EMERGÊNCIA (CIRCUIT BREAKER)
+            if (lastDeliveries.length > 10) {
+                if (!window.__CIRCUIT_BREAKER) {
+                    window.__CIRCUIT_BREAKER = true; // Corta a energia
+                    console.error("🚨 [EMERGÊNCIA] Loop infinito agressivo detectado! O motor visual foi desligado para salvar o navegador.");
+                    dump(); // Gera o laudo automaticamente!
+                }
             }
 
             const deliveryLog = { type: 'delivery', t: now, suprimido: isGuardActive, gutter: currentGutter, deltas: [] };
