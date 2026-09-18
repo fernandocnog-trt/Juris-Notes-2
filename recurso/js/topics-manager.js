@@ -2182,7 +2182,7 @@ window.TopicsManager = (function () {
             return;
         }
         
-        abrirJurisPrompt('Deseja selar este tópico e continuar em um novo Volume? O sistema inserirá as pontes de IA automaticamente.', 'Divisão de Tópico', (confirmado) => {
+        abrirJurisPrompt('Deseja selar este tópico e continuar em um novo Volume? O sistema inserirá as pontes de IA automaticamente.', '✂️ Divisão de Tópico', (confirmado) => {
             if (!confirmado) return;
             
             const topicoAtual = topicos.find(t => t.id === activeTabId);
@@ -2203,6 +2203,7 @@ window.TopicsManager = (function () {
             const slugA = nomeBase.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-');
             const chkId = `CHK-${slugA}-v${volAtual}`;
 
+            // 1. Inserir Checkpoint de Saída no Volume atual
             topicoAtual.anotacoes.push({
                 uuid: 'id-chk-out-' + Date.now(),
                 tipo: 'checkpoint_saida',
@@ -2210,14 +2211,16 @@ window.TopicsManager = (function () {
                 metaHandoff: { alvo: novoNome, slug: slugA, versao: volAtual }
             });
 
+            // 2. Criar Volume 2 (Novo Tópico)
             const novoTopico = {
                 id: novoId,
                 nome: novoNome,
                 cor: topicoAtual.cor,
                 alegacoes: topicoAtual.alegacoes,
                 fundamentos: topicoAtual.fundamentos,
-                veredito: null, 
+                veredito: topicoAtual.veredito, 
                 volumeData: { sequencia: proxVol, anteriorId: topicoAtual.id, chkId: chkId },
+                diretrizesGlobais: [], // Evita quebra de referência
                 anotacoes: [{
                     uuid: 'id-chk-in-' + Date.now(),
                     tipo: 'checkpoint_entrada',
@@ -2226,9 +2229,13 @@ window.TopicsManager = (function () {
                 }]
             };
 
+            // 3. Atualizar Estado Global
             topicos.push(novoTopico);
             activeTabId = novoId; 
+            
+            // 4. Re-renderizar Interface
             renderizarFichario(topicos); 
+            
             if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
             if (typeof exibirToast === 'function') exibirToast('Novo volume criado com sucesso.', 'sucesso');
         });
@@ -2265,7 +2272,7 @@ window.TopicsManager = (function () {
         fecharModalPilhaProcessual,
         salvarPilhaProcessual,
         desagruparPilhaProcessual,
-        acionarDivisaoTopico // <--- A MÁGICA FOI HABILITADA AQUI
+        acionarDivisaoTopico // <--- ADICIONE ESTA LINHA COM A VÍRGULA ACIMA!
     };
 
 })();
