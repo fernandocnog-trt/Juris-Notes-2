@@ -2150,8 +2150,39 @@ window.TopicsManager = (function () {
     }
 
     // ==========================================
-    // INÍCIO: LÓGICA DA TESOURA E CHECKPOINT
+    // INÍCIO: LÓGICA DA TESOURA E CHECKPOINT (CORRIGIDO)
     // ==========================================
+    
+    // ELEVAÇÃO DE ESCOPO: O conversor romano precisa estar acessível para o criarCard() 
+    // rodar quando um backup com volumes divididos for carregado.
+    const toRoman = (num) => {
+        const lookup = {M:1000,CM:900,D:500,CD:400,C:100,XC:90,L:50,XL:40,X:10,IX:9,V:5,IV:4,I:1};
+        let roman = '', i;
+        for (i in lookup) { while (num >= lookup[i]) { roman += i; num -= lookup[i]; } }
+        return roman;
+    };
+
+    let _debounceContagemItens = null;
+    function atualizarAlertaCapacidadeTopico(topico) {
+        clearTimeout(_debounceContagemItens);
+        _debounceContagemItens = setTimeout(() => {
+            let total = topico.anotacoes.length;
+            topico.anotacoes.forEach(an => {
+                total += (an.subAnotacoes ? an.subAnotacoes.length : 0);
+                if (an.itensCorrelacionados) {
+                    total += an.itensCorrelacionados.length;
+                    an.itensCorrelacionados.forEach(ic => total += (ic.subAnotacoes ? ic.subAnotacoes.length : 0));
+                }
+            });
+
+            const btn = document.getElementById('btn-dividir-topico');
+            if (btn) {
+                btn.classList.toggle('limite-pulse-alert', total >= 30);
+                btn.disabled = false;
+            }
+        }, 500);
+    }
+
     function abrirJurisPrompt(mensagem, titulo, callback) {
         const backdrop = document.getElementById('juris-prompt-backdrop');
         if (!backdrop) {
@@ -2176,7 +2207,7 @@ window.TopicsManager = (function () {
         botoes.forEach(b => b.addEventListener('click', onClick));
     }
 
-    function acionarDivisaoTopico() {
+    window.acionarDivisaoTopico = function() {
         if (!activeTabId) {
             if(window.exibirToast) window.exibirToast('Nenhum tópico selecionado.', 'aviso');
             return;
@@ -2188,13 +2219,6 @@ window.TopicsManager = (function () {
             const topicoAtual = topicos.find(t => t.id === activeTabId);
             if (!topicoAtual) return;
 
-            const toRoman = (num) => {
-                const lookup = {M:1000,CM:900,D:500,CD:400,C:100,XC:90,L:50,XL:40,X:10,IX:9,V:5,IV:4,I:1};
-                let roman = '', i;
-                for (i in lookup) { while (num >= lookup[i]) { roman += i; num -= lookup[i]; } }
-                return roman;
-            };
-
             const volAtual = topicoAtual.volumeData && topicoAtual.volumeData.sequencia ? topicoAtual.volumeData.sequencia : 1;
             const proxVol = volAtual + 1;
             const nomeBase = topicoAtual.nome.replace(/\s*\(Vol\. [IVXLCDM]+\)$/, '');
@@ -2203,7 +2227,6 @@ window.TopicsManager = (function () {
             const slugA = nomeBase.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-');
             const chkId = `CHK-${slugA}-v${volAtual}`;
 
-            // 1. Inserir Checkpoint de Saída no Volume atual
             topicoAtual.anotacoes.push({
                 uuid: 'id-chk-out-' + Date.now(),
                 tipo: 'checkpoint_saida',
@@ -2211,7 +2234,6 @@ window.TopicsManager = (function () {
                 metaHandoff: { alvo: novoNome, slug: slugA, versao: volAtual }
             });
 
-            // 2. Criar Volume 2 (Novo Tópico)
             const novoTopico = {
                 id: novoId,
                 nome: novoNome,
@@ -2220,7 +2242,7 @@ window.TopicsManager = (function () {
                 fundamentos: topicoAtual.fundamentos,
                 veredito: topicoAtual.veredito, 
                 volumeData: { sequencia: proxVol, anteriorId: topicoAtual.id, chkId: chkId },
-                diretrizesGlobais: [], // Evita quebra de referência
+                diretrizesGlobais: [], 
                 anotacoes: [{
                     uuid: 'id-chk-in-' + Date.now(),
                     tipo: 'checkpoint_entrada',
@@ -2229,17 +2251,14 @@ window.TopicsManager = (function () {
                 }]
             };
 
-            // 3. Atualizar Estado Global
             topicos.push(novoTopico);
             activeTabId = novoId; 
-            
-            // 4. Re-renderizar Interface
             renderizarFichario(topicos); 
-            
             if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
             if (typeof exibirToast === 'function') exibirToast('Novo volume criado com sucesso.', 'sucesso');
         });
-    }
+    };
+
     // ==========================================
     // FIM: LÓGICA DA TESOURA E CHECKPOINT
     // ==========================================
@@ -2272,7 +2291,7 @@ window.TopicsManager = (function () {
         fecharModalPilhaProcessual,
         salvarPilhaProcessual,
         desagruparPilhaProcessual,
-        acionarDivisaoTopico // <--- ADICIONE ESTA LINHA COM A VÍRGULA ACIMA!
+        acionarDivisaoTopico
     };
 
 })();
