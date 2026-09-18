@@ -174,7 +174,7 @@ window.TopicsManager = (function () {
                     }
                     setTimeout(() => { _isUpdatingLayout = false; }, 50);
                 });
-            }, 32); 
+            }, 150); 
         }
     });
 
@@ -669,6 +669,23 @@ window.TopicsManager = (function () {
      * garantindo que align-self funcione corretamente nas sub-anotações.
      */
     function criarCard(anotacao, index, arr, renderContext) {
+        // INTERCEPTAÇÃO ESTRUTURAL: Renderiza o Checkpoint sem barra de CRUD (Anti-Ghosts)
+        if (anotacao.tipo && anotacao.tipo.startsWith('checkpoint')) {
+            const isSaida = anotacao.tipo === 'checkpoint_saida';
+            // Usa toRoman declarado globalmente/helper interno
+            const romano = isSaida ? toRoman(anotacao.metaHandoff.versao) : toRoman(anotacao.metaHandoff.versao + 1);
+            const titulo = isSaida ? 'Fim do Volume' : 'Início do Volume';
+            
+            return `
+            <div class="timeline-item-master align-left" id="timeline-wrapper-${anotacao.uuid || index}" style="justify-content: center; margin-bottom: 24px;">
+                <div class="sub-annotation-card borda-checkpoint" style="width: 80%; max-width: 600px; margin: 0 auto;">
+                    <div class="checkpoint-badge-roman">${romano}</div>
+                    <div class="checkpoint-title">${titulo}</div>
+                    <p style="font-size: 0.85rem; color: #666; margin-top: 8px;">${escaparHTML(anotacao.conteudo)}</p>
+                </div>
+            </div>`;
+        }
+
         const total    = arr.length;
         const numero   = index + 1;
         const tagClass = poloParaClasse(anotacao.polo);
@@ -1533,6 +1550,7 @@ window.TopicsManager = (function () {
         });
         
         _sincronizarBtnGlobais(temGlobais, forcadoAberto);
+        atualizarAlertaCapacidadeTopico(topicoAtivo);
     }
 
     /**
@@ -1590,10 +1608,98 @@ window.TopicsManager = (function () {
     }
 
     /**
-     * Motor Dinâmico de Conexões Sinuosas
+     * Motor Dinâmico de Conexões Sinuosas (Padrão FastDOM para evitar Layout Thrashing)
      * @param {boolean} isZenActive - Indica se o Modo Zen está ativo (injetado para evitar reflows no loop)
      */
     function desenharConexoes(isZenActive = false) {
+        const container = document.getElementById('timeline-container');
+        const svg = document.getElementById('connections-canvas');
+        if (!container || !svg) return;
+
+        const containerRect = container.getBoundingClientRect();
+        
+        // --- LOOP 1: APENAS LEITURA (MEMÓRIA GEOMÉTRICA) ---
+        const spineGeometria = [];
+        const tracejadasGeometria = []; 
+
+        const masterItemsForSpine = Array.from(container.querySelectorAll('.timeline-item-master:not(.nivel-global)'));
+        for (let i = 0; i < masterItemsForSpine.length - 1; i++) {
+            const currentGroup = masterItemsForSpine[i];
+            const nextGroup = masterItemsForSpine[i + 1];
+
+            const currentCorrelated = currentGroup.querySelectorAll('.correlated-item-wrapper > .annotation-card');
+            let cardAtual = currentCorrelated.length > 0 ? currentCorrelated[currentCorrelated.length - 1] : currentGroup.querySelector('.main-card-wrapper > .annotation-card');
+            const cardProx = nextGroup.querySelector('.main-card-wrapper > .annotation-card');
+
+            if (!cardAtual || !cardProx) continue;
+
+            const rectAtual = cardAtual.getBoundingClientRect();
+            const rectProx = cardProx.getBoundingClientRect();
+
+            spineGeometria.push({
+                startX: (rectAtual.left + rectAtual.width / 2) - containerRect.left,
+                startY: rectAtual.bottom - containerRect.top,
+                endX: (rectProx.left + rectProx.width / 2) - containerRect.left,
+                endY: rectProx.top - containerRect.top
+            });
+        }
+
+        const masterItems = container.querySelectorAll('.timeline-item-master');
+        masterItems.forEach(master => {
+            const mainCard = master.querySelector('.main-card-wrapper > .annotation-card');
+            const subItems = master.querySelectorAll('.sub-annotation-item');
+            if (!mainCard || subItems.length === 0) return;
+
+            const isRightAligned = master.classList.contains('align-right');
+            
+            subItems.forEach(subItem => {
+                const subCard = subItem.querySelector('.sub-annotation-card');
+                const subRect = subCard.getBoundingClientRect();
+                const sourceRef = subItem.dataset.source;
+                
+                let sourceCard = mainCard;
+                if (sourceRef !== 'main') {
+                    const correlatedWrapper = master.querySelector(`.correlated-item-wrapper[data-cidx="${sourceRef}"]`);
+                    if (correlatedWrapper) sourceCard = correlatedWrapper.querySelector('.annotation-card');
+                }
+                const sourceRect = sourceCard.getBoundingClientRect();
+
+                tracejadasGeometria.push({
+                    startX: isRightAligned ? sourceRect.left - containerRect.left : sourceRect.right - containerRect.left,
+                    endX: isRightAligned ? subRect.right - containerRect.left : subRect.left - containerRect.left,
+                    startY: (sourceRect.top + sourceRect.height / 2) - containerRect.top,
+                    endY: (subRect.top + subRect.height / 2) - containerRect.top,
+                    isZenFocused: subItem.classList.contains('is-zen-focused')
+                });
+            });
+        });
+
+        // --- LOOP 2: APENAS ESCRITA (CRIAÇÃO DA STRING HTML) ---
+        let svgContent = '';
+        const tick = 8; 
+        
+        spineGeometria.forEach(coord => {
+            const ctrlY = (coord.startY + coord.endY) / 2;
+            const pathD = `M ${coord.startX - tick},${coord.startY} L ${coord.startX + tick},${coord.startY} ` +
+                          `M ${coord.startX},${coord.startY} C ${coord.startX},${ctrlY} ${coord.endX},${ctrlY} ${coord.endX},${coord.endY} ` +
+                          `M ${coord.endX - tick},${coord.endY} L ${coord.endX + tick},${coord.endY}`;
+            svgContent += `<path class="spine-connection" d="${pathD}" />`;
+        });
+
+        tracejadasGeometria.forEach(coord => {
+            const ctrlX = (coord.startX + coord.endX) / 2;
+            let strokeColor = "#777", strokeOpacity = "1", strokeWidth = "1.5", dashArray = "5 4";
+            
+            if (isZenActive) {
+                if (coord.isZenFocused) {
+                    strokeColor = _activeTopicoCor; strokeWidth = "2.5"; dashArray = "none";
+                } else { strokeOpacity = "0.15"; }
+            }
+            svgContent += `<path d="M ${coord.startX},${coord.startY} C ${ctrlX},${coord.startY} ${ctrlX},${coord.endY} ${coord.endX},${coord.endY}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="${dashArray}" opacity="${strokeOpacity}" fill="none" stroke-linecap="round"/>`;
+        });
+
+        svg.innerHTML = svgContent; // Reflow executado em lote, sem quebras
+    }
         const container = document.getElementById('timeline-container');
         const svg = document.getElementById('connections-canvas');
         if (!container || !svg) return;
@@ -2137,6 +2243,92 @@ window.TopicsManager = (function () {
         if(window.salvarBackupAutomatico) salvarBackupAutomatico();
         if(typeof exibirToast === 'function') exibirToast('Pilha desagrupada com sucesso.', 'info');
     }
+
+    // ================================================
+    // MOTOR DE DIVISÃO DE VOLUMES E ESTADO DE TOPICOS
+    // ================================================
+    
+    function toRoman(num) {
+        const lookup = {M:1000,CM:900,D:500,CD:400,C:100,XC:90,L:50,XL:40,X:10,IX:9,V:5,IV:4,I:1};
+        let roman = '', i;
+        for (i in lookup) { while (num >= lookup[i]) { roman += i; num -= lookup[i]; } }
+        return roman;
+    }
+
+    let _debounceContagemItens = null;
+    function atualizarAlertaCapacidadeTopico(topico) {
+        clearTimeout(_debounceContagemItens);
+        _debounceContagemItens = setTimeout(() => {
+            let total = topico.anotacoes.length;
+            topico.anotacoes.forEach(an => {
+                total += (an.subAnotacoes ? an.subAnotacoes.length : 0);
+                if (an.itensCorrelacionados) {
+                    total += an.itensCorrelacionados.length;
+                    an.itensCorrelacionados.forEach(ic => total += (ic.subAnotacoes ? ic.subAnotacoes.length : 0));
+                }
+            });
+
+            const btn = document.getElementById('btn-dividir-topico');
+            if (btn) {
+                btn.classList.toggle('limite-pulse-alert', total >= 30);
+                btn.disabled = false;
+            }
+        }, 500);
+    }
+
+    window.acionarDivisaoTopico = function() {
+        if (!window.abrirJurisPrompt) return alert("Erro: Prompt UI não carregado.");
+        
+        window.abrirJurisPrompt('Deseja selar este tópico e continuar em um novo Volume? O sistema inserirá as pontes de IA automaticamente.', 'Divisão de Tópico', (confirmado) => {
+            if (!confirmado) return;
+            
+            const topicoAtual = topicos.find(t => t.id === activeTabId);
+            if (!topicoAtual) return;
+
+            const volAtual = topicoAtual.volumeData ? topicoAtual.volumeData.sequencia : 1;
+            const proxVol = volAtual + 1;
+            
+            const nomeBase = topicoAtual.nome.replace(/\s*\(Vol\. [IVXLCDM]+\)$/, '');
+            const novoNome = `${nomeBase} (Vol. ${toRoman(proxVol)})`;
+            const novoId = 'topico-' + Date.now();
+            const slugA = nomeBase.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-');
+            const chkId = `CHK-${slugA}-v${volAtual}`;
+
+            topicoAtual.anotacoes.push({
+                uuid: 'id-chk-out-' + Date.now(),
+                tipo: 'checkpoint_saida',
+                conteudo: `CONTINUA NO TÓPICO: "${novoNome}" | ID: ${chkId}`,
+                metaHandoff: { alvo: novoNome, slug: slugA, versao: volAtual }
+            });
+
+            const novoTopico = {
+                id: novoId,
+                nome: novoNome,
+                cor: topicoAtual.cor,
+                alegacoes: topicoAtual.alegacoes,     
+                fundamentos: topicoAtual.fundamentos, 
+                veredito: null,                       
+                volumeData: {                         
+                    sequencia: proxVol,
+                    anteriorId: topicoAtual.id,
+                    chkId: chkId
+                },
+                anotacoes: [{
+                    uuid: 'id-chk-in-' + Date.now(),
+                    tipo: 'checkpoint_entrada',
+                    conteudo: `CONTINUAÇÃO DO TÓPICO: "${topicoAtual.nome}" | ID: ${chkId}`,
+                    metaHandoff: { origem: topicoAtual.nome, slug: slugA, versao: volAtual }
+                }]
+            };
+
+            topicos.push(novoTopico);
+            activeTabId = novoId; 
+            
+            renderizarFichario(topicos);
+            if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
+            if (typeof exibirToast === 'function') exibirToast('Novo volume criado com sucesso.', 'sucesso');
+        });
+    };
 
     // API pública do módulo
     return {
