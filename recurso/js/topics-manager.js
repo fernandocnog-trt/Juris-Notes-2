@@ -662,26 +662,60 @@ window.TopicsManager = (function () {
 
     // Função estática gerarSVGConector removida (substituída pelo motor dinâmico desenharConexoes)
 
-    // Função utilitária para micro-interação de cópia
-    window.copiarChaveCheckpoint = async function(btnContext, chave) {
+    /**
+     * Motor Robusto de Handoff para IA
+     * Arquitetura Síncrona/Assíncrona bifurcada para preservar Transient Activation
+     */
+    async function copiarHandoff(btnContext) {
+        // Extração segura via Dataset (Blindado contra XSS)
+        const chkId = btnContext.dataset.chkId || 'ID_DESCONHECIDO';
+        const alvo = btnContext.dataset.alvo || 'Tópico de Destino';
+
+        // Prompt Engineering Avançado (Delimitadores e System Roles Estritos)
+        const promptHandoff = `<CONTEXTO_HANDOFF>\n[COMANDO DE CONTINUAÇÃO DE MINUTA — VOLUME 2]\nVocê receberá, nesta ordem:\n1. O checkpoint de estado atual: [ID] ${chkId}\n2. O Contexto RAG completo do tópico continuado: "${alvo}".\n\n<REGRAS_ESTRITAS>\n- MANIFESTO INICIAL: Declare obrigatoriamente onde você parou no último volume e qual o escopo deste novo volume. AGUARDE APROVAÇÃO se instruído.\n- TRAVA DE SEGURANÇA: Se o Checkpoint ID recebido não for EXATAMENTE ${chkId}, INTERROMPA A GERAÇÃO E ALERTE O ASSESSOR.\n- ESCOPO LIMITADO: Redija EXCLUSIVAMENTE o trecho continuado. É EXPRESSAMENTE PROIBIDO reescrever, revisar ou resumir fatos já decididos no volume anterior.\n</REGRAS_ESTRITAS>\n</CONTEXTO_HANDOFF>`;
+
         try {
-            await navigator.clipboard.writeText(chave);
+            // Bifurcação Estratégica: Verifica segurança ANTES de qualquer await
+            if (navigator.clipboard && window.isSecureContext) {
+                // Modo Assíncrono Moderno (Requer HTTPS)
+                await navigator.clipboard.writeText(promptHandoff);
+            } else {
+                // Modo Síncrono Legado (Preserva Gesto do Usuário em HTTP)
+                const textArea = document.createElement("textarea");
+                textArea.value = promptHandoff;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                
+                const copiou = document.execCommand('copy');
+                textArea.remove();
+                
+                if (!copiou) throw new Error("Fallback de clipboard rejeitado pelo navegador.");
+            }
+
+            // Feedback de Sucesso (UX)
             const originalHtml = btnContext.innerHTML;
-            btnContext.innerHTML = '✅ Copiada!';
+            btnContext.innerHTML = '✅ Instrução Copiada!';
             btnContext.style.backgroundColor = '#e8f5e9';
             btnContext.style.color = '#2e7d32';
             btnContext.style.borderColor = '#a5d6a7';
+            
+            if (window.exibirToast) window.exibirToast('Instrução copiada! Cole no ChatJT / LLM.', 'sucesso');
             
             setTimeout(() => {
                 btnContext.innerHTML = originalHtml;
                 btnContext.style.backgroundColor = '';
                 btnContext.style.color = '';
                 btnContext.style.borderColor = '';
-            }, 2000);
+            }, 2500);
+
         } catch (err) {
-            if (window.exibirToast) window.exibirToast('Erro ao copiar chave.', 'erro');
+            console.error("[TopicsManager] Erro no Handoff de Clipboard:", err);
+            if (window.exibirToast) window.exibirToast('Erro de permissão na Área de Transferência.', 'erro');
         }
-    };
+    }
 
     // Componente isolado (Clean Code)
     function _gerarHtmlCheckpoint(anotacao, index) {
@@ -689,7 +723,10 @@ window.TopicsManager = (function () {
         const volumeNum = isSaida ? anotacao.metaHandoff.versao : (anotacao.metaHandoff.versao + 1);
         const romano = toRoman(volumeNum);
         const titulo = `Volume ${romano}`;
+        
+        // Dados brutos sem risco de quebra de JS, pois irão para atributos data-*
         const chkId = escaparHTML(anotacao.metaHandoff.chkId || '');
+        const alvo = escaparHTML(anotacao.metaHandoff.alvo || anotacao.metaHandoff.origem || '');
 
         return `
         <div class="timeline-item-master align-left" id="timeline-wrapper-${anotacao.uuid || index}" style="justify-content: center; margin-bottom: 24px;">
@@ -699,13 +736,15 @@ window.TopicsManager = (function () {
                 <aside class="checkpoint-hint-box" aria-label="Lembrete de transição de IA">
                     <small class="checkpoint-hint-text">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; margin-right:4px; vertical-align:text-bottom;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                        A <strong>Chave de Continuidade</strong> orienta a IA no próximo passo.
+                        A <strong>Instrução de Continuidade</strong> orienta a IA no próximo passo.
                     </small>
+                    <!-- REVISÃO ARQUITETURAL: Uso de dataset, delegação segura e chamada modular -->
                     <button class="btn-copy-chave-quick" 
                             data-chk-id="${chkId}"
-                            onclick="window.copiarChaveCheckpoint(this, '${chkId}'); event.stopPropagation();" 
-                            aria-label="Copiar chave de continuidade para a área de transferência">
-                        🔑 Copiar Chave
+                            data-alvo="${alvo}"
+                            onclick="TopicsManager.copiarHandoff(this); event.stopPropagation();" 
+                            aria-label="Copiar instrução de continuidade para a IA">
+                        🔑 Copiar Instrução P/ IA
                     </button>
                 </aside>
 
@@ -2403,7 +2442,8 @@ window.TopicsManager = (function () {
         fecharModalPilhaProcessual,
         salvarPilhaProcessual,
         desagruparPilhaProcessual,
-        acionarDivisaoTopico
+        acionarDivisaoTopico,
+        copiarHandoff
     };
 
 })();
