@@ -2181,6 +2181,44 @@ window.TopicsManager = (function () {
         }, 500);
     }
 
+    // MOTOR DA JANELA DE CONFIRMAÇÃO (JURIS PROMPT)
+window.abrirJurisPrompt = function(mensagem, titulo, callback) {
+    const backdrop = document.getElementById('juris-prompt-backdrop');
+    
+    // Plano B: Se o HTML da janela não for encontrado, usa o alerta padrão do navegador
+    if (!backdrop) {
+        callback(confirm(mensagem));
+        return;
+    }
+
+    // 1. Prepara os textos da janela
+    document.getElementById('juris-prompt-title-text').textContent = titulo || 'Confirmação';
+    document.getElementById('juris-prompt-message').textContent = mensagem;
+    
+    // 2. Esconde a caixa de digitar texto (pois só queremos os botões de Sim/Não)
+    const inputEl = document.getElementById('juris-prompt-input');
+    if (inputEl) inputEl.style.display = 'none';
+
+    // 3. Mostra a janela na tela
+    backdrop.style.display = 'flex';
+
+    // 4. Cria a regra do que acontece ao clicar nos botões
+    const botoes = backdrop.querySelectorAll('[data-action]');
+    const onClick = function(e) {
+        const acao = e.currentTarget.getAttribute('data-action');
+        backdrop.style.display = 'none'; // Esconde a janela
+        
+        // Remove a "escuta" do clique para não dar conflito na próxima vez
+        botoes.forEach(b => b.removeEventListener('click', onClick));
+        
+        // Se a ação for 'confirm', avisa a tesoura para cortar. Se não, cancela.
+        callback(acao === 'confirm');
+    };
+
+    // 5. Liga a escuta do clique nos botões (Confirmar, Cancelar e no "X")
+    botoes.forEach(b => b.addEventListener('click', onClick));
+};
+
     window.acionarDivisaoTopico = function() {
         if (!window.abrirJurisPrompt) return alert("Erro: Prompt UI não carregado.");
         
