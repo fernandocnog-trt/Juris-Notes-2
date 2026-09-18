@@ -2241,19 +2241,29 @@ window.TopicsManager = (function () {
 
         const botoes = backdrop.querySelectorAll('[data-action]');
         const onClick = function(e) {
-            const acao = e.currentTarget.getAttribute('data-action');
-            // Oculta novamente restaurando o estado invisível
-            backdrop.style.opacity = '0';
-            backdrop.style.visibility = 'hidden';
-            backdrop.style.pointerEvents = 'none';
-            
-            // Aguarda um pequeno tempo para a animação (se houver no CSS base) antes de remover o display
-            setTimeout(() => { backdrop.style.display = 'none'; }, 200);
-            
-            botoes.forEach(b => b.removeEventListener('click', onClick));
-            console.log("🎯 [Tesoura] Usuário clicou em:", acao);
-            callback(acao === 'confirm');
-        };
+        const acao = e.currentTarget.getAttribute('data-action');
+        
+        // 👉 1. Ocultação IMEDIATA (Sem setTimeout para não enganar o app-core.js)
+        backdrop.style.display = 'none';
+        backdrop.style.opacity = '0';
+        backdrop.style.visibility = 'hidden';
+        backdrop.style.pointerEvents = 'none';
+        
+        // 👉 2. Limpeza de possíveis classes de trava que o app-core possa ler
+        backdrop.classList.remove('active', 'show', 'is-visible', 'in-use');
+        
+        // 👉 3. Destravamento Global: Se o app-core usar uma variável para trancar, nós a soltamos
+        if (window.JurisPrompt) {
+            window.JurisPrompt.ativo = false;
+            window.JurisPrompt.isOpen = false;
+            window.JurisPrompt.inUse = false;
+            window.JurisPrompt.busy = false;
+        }
+        
+        botoes.forEach(b => b.removeEventListener('click', onClick));
+        console.log("🎯 [Tesoura] Usuário clicou em:", acao, " - Modal liberado.");
+        callback(acao === 'confirm');
+    };
         
         botoes.forEach(b => b.addEventListener('click', onClick));
     }
