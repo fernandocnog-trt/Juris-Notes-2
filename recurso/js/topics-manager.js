@@ -2272,6 +2272,108 @@ window.abrirJurisPrompt = function(mensagem, titulo, callback) {
             if (typeof exibirToast === 'function') exibirToast('Novo volume criado com sucesso.', 'sucesso');
         });
     };
+   
+    
+    // ==========================================
+    // INÍCIO: LÓGICA DA TESOURA E CHECKPOINT
+    // ==========================================
+    
+    // 1. O Motor da Janelinha Customizada
+    function abrirJurisPrompt(mensagem, titulo, callback) {
+        const backdrop = document.getElementById('juris-prompt-backdrop');
+        if (!backdrop) {
+            callback(confirm(mensagem)); // Fallback seguro
+            return;
+        }
+        
+        document.getElementById('juris-prompt-title-text').textContent = titulo || 'Confirmação';
+        document.getElementById('juris-prompt-message').textContent = mensagem;
+        
+        const inputEl = document.getElementById('juris-prompt-input');
+        if (inputEl) inputEl.style.display = 'none';
+
+        backdrop.style.display = 'flex';
+
+        const botoes = backdrop.querySelectorAll('[data-action]');
+        const onClick = function(e) {
+            const acao = e.currentTarget.getAttribute('data-action');
+            backdrop.style.display = 'none';
+            botoes.forEach(b => b.removeEventListener('click', onClick));
+            callback(acao === 'confirm');
+        };
+        botoes.forEach(b => b.addEventListener('click', onClick));
+    }
+
+    // 2. A Ação da Tesoura (Cortar e Criar Checkpoint)
+    function acionarDivisaoTopico() {
+        if (!activeTabId) {
+            if(window.exibirToast) window.exibirToast('Nenhum tópico selecionado.', 'aviso');
+            return;
+        }
+        
+        abrirJurisPrompt('Deseja selar este tópico e continuar em um novo Volume? O sistema inserirá as pontes de IA automaticamente.', 'Divisão de Tópico', (confirmado) => {
+            if (!confirmado) return;
+            
+            const topicoAtual = topicos.find(t => t.id === activeTabId);
+            if (!topicoAtual) return;
+
+            // Transforma números em Romanos (1 -> I, 2 -> II)
+            const toRoman = (num) => {
+                const lookup = {M:1000,CM:900,D:500,CD:400,C:100,XC:90,L:50,XL:40,X:10,IX:9,V:5,IV:4,I:1};
+                let roman = '', i;
+                for (i in lookup) { while (num >= lookup[i]) { roman += i; num -= lookup[i]; } }
+                return roman;
+            };
+
+            const volAtual = topicoAtual.volumeData && topicoAtual.volumeData.sequencia ? topicoAtual.volumeData.sequencia : 1;
+            const proxVol = volAtual + 1;
+            
+            const nomeBase = topicoAtual.nome.replace(/\s*\(Vol\. [IVXLCDM]+\)$/, '');
+            const novoNome = `${nomeBase} (Vol. ${toRoman(proxVol)})`;
+            const novoId = 'topico-' + Date.now();
+            const slugA = nomeBase.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-');
+            const chkId = `CHK-${slugA}-v${volAtual}`;
+
+            // A. Insere o Selo de Fim no Tópico Atual
+            topicoAtual.anotacoes.push({
+                uuid: 'id-chk-out-' + Date.now(),
+                tipo: 'checkpoint_saida',
+                conteudo: `CONTINUA NO TÓPICO: "${novoNome}" | ID: ${chkId}`,
+                metaHandoff: { alvo: novoNome, slug: slugA, versao: volAtual }
+            });
+
+            // B. Cria o Tópico Novo (Volume 2)
+            const novoTopico = {
+                id: novoId,
+                nome: novoNome,
+                cor: topicoAtual.cor,
+                alegacoes: topicoAtual.alegacoes,
+                fundamentos: topicoAtual.fundamentos,
+                veredito: null, // Novo volume nasce com conclusão vazia
+                volumeData: {
+                    sequencia: proxVol,
+                    anteriorId: topicoAtual.id,
+                    chkId: chkId
+                },
+                anotacoes: [{
+                    uuid: 'id-chk-in-' + Date.now(),
+                    tipo: 'checkpoint_entrada',
+                    conteudo: `CONTINUAÇÃO DO TÓPICO: "${topicoAtual.nome}" | ID: ${chkId}`,
+                    metaHandoff: { origem: topicoAtual.nome, slug: slugA, versao: volAtual }
+                }]
+            };
+
+            topicos.push(novoTopico);
+            activeTabId = novoId; // Te joga pra aba nova automaticamente
+            
+            renderizarFichario(topicos); // Atualiza a tela
+            if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
+            if (typeof exibirToast === 'function') exibirToast('Novo volume criado com sucesso.', 'sucesso');
+        });
+    }
+    // ==========================================
+    // FIM: LÓGICA DA TESOURA E CHECKPOINT
+    // ==========================================
 
     // API pública do módulo
     return {
