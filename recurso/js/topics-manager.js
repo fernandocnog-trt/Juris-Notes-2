@@ -2353,7 +2353,6 @@ window.TopicsManager = (function () {
         copiarTextoModoLeitura,
         hexToRgba,
         rolarParaProximaNotaOculta,
-        // NOVAS EXPORTAÇÕES DA PILHA PROCESSUAL
         abrirModoLeituraPilhaProcessual,
         abrirModalPilhaProcessual,
         fecharModalPilhaProcessual,
@@ -2362,9 +2361,3 @@ window.TopicsManager = (function () {
     };
 
 })();
-
-// ================================================
-// ARQUITETURA: Views de documento (OutlineViewManager e MinutaViewManager)
-// foram extraídas para o módulo 'js/document-views.js' para respeitar o 
-// Princípio da Responsabilidade Única (SRP) e reduzir o acoplamento deste arquivo.
-// ================================================
