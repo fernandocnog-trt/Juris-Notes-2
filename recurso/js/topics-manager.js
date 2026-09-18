@@ -662,6 +662,58 @@ window.TopicsManager = (function () {
 
     // Função estática gerarSVGConector removida (substituída pelo motor dinâmico desenharConexoes)
 
+    // Função utilitária para micro-interação de cópia
+    window.copiarChaveCheckpoint = async function(btnContext, chave) {
+        try {
+            await navigator.clipboard.writeText(chave);
+            const originalHtml = btnContext.innerHTML;
+            btnContext.innerHTML = '✅ Copiada!';
+            btnContext.style.backgroundColor = '#e8f5e9';
+            btnContext.style.color = '#2e7d32';
+            btnContext.style.borderColor = '#a5d6a7';
+            
+            setTimeout(() => {
+                btnContext.innerHTML = originalHtml;
+                btnContext.style.backgroundColor = '';
+                btnContext.style.color = '';
+                btnContext.style.borderColor = '';
+            }, 2000);
+        } catch (err) {
+            if (window.exibirToast) window.exibirToast('Erro ao copiar chave.', 'erro');
+        }
+    };
+
+    // Componente isolado (Clean Code)
+    function _gerarHtmlCheckpoint(anotacao, index) {
+        const isSaida = anotacao.tipo === 'checkpoint_saida';
+        const volumeNum = isSaida ? anotacao.metaHandoff.versao : (anotacao.metaHandoff.versao + 1);
+        const romano = toRoman(volumeNum);
+        const titulo = `Volume ${romano}`;
+        const chkId = escaparHTML(anotacao.metaHandoff.chkId || '');
+
+        return `
+        <div class="timeline-item-master align-left" id="timeline-wrapper-${anotacao.uuid || index}" style="justify-content: center; margin-bottom: 24px;">
+            <div class="sub-annotation-card borda-checkpoint-minimalista" style="width: 80%; max-width: 600px; margin: 0 auto;">
+                <h3 class="checkpoint-title">${titulo}</h3>
+                
+                <aside class="checkpoint-hint-box" aria-label="Lembrete de transição de IA">
+                    <small class="checkpoint-hint-text">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; margin-right:4px; vertical-align:text-bottom;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                        A <strong>Chave de Continuidade</strong> orienta a IA no próximo passo.
+                    </small>
+                    <button class="btn-copy-chave-quick" 
+                            data-chk-id="${chkId}"
+                            onclick="window.copiarChaveCheckpoint(this, '${chkId}'); event.stopPropagation();" 
+                            aria-label="Copiar chave de continuidade para a área de transferência">
+                        🔑 Copiar Chave
+                    </button>
+                </aside>
+
+                <p style="display: none;" aria-hidden="true">${escaparHTML(anotacao.conteudo)}</p>
+            </div>
+        </div>`;
+    }
+
     /**
      * Fábrica de cards no formato de fluxograma alternado.
      * Retorna: card + bloco de sub-anotações (se houver) + conector SVG.
@@ -669,21 +721,9 @@ window.TopicsManager = (function () {
      * garantindo que align-self funcione corretamente nas sub-anotações.
      */
     function criarCard(anotacao, index, arr, renderContext) {
-        // INTERCEPTAÇÃO ESTRUTURAL: Renderiza o Checkpoint sem barra de CRUD (Anti-Ghosts)
+        // INTERCEPTAÇÃO ESTRUTURAL: Renderiza o Checkpoint modularizado
         if (anotacao.tipo && anotacao.tipo.startsWith('checkpoint')) {
-            const isSaida = anotacao.tipo === 'checkpoint_saida';
-            // Usa toRoman declarado globalmente/helper interno
-            const romano = isSaida ? toRoman(anotacao.metaHandoff.versao) : toRoman(anotacao.metaHandoff.versao + 1);
-            const titulo = isSaida ? 'Fim do Volume' : 'Início do Volume';
-            
-            return `
-            <div class="timeline-item-master align-left" id="timeline-wrapper-${anotacao.uuid || index}" style="justify-content: center; margin-bottom: 24px;">
-                <div class="sub-annotation-card borda-checkpoint" style="width: 80%; max-width: 600px; margin: 0 auto;">
-                    <div class="checkpoint-badge-roman">${romano}</div>
-                    <div class="checkpoint-title">${titulo}</div>
-                    <p style="font-size: 0.85rem; color: #666; margin-top: 8px;">${escaparHTML(anotacao.conteudo)}</p>
-                </div>
-            </div>`;
+            return _gerarHtmlCheckpoint(anotacao, index);
         }
 
         const total    = arr.length;
@@ -2301,7 +2341,7 @@ window.TopicsManager = (function () {
                 uuid: 'id-chk-out-' + Date.now(),
                 tipo: 'checkpoint_saida',
                 conteudo: `CONTINUA NO TÓPICO: "${novoNome}" | ID: ${chkId}`,
-                metaHandoff: { alvo: novoNome, slug: slugA, versao: volAtual }
+                metaHandoff: { alvo: novoNome, slug: slugA, versao: volAtual, chkId: chkId }
             });
 
             const novoTopico = {
@@ -2317,7 +2357,7 @@ window.TopicsManager = (function () {
                     uuid: 'id-chk-in-' + Date.now(),
                     tipo: 'checkpoint_entrada',
                     conteudo: `CONTINUAÇÃO DO TÓPICO: "${topicoAtual.nome}" | ID: ${chkId}`,
-                    metaHandoff: { origem: topicoAtual.nome, slug: slugA, versao: volAtual }
+                    metaHandoff: { origem: topicoAtual.nome, slug: slugA, versao: volAtual, chkId: chkId }
                 }]
             };
 
