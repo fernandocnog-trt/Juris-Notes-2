@@ -2184,29 +2184,62 @@ window.TopicsManager = (function () {
     }
 
     function abrirJurisPrompt(mensagem, titulo, callback) {
-        console.log("[Tesoura] Tentando abrir o modal customizado...");
+        console.log("🔍 [Tesoura] Tentando abrir o modal customizado...");
         const backdrop = document.getElementById('juris-prompt-backdrop');
+        
         if (!backdrop) {
-            console.warn("[Tesoura] Modal não encontrado no HTML. Usando alerta nativo.");
+            console.warn("⚠️ [Tesoura] Modal não encontrado no HTML. Usando alerta nativo.");
             callback(confirm(mensagem)); 
             return;
         }
+        
         document.getElementById('juris-prompt-title-text').textContent = titulo || 'Confirmação';
         document.getElementById('juris-prompt-message').textContent = mensagem;
         
         const inputEl = document.getElementById('juris-prompt-input');
         if (inputEl) inputEl.style.display = 'none';
 
+        // ========================================================
+        // BLINDAGEM VISUAL: Forçando o CSS via JavaScript
+        // Garante que o modal fique centralizado e POR CIMA de tudo
+        // ========================================================
+        backdrop.style.position = 'fixed';
+        backdrop.style.top = '0';
+        backdrop.style.left = '0';
+        backdrop.style.width = '100vw';
+        backdrop.style.height = '100vh';
+        backdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.75)'; // Fundo escuro translúcido
+        backdrop.style.zIndex = '99999'; // Corta PDF, headers e menus (força bruta)
         backdrop.style.display = 'flex';
+        backdrop.style.justifyContent = 'center';
+        backdrop.style.alignItems = 'center';
+
+        // Garante que a caixinha branca fique bonita
+        const modalBox = document.getElementById('juris-prompt-modal');
+        if (modalBox) {
+            modalBox.style.backgroundColor = '#ffffff';
+            modalBox.style.padding = '24px';
+            modalBox.style.borderRadius = '8px';
+            modalBox.style.boxShadow = '0 10px 25px rgba(0,0,0,0.5)';
+            modalBox.style.minWidth = '320px';
+            modalBox.style.maxWidth = '90vw';
+            modalBox.style.zIndex = '100000';
+            modalBox.style.display = 'flex';
+            modalBox.style.flexDirection = 'column';
+            modalBox.style.gap = '16px';
+        }
+
+        console.log("✅ [Tesoura] Modal forçado para o centro da tela.");
 
         const botoes = backdrop.querySelectorAll('[data-action]');
         const onClick = function(e) {
             const acao = e.currentTarget.getAttribute('data-action');
-            backdrop.style.display = 'none';
+            backdrop.style.display = 'none'; // Esconde o modal após o clique
             botoes.forEach(b => b.removeEventListener('click', onClick));
-            console.log("[Tesoura] Usuário clicou em:", acao);
+            console.log("🎯 [Tesoura] Usuário clicou em:", acao);
             callback(acao === 'confirm');
         };
+        
         botoes.forEach(b => b.addEventListener('click', onClick));
     }
 
