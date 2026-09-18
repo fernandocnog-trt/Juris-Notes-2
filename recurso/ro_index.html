@@ -175,16 +175,14 @@
                     </svg>
                 </button>
 
-                <!-- Botão da Tesoura Corrigido -->
-<button class="icon-btn" id="btn-dividir-topico" onclick="TopicsManager.acionarDivisaoTopico()" title="Dividir Tópico em Volumes (Checkpoint IA)" disabled></button>
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="6" cy="6" r="3"></circle>
-        <circle cx="6" cy="18" r="3"></circle>
-        <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
-        <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
-        <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
-    </svg>
-</button>
+                <button class="icon-btn" id="btn-dividir-topico" onclick="acionarDivisaoTopico()" title="Dividir Tópico em Volumes (Checkpoint IA)" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="6" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle>
+                        <line x1="20" y1="4" x2="8.12" y2="15.88"></line>
+                        <line x1="14.47" y1="14.48" x2="20" y2="20"></line>
+                        <line x1="8.12" y1="8.12" x2="12" y2="12"></line>
+                    </svg>
+                </button>
 
                 <!-- NOVO BOTÃO: Visão Estruturada (Nasce desabilitado) -->
                 <button class="icon-btn" id="btn-visao-estruturada" onclick="OutlineViewManager.abrir()" title="Visão Estruturada (Documento)" disabled>
@@ -1013,7 +1011,7 @@
     
     <script src="js/backup-manager.js"></script>
     <script src="js/contrato-manager.js"></script>
-    <script src="js/topics-manager.js?v=2.2"></script>
+    <script src="js/topics-manager.js"></script>
     <script src="js/document-views.js"></script>
     <script src="js/balanca-manager.js"></script>
     <script src="js/interaction-tools.js?v=1.1.0"></script>
