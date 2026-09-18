@@ -2201,20 +2201,23 @@ window.TopicsManager = (function () {
 
         // ========================================================
         // BLINDAGEM VISUAL: Forçando o CSS via JavaScript
-        // Garante que o modal fique centralizado e POR CIMA de tudo
         // ========================================================
         backdrop.style.position = 'fixed';
         backdrop.style.top = '0';
         backdrop.style.left = '0';
         backdrop.style.width = '100vw';
         backdrop.style.height = '100vh';
-        backdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.75)'; // Fundo escuro translúcido
-        backdrop.style.zIndex = '99999'; // Corta PDF, headers e menus (força bruta)
+        backdrop.style.backgroundColor = 'rgba(0, 0, 0, 0.75)';
+        backdrop.style.zIndex = '99999';
         backdrop.style.display = 'flex';
         backdrop.style.justifyContent = 'center';
         backdrop.style.alignItems = 'center';
+        
+        // 👉 NOVAS LINHAS: Garantindo que o CSS não oculte via opacidade
+        backdrop.style.opacity = '1';
+        backdrop.style.visibility = 'visible';
+        backdrop.style.pointerEvents = 'auto'; 
 
-        // Garante que a caixinha branca fique bonita
         const modalBox = document.getElementById('juris-prompt-modal');
         if (modalBox) {
             modalBox.style.backgroundColor = '#ffffff';
@@ -2227,14 +2230,26 @@ window.TopicsManager = (function () {
             modalBox.style.display = 'flex';
             modalBox.style.flexDirection = 'column';
             modalBox.style.gap = '16px';
+            
+            // 👉 NOVAS LINHAS: Resetando transformações e forçando visibilidade
+            modalBox.style.opacity = '1';
+            modalBox.style.visibility = 'visible';
+            modalBox.style.transform = 'scale(1) translateY(0)'; 
         }
 
-        console.log("✅ [Tesoura] Modal forçado para o centro da tela.");
+        console.log("✅ [Tesoura] Modal forçado para o centro da tela com opacidade total.");
 
         const botoes = backdrop.querySelectorAll('[data-action]');
         const onClick = function(e) {
             const acao = e.currentTarget.getAttribute('data-action');
-            backdrop.style.display = 'none'; // Esconde o modal após o clique
+            // Oculta novamente restaurando o estado invisível
+            backdrop.style.opacity = '0';
+            backdrop.style.visibility = 'hidden';
+            backdrop.style.pointerEvents = 'none';
+            
+            // Aguarda um pequeno tempo para a animação (se houver no CSS base) antes de remover o display
+            setTimeout(() => { backdrop.style.display = 'none'; }, 200);
+            
             botoes.forEach(b => b.removeEventListener('click', onClick));
             console.log("🎯 [Tesoura] Usuário clicou em:", acao);
             callback(acao === 'confirm');
