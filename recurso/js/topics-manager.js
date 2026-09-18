@@ -2149,143 +2149,15 @@ window.TopicsManager = (function () {
         if(typeof exibirToast === 'function') exibirToast('Pilha desagrupada com sucesso.', 'info');
     }
 
-    // ================================================
-    // MOTOR DE DIVISÃO DE VOLUMES E ESTADO DE TOPICOS
-    // ================================================
-    
-    function toRoman(num) {
-        const lookup = {M:1000,CM:900,D:500,CD:400,C:100,XC:90,L:50,XL:40,X:10,IX:9,V:5,IV:4,I:1};
-        let roman = '', i;
-        for (i in lookup) { while (num >= lookup[i]) { roman += i; num -= lookup[i]; } }
-        return roman;
-    }
-
-    let _debounceContagemItens = null;
-    function atualizarAlertaCapacidadeTopico(topico) {
-        clearTimeout(_debounceContagemItens);
-        _debounceContagemItens = setTimeout(() => {
-            let total = topico.anotacoes.length;
-            topico.anotacoes.forEach(an => {
-                total += (an.subAnotacoes ? an.subAnotacoes.length : 0);
-                if (an.itensCorrelacionados) {
-                    total += an.itensCorrelacionados.length;
-                    an.itensCorrelacionados.forEach(ic => total += (ic.subAnotacoes ? ic.subAnotacoes.length : 0));
-                }
-            });
-
-            const btn = document.getElementById('btn-dividir-topico');
-            if (btn) {
-                btn.classList.toggle('limite-pulse-alert', total >= 30);
-                btn.disabled = false;
-            }
-        }, 500);
-    }
-
-    // MOTOR DA JANELA DE CONFIRMAÇÃO (JURIS PROMPT)
-window.abrirJurisPrompt = function(mensagem, titulo, callback) {
-    const backdrop = document.getElementById('juris-prompt-backdrop');
-    
-    // Plano B: Se o HTML da janela não for encontrado, usa o alerta padrão do navegador
-    if (!backdrop) {
-        callback(confirm(mensagem));
-        return;
-    }
-
-    // 1. Prepara os textos da janela
-    document.getElementById('juris-prompt-title-text').textContent = titulo || 'Confirmação';
-    document.getElementById('juris-prompt-message').textContent = mensagem;
-    
-    // 2. Esconde a caixa de digitar texto (pois só queremos os botões de Sim/Não)
-    const inputEl = document.getElementById('juris-prompt-input');
-    if (inputEl) inputEl.style.display = 'none';
-
-    // 3. Mostra a janela na tela
-    backdrop.style.display = 'flex';
-
-    // 4. Cria a regra do que acontece ao clicar nos botões
-    const botoes = backdrop.querySelectorAll('[data-action]');
-    const onClick = function(e) {
-        const acao = e.currentTarget.getAttribute('data-action');
-        backdrop.style.display = 'none'; // Esconde a janela
-        
-        // Remove a "escuta" do clique para não dar conflito na próxima vez
-        botoes.forEach(b => b.removeEventListener('click', onClick));
-        
-        // Se a ação for 'confirm', avisa a tesoura para cortar. Se não, cancela.
-        callback(acao === 'confirm');
-    };
-
-    // 5. Liga a escuta do clique nos botões (Confirmar, Cancelar e no "X")
-    botoes.forEach(b => b.addEventListener('click', onClick));
-};
-
-    window.acionarDivisaoTopico = function() {
-        if (!window.abrirJurisPrompt) return alert("Erro: Prompt UI não carregado.");
-        
-        window.abrirJurisPrompt('Deseja selar este tópico e continuar em um novo Volume? O sistema inserirá as pontes de IA automaticamente.', 'Divisão de Tópico', (confirmado) => {
-            if (!confirmado) return;
-            
-            const topicoAtual = topicos.find(t => t.id === activeTabId);
-            if (!topicoAtual) return;
-
-            const volAtual = topicoAtual.volumeData ? topicoAtual.volumeData.sequencia : 1;
-            const proxVol = volAtual + 1;
-            
-            const nomeBase = topicoAtual.nome.replace(/\s*\(Vol\. [IVXLCDM]+\)$/, '');
-            const novoNome = `${nomeBase} (Vol. ${toRoman(proxVol)})`;
-            const novoId = 'topico-' + Date.now();
-            const slugA = nomeBase.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-');
-            const chkId = `CHK-${slugA}-v${volAtual}`;
-
-            topicoAtual.anotacoes.push({
-                uuid: 'id-chk-out-' + Date.now(),
-                tipo: 'checkpoint_saida',
-                conteudo: `CONTINUA NO TÓPICO: "${novoNome}" | ID: ${chkId}`,
-                metaHandoff: { alvo: novoNome, slug: slugA, versao: volAtual }
-            });
-
-            const novoTopico = {
-                id: novoId,
-                nome: novoNome,
-                cor: topicoAtual.cor,
-                alegacoes: topicoAtual.alegacoes,     
-                fundamentos: topicoAtual.fundamentos, 
-                veredito: null,                       
-                volumeData: {                         
-                    sequencia: proxVol,
-                    anteriorId: topicoAtual.id,
-                    chkId: chkId
-                },
-                anotacoes: [{
-                    uuid: 'id-chk-in-' + Date.now(),
-                    tipo: 'checkpoint_entrada',
-                    conteudo: `CONTINUAÇÃO DO TÓPICO: "${topicoAtual.nome}" | ID: ${chkId}`,
-                    metaHandoff: { origem: topicoAtual.nome, slug: slugA, versao: volAtual }
-                }]
-            };
-
-            topicos.push(novoTopico);
-            activeTabId = novoId; 
-            
-            renderizarFichario(topicos);
-            if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
-            if (typeof exibirToast === 'function') exibirToast('Novo volume criado com sucesso.', 'sucesso');
-        });
-    };
-   
-    
     // ==========================================
     // INÍCIO: LÓGICA DA TESOURA E CHECKPOINT
     // ==========================================
-    
-    // 1. O Motor da Janelinha Customizada
     function abrirJurisPrompt(mensagem, titulo, callback) {
         const backdrop = document.getElementById('juris-prompt-backdrop');
         if (!backdrop) {
-            callback(confirm(mensagem)); // Fallback seguro
+            callback(confirm(mensagem)); 
             return;
         }
-        
         document.getElementById('juris-prompt-title-text').textContent = titulo || 'Confirmação';
         document.getElementById('juris-prompt-message').textContent = mensagem;
         
@@ -2304,7 +2176,6 @@ window.abrirJurisPrompt = function(mensagem, titulo, callback) {
         botoes.forEach(b => b.addEventListener('click', onClick));
     }
 
-    // 2. A Ação da Tesoura (Cortar e Criar Checkpoint)
     function acionarDivisaoTopico() {
         if (!activeTabId) {
             if(window.exibirToast) window.exibirToast('Nenhum tópico selecionado.', 'aviso');
@@ -2317,7 +2188,6 @@ window.abrirJurisPrompt = function(mensagem, titulo, callback) {
             const topicoAtual = topicos.find(t => t.id === activeTabId);
             if (!topicoAtual) return;
 
-            // Transforma números em Romanos (1 -> I, 2 -> II)
             const toRoman = (num) => {
                 const lookup = {M:1000,CM:900,D:500,CD:400,C:100,XC:90,L:50,XL:40,X:10,IX:9,V:5,IV:4,I:1};
                 let roman = '', i;
@@ -2327,14 +2197,12 @@ window.abrirJurisPrompt = function(mensagem, titulo, callback) {
 
             const volAtual = topicoAtual.volumeData && topicoAtual.volumeData.sequencia ? topicoAtual.volumeData.sequencia : 1;
             const proxVol = volAtual + 1;
-            
             const nomeBase = topicoAtual.nome.replace(/\s*\(Vol\. [IVXLCDM]+\)$/, '');
             const novoNome = `${nomeBase} (Vol. ${toRoman(proxVol)})`;
             const novoId = 'topico-' + Date.now();
             const slugA = nomeBase.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-');
             const chkId = `CHK-${slugA}-v${volAtual}`;
 
-            // A. Insere o Selo de Fim no Tópico Atual
             topicoAtual.anotacoes.push({
                 uuid: 'id-chk-out-' + Date.now(),
                 tipo: 'checkpoint_saida',
@@ -2342,19 +2210,14 @@ window.abrirJurisPrompt = function(mensagem, titulo, callback) {
                 metaHandoff: { alvo: novoNome, slug: slugA, versao: volAtual }
             });
 
-            // B. Cria o Tópico Novo (Volume 2)
             const novoTopico = {
                 id: novoId,
                 nome: novoNome,
                 cor: topicoAtual.cor,
                 alegacoes: topicoAtual.alegacoes,
                 fundamentos: topicoAtual.fundamentos,
-                veredito: null, // Novo volume nasce com conclusão vazia
-                volumeData: {
-                    sequencia: proxVol,
-                    anteriorId: topicoAtual.id,
-                    chkId: chkId
-                },
+                veredito: null, 
+                volumeData: { sequencia: proxVol, anteriorId: topicoAtual.id, chkId: chkId },
                 anotacoes: [{
                     uuid: 'id-chk-in-' + Date.now(),
                     tipo: 'checkpoint_entrada',
@@ -2364,9 +2227,8 @@ window.abrirJurisPrompt = function(mensagem, titulo, callback) {
             };
 
             topicos.push(novoTopico);
-            activeTabId = novoId; // Te joga pra aba nova automaticamente
-            
-            renderizarFichario(topicos); // Atualiza a tela
+            activeTabId = novoId; 
+            renderizarFichario(topicos); 
             if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
             if (typeof exibirToast === 'function') exibirToast('Novo volume criado com sucesso.', 'sucesso');
         });
@@ -2402,7 +2264,8 @@ window.abrirJurisPrompt = function(mensagem, titulo, callback) {
         abrirModalPilhaProcessual,
         fecharModalPilhaProcessual,
         salvarPilhaProcessual,
-        desagruparPilhaProcessual
+        desagruparPilhaProcessual,
+        acionarDivisaoTopico // <--- A MÁGICA FOI HABILITADA AQUI
     };
 
 })();
