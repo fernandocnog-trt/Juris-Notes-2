@@ -2184,8 +2184,10 @@ window.TopicsManager = (function () {
     }
 
     function abrirJurisPrompt(mensagem, titulo, callback) {
+        console.log("[Tesoura] Tentando abrir o modal customizado...");
         const backdrop = document.getElementById('juris-prompt-backdrop');
         if (!backdrop) {
+            console.warn("[Tesoura] Modal não encontrado no HTML. Usando alerta nativo.");
             callback(confirm(mensagem)); 
             return;
         }
@@ -2202,20 +2204,30 @@ window.TopicsManager = (function () {
             const acao = e.currentTarget.getAttribute('data-action');
             backdrop.style.display = 'none';
             botoes.forEach(b => b.removeEventListener('click', onClick));
+            console.log("[Tesoura] Usuário clicou em:", acao);
             callback(acao === 'confirm');
         };
         botoes.forEach(b => b.addEventListener('click', onClick));
     }
 
-    window.acionarDivisaoTopico = function() {
+    // CORREÇÃO CRÍTICA AQUI: Removido o "window."
+    // A função agora é local e será encontrada pelo "return" lá embaixo.
+    function acionarDivisaoTopico() {
+        console.log("✂️ [Tesoura] O clique chegou com sucesso no JavaScript!");
+        
         if (!activeTabId) {
+            console.warn("[Tesoura] Bloqueado: Nenhum tópico selecionado.");
             if(window.exibirToast) window.exibirToast('Nenhum tópico selecionado.', 'aviso');
             return;
         }
         
         abrirJurisPrompt('Deseja selar este tópico e continuar em um novo Volume? O sistema inserirá as pontes de IA automaticamente.', '✂️ Divisão de Tópico', (confirmado) => {
-            if (!confirmado) return;
+            if (!confirmado) {
+                console.log("[Tesoura] Cancelado pelo usuário.");
+                return;
+            }
             
+            console.log("[Tesoura] Confirmado. Processando...");
             const topicoAtual = topicos.find(t => t.id === activeTabId);
             if (!topicoAtual) return;
 
@@ -2254,10 +2266,12 @@ window.TopicsManager = (function () {
             topicos.push(novoTopico);
             activeTabId = novoId; 
             renderizarFichario(topicos); 
+            
             if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
             if (typeof exibirToast === 'function') exibirToast('Novo volume criado com sucesso.', 'sucesso');
+            console.log("✅ [Tesoura] Novo volume criado e renderizado.");
         });
-    };
+    }
 
     // ==========================================
     // FIM: LÓGICA DA TESOURA E CHECKPOINT
