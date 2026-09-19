@@ -1020,9 +1020,14 @@ window.TopicsManager = (function () {
         const hierarquiaTitulo = isGlobal ? 'Diretrizes Globais (Auditoria)' : `Vício Alegado: ${escaparHTML(titulo)}`;
         const wrapperClass = isGlobal ? 'nivel-global' : 'nivel-vicio';
         
-        // Geração do ID Dinâmico baseado no contexto (Fase 2 Prep)
+        // Extrai um slug seguro da tese para compor o ID (Evita colisões no Morphdom)
+        const teseSlug = (tesesConsolidadas[0] || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').substring(0, 20);
+        
+        // Geração do ID Dinâmico e ÚNICO baseado no contexto e no índice global
         const vicioSlug = isGlobal ? '' : (titulo || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'vicio';
-        const wrapperId = isGlobal ? `timeline-wrapper-globais-${topicoId}` : `timeline-wrapper-vicio-${vicioSlug}`;
+        const wrapperId = isGlobal 
+            ? `timeline-wrapper-globais-${topicoId}` 
+            : `timeline-wrapper-vicio-${vicioSlug}-${teseSlug}-${indexGlobal}`;
 
         // NOVO: Renderização segura e elegante das teses compiladas
         let htmlTesesMapeadas = '';
