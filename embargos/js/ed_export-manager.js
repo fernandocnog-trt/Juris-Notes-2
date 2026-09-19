@@ -859,7 +859,17 @@ window.ExportManager = (function () {
         obterDadosDoTopicoAtivo: function() {
             const activeId = _deps.getActiveTabId();
             if (!activeId) return null;
-// ... (linhas omitidas para brevidade) ...
+
+            // [CORREÇÃO]: Busca a lista de tópicos injetada e filtra o ativo
+            const topicosArray = _deps.getTopicos();
+            const topicoAtivo = topicosArray.find(t => t.id === activeId);
+
+            // Trava de segurança extra
+            if (!topicoAtivo) {
+                console.warn('[ExportManager] Tópico ativo não localizado na memória.');
+                return null;
+            }
+
             return {
                 nome: topicoAtivo.nome || 'Vício Não Nomeado',
                 markdown: _gerarMarkdown(topicoAtivo)
