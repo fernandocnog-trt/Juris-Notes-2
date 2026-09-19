@@ -2407,5 +2407,31 @@ window.TaskManager = (function() {
         atualizarBadge();
     }
 
-    return { abrirModal, fecharModal, adicionarTarefa, toggleConcluido, atualizarBadge, abrirSeletorTemas, getTarefasState, setTarefasState };
+    function sinalizarTarefasPendentes() {
+        const container = document.getElementById('native-obs-list');
+        if (!container) return;
+        
+        const pendentes = container.querySelectorAll('input[type="checkbox"]:not(:checked)').length;
+        
+        if (pendentes > 0) {
+            if (typeof exibirToast === 'function') {
+                exibirToast(`Aviso: Existem ${pendentes} tarefa(s) pendente(s) no seu painel.`, 'aviso');
+            }
+            
+            const btn = document.getElementById('btn-lembretes-tarefa');
+            if (btn) {
+                btn.classList.remove('alerta-pulsante');
+                void btn.offsetWidth; 
+                
+                btn.classList.add('alerta-pulsante');
+                
+                btn.addEventListener('animationend', function handler() {
+                    btn.classList.remove('alerta-pulsante');
+                    btn.removeEventListener('animationend', handler);
+                }, { once: true });
+            }
+        }
+    }
+
+    return { abrirModal, fecharModal, adicionarTarefa, toggleConcluido, atualizarBadge, abrirSeletorTemas, getTarefasState, setTarefasState, sinalizarTarefasPendentes };
 })();

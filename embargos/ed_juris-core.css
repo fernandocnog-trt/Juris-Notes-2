@@ -918,3 +918,27 @@ body.theme-processo-jasmine {
     justify-content: flex-end;
     gap: 12px;
 }
+
+/* ================================================
+   ANIMAÇÕES DE FEEDBACK NÃO-BLOQUEANTE (UX)
+   ================================================ */
+@keyframes pulse-alerta-tarefa {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(229, 57, 53, 0.7); }
+    50% { transform: scale(1.15); box-shadow: 0 0 0 10px rgba(229, 57, 53, 0); background-color: #e53935 !important; border-color: #e53935 !important; }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(229, 57, 53, 0); }
+}
+
+#btn-lembretes-tarefa.alerta-pulsante {
+    animation: pulse-alerta-tarefa 0.6s ease-out 3;
+}
+
+/* Tratamento de Acessibilidade (WCAG) */
+@media (prefers-reduced-motion: reduce) {
+    #btn-lembretes-tarefa.alerta-pulsante {
+        /* Desativa expansão, mantém apenas a troca de cor estática como alerta */
+        animation: none;
+        background-color: #e53935 !important;
+        border-color: #c62828 !important;
+        transition: background-color 0.3s ease;
+    }
+}

@@ -466,9 +466,8 @@ window.ExportManager = (function () {
             return;
         }
 
-        if (window.BalancaManager && !window.BalancaManager.executarGuardrailDeTarefas('gerar o pacote de exportação para a IA')) {
-            _deps.exibirToast('Exportação interrompida pelo usuário.', 'aviso');
-            return; 
+        if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
+            window.TaskManager.sinalizarTarefasPendentes();
         }
 
         const container = document.getElementById('export-options-container');
@@ -830,12 +829,9 @@ window.ExportManager = (function () {
                 return;
             }
 
-            // --- CÓDIGO REFATORADO (Substitui o bloco antigo de BalancaManager) ---
-            if (window.BalancaManager && !window.BalancaManager.executarGuardrailDeTarefas('gerar o pacote de exportação de Embargos')) {
-                _deps.exibirToast('Exportação interrompida pelo usuário.', 'aviso');
-                return; // Aborta a exportação
+            if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
+                window.TaskManager.sinalizarTarefasPendentes();
             }
-            // --- FIM DA REFATORAÇÃO ---
 
             try {
                 // 1. Gera e baixa o Markdown
