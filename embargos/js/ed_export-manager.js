@@ -466,10 +466,6 @@ window.ExportManager = (function () {
             return;
         }
 
-        if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
-            window.TaskManager.sinalizarTarefasPendentes();
-        }
-
         const container = document.getElementById('export-options-container');
         _documentosParaExtracaoCache = {};
 
@@ -759,6 +755,11 @@ window.ExportManager = (function () {
                 _deps.exibirToast('✅ Arquivo gerado com sucesso!', 'sucesso');
             }
 
+            // Gatilho visual acionado DEPOIS que a exportação do arquivo finaliza
+            if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
+                window.TaskManager.sinalizarTarefasPendentes();
+            }
+
         } catch (error) {
             console.error('[ExportManager ED] Erro fatal na exportação:', error);
             if (error.message && error.message.includes("CONCURRENCY_VIOLATION")) {
@@ -829,10 +830,6 @@ window.ExportManager = (function () {
                 return;
             }
 
-            if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
-                window.TaskManager.sinalizarTarefasPendentes();
-            }
-
             try {
                 // 1. Gera e baixa o Markdown
                 const config = ESQUEMAS_CONTEXTO['ED'];
@@ -867,6 +864,11 @@ window.ExportManager = (function () {
                 });
 
                 await _executarFilaDeDownloads(filaDeDownloads);
+
+                // Gatilho visual acionado DEPOIS de todos os arquivos baixados
+                if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
+                    window.TaskManager.sinalizarTarefasPendentes();
+                }
 
             } catch (error) {
                 console.error('[ExportManager ED] Erro crítico na exportação:', error);

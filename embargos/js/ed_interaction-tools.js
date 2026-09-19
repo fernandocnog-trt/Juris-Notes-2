@@ -1167,10 +1167,6 @@ window.fecharModalGeradorContexto = function() {
 window.gerarECopiarContexto = function(modo = 'pro') {
     const nomeAcao = modo === 'interno' ? 'copiar DADOS COMPLETOS para ChatJT' : 'copiar DADOS SEGUROS para Gemini PRO';
     
-    if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
-        window.TaskManager.sinalizarTarefasPendentes();
-    }
-
     const btnId = modo === 'interno' ? 'btn-copiar-contexto-interno' : 'btn-copiar-contexto-pro';
     const btn = document.getElementById(btnId);
     
@@ -1227,20 +1223,27 @@ window.gerarECopiarContexto = function(modo = 'pro') {
     }
 
     navigator.clipboard.writeText(outputFinal).then(() => {
-        targetTextNode.innerText = '✅ Sucesso!';
-        btn.style.backgroundColor = "#2e7d32"; 
-        btn.style.opacity = "1";
-        
-        const msgToast = modo === 'interno' ? 'Pacote Interno copiado (com XML).' : 'Pacote PRO seguro copiado.';
-        exibirToast(msgToast, 'sucesso');
-        
-        setTimeout(() => {
-            targetTextNode.innerText = originalText;
-            btn.style.backgroundColor = modo === 'interno' ? '#f57c00' : 'var(--trt-blue)';
-            if(typeof window.fecharModalGeradorContexto === 'function') window.fecharModalGeradorContexto();
-        }, 1500); 
-        
-    }).catch(err => {
+            targetTextNode.innerText = '✅ Sucesso!';
+            btn.style.backgroundColor = "#2e7d32"; 
+            btn.style.opacity = "1";
+            
+            const msgToast = modo === 'interno' ? 'Pacote Interno copiado (com XML).' : 'Pacote PRO seguro copiado.';
+            exibirToast(msgToast, 'sucesso');
+            
+            setTimeout(() => {
+                targetTextNode.innerText = originalText;
+                btn.style.backgroundColor = modo === 'interno' ? '#f57c00' : 'var(--trt-blue)';
+                if(typeof window.fecharModalGeradorContexto === 'function') window.fecharModalGeradorContexto();
+                
+                // Gatilho visual acionado DEPOIS que o modal sai da frente (300ms p/ fade-out)
+                setTimeout(() => {
+                    if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
+                        window.TaskManager.sinalizarTarefasPendentes();
+                    }
+                }, 300);
+            }, 1500); 
+            
+        }).catch(err => {
         console.error('Falha na Clipboard API:', err);
         executarCopiaFallback(outputFinal, btn, targetTextNode, originalText, modo);
     });
