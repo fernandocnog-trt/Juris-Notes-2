@@ -2420,15 +2420,20 @@ window.TaskManager = (function() {
             
             const btn = document.getElementById('btn-lembretes-tarefa');
             if (btn) {
+                // 1. Limpa qualquer timer anterior (Previne Race Condition de múltiplos cliques)
+                clearTimeout(btn._pulseTimer);
+                
+                // 2. Força o navegador a recalcular o layout (Reset da animação)
                 btn.classList.remove('alerta-pulsante');
                 void btn.offsetWidth; 
                 
+                // 3. Aplica a classe que dispara o @keyframes
                 btn.classList.add('alerta-pulsante');
                 
-                btn.addEventListener('animationend', function handler() {
+                // 4. Remove a classe após 1.9s (Duração: 0.6s * 3 pulsos = 1800ms + folga)
+                btn._pulseTimer = setTimeout(() => {
                     btn.classList.remove('alerta-pulsante');
-                    btn.removeEventListener('animationend', handler);
-                }, { once: true });
+                }, 1900);
             }
         }
     }
