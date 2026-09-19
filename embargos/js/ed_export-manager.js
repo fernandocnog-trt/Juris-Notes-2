@@ -168,11 +168,11 @@ window.ExportManager = (function () {
                 if (dadosContrato.admissao) {
                     // Formata a data (de YYYY-MM-DD para DD/MM/YYYY) para a IA ler de forma nativa
                     const admArr = dadosContrato.admissao.split('-');
-                    md += `  [Data de Admissão]: ${admArr.length === 3 ? \`\${admArr[2]}/\${admArr[1]}/\${admArr[0]}\` : dadosContrato.admissao}\n`;
+                    md += `  [Data de Admissão]: ${admArr.length === 3 ? `${admArr[2]}/${admArr[1]}/${admArr[0]}` : dadosContrato.admissao}\n`;
                 }
                 if (dadosContrato.demissao) {
                     const demArr = dadosContrato.demissao.split('-');
-                    md += `  [Data de Demissão]: ${demArr.length === 3 ? \`\${demArr[2]}/\${demArr[1]}/\${demArr[0]}\` : dadosContrato.demissao}\n`;
+                    md += `  [Data de Demissão]: ${demArr.length === 3 ? `${demArr[2]}/${demArr[1]}/${demArr[0]}` : dadosContrato.demissao}\n`;
                 }
                 md += `</contexto_fatico_vinculo_empregaticio>\n\n`;
             }
