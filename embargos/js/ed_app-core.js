@@ -1371,15 +1371,17 @@ function identificarFaseMetodologica(docNome) {
 /**
  * Exclui um marco de extração com segurança de estado e atualiza a UI.
  */
-window.excluirMarcadorExtracao = function(topicoId, docTipo, fronteira) {
+window.excluirMarcadorExtracao = function(topicoId, docTipo, fronteira, polo = 'Comum') {
     const fronteiraLabel = fronteira === 'inicio' ? 'INÍCIO' : 'FIM';
     if (!confirm(`Deseja apagar o marcador de ${fronteiraLabel} deste documento?`)) return;
 
     const topico = topicos.find(t => t.id === topicoId);
     if (!topico || !topico.marcosExtracao) return;
 
-    // Mutação Segura: Filtra o array preservando imutabilidade estrutural
-    topico.marcosExtracao = topico.marcosExtracao.filter(m => !(m.docTipo === docTipo && m.fronteira === fronteira));
+    // Exclusão estrita via Identity Check Completo
+    topico.marcosExtracao = topico.marcosExtracao.filter(m => 
+        !(m.docTipo === docTipo && m.fronteira === fronteira && (m.polo || 'Comum') === polo)
+    );
 
     exibirToast(`Marcador de ${fronteiraLabel} excluído.`, 'sucesso');
     

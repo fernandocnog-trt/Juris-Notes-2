@@ -1490,6 +1490,24 @@ Crie um sumário hierárquico enxuto com as Grandes Categorias e Subcategorias q
             </div>
         </div>
 
+        <div id="extrator-polo-container" style="margin-top: 12px;">
+            <p class="popup-label">Qualifique o polo (Opcional):</p>
+            <div style="display: flex; gap: 8px; margin-top: 6px;">
+                <label class="polo-radio-label">
+                    <input type="radio" name="extrator_polo" value="Comum" checked>
+                    <span class="chip-btn chip-cancelar" style="width: auto; padding: 4px 10px; cursor: pointer;">Comum / Juízo</span>
+                </label>
+                <label class="polo-radio-label">
+                    <input type="radio" name="extrator_polo" value="Parte Autora">
+                    <span class="chip-btn chip-autora" style="width: auto; padding: 4px 10px; cursor: pointer;">Parte Autora</span>
+                </label>
+                <label class="polo-radio-label">
+                    <input type="radio" name="extrator_polo" value="Parte Ré">
+                    <span class="chip-btn chip-re" style="width: auto; padding: 4px 10px; cursor: pointer;">Parte Ré</span>
+                </label>
+            </div>
+        </div>
+
         <div class="wizard-actions">
             <button class="chip-btn chip-cancelar" onclick="cancelarMarcadorExtracao()">✕ Cancelar</button>
             <button class="chip-btn chip-autora" onclick="salvarMarcadorExtracao()">✔ Fixar Alfinete</button>
