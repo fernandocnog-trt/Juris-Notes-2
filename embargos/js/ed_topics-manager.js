@@ -2119,17 +2119,29 @@ window.TopicsManager = (function () {
         document.getElementById('juris-prompt-message').textContent = mensagem;
         
         const inputEl = document.getElementById('juris-prompt-input');
-        if (inputEl) inputEl.style.display = 'none';
+        if (inputEl) {
+            inputEl.style.display = 'none'; // Esconde para agir como 'Confirm' puro
+            inputEl.value = ''; // Limpa resquícios
+        }
 
-        backdrop.style.display = 'flex';
+        // CORREÇÃO 1: Usa a classe CSS nativa da aplicação em vez de display flex inline
+        backdrop.classList.add('is-active');
 
         const botoes = backdrop.querySelectorAll('[data-action]');
+        
         const onClick = function(e) {
             const acao = e.currentTarget.getAttribute('data-action');
-            backdrop.style.display = 'none';
+            
+            // CORREÇÃO 2: Remove a classe ativadora
+            backdrop.classList.remove('is-active');
+            
+            // CORREÇÃO 3: Restaura o Input para não quebrar outros modais (ex: Renomear Aba)
+            if (inputEl) inputEl.style.display = '';
+
             botoes.forEach(b => b.removeEventListener('click', onClick));
             callback(acao === 'confirm');
         };
+        
         botoes.forEach(b => b.addEventListener('click', onClick));
     }
 
