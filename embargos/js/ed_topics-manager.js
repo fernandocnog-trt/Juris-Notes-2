@@ -623,28 +623,7 @@ window.TopicsManager = (function () {
             </div>`;
     }
 
-    // Função utilitária para micro-interação de cópia
-    window.copiarChaveCheckpoint = async function(btnContext, chave) {
-        try {
-            await navigator.clipboard.writeText(chave);
-            const originalHtml = btnContext.innerHTML;
-            btnContext.innerHTML = '✅ Copiada!';
-            btnContext.style.backgroundColor = '#e8f5e9';
-            btnContext.style.color = '#2e7d32';
-            btnContext.style.borderColor = '#a5d6a7';
-            
-            setTimeout(() => {
-                btnContext.innerHTML = originalHtml;
-                btnContext.style.backgroundColor = '';
-                btnContext.style.color = '';
-                btnContext.style.borderColor = '';
-            }, 2000);
-        } catch (err) {
-            if (window.exibirToast) window.exibirToast('Erro ao copiar chave.', 'erro');
-        }
-    };
-
-    // Componente isolado (Clean Code)
+    // Componente isolado (Clean Code) - Automação de Handoff (Nível 3)
     function _gerarHtmlCheckpoint(anotacao, index) {
         const isSaida = anotacao.tipo === 'checkpoint_saida';
         const volumeNum = isSaida ? anotacao.metaHandoff.versao : (anotacao.metaHandoff.versao + 1);
@@ -654,20 +633,14 @@ window.TopicsManager = (function () {
 
         return `
         <div class="timeline-item-master align-left" id="timeline-wrapper-${anotacao.uuid || index}" style="justify-content: center; margin-bottom: 24px;">
-            <div class="sub-annotation-card borda-checkpoint-minimalista" style="width: 80%; max-width: 600px; margin: 0 auto;">
-                <h3 class="checkpoint-title">${titulo}</h3>
+            <div class="sub-annotation-card borda-checkpoint-minimalista" style="width: 80%; max-width: 600px; margin: 0 auto; border-top-color: #2e7d32;">
+                <h3 class="checkpoint-title" style="color: #2e7d32;">${titulo}</h3>
                 
                 <aside class="checkpoint-hint-box" aria-label="Lembrete de transição de IA">
                     <small class="checkpoint-hint-text">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px; margin-right:4px; vertical-align:text-bottom;"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-                        A <strong>Chave de Continuidade</strong> orienta a IA no próximo passo.
+                        <svg viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="2" style="width:14px; height:14px; margin-right:4px; vertical-align:text-bottom;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                        <strong style="color: #2e7d32;">Automação Ativa:</strong> O <em>Gerador de Contexto</em> já detectou a chave <strong>${chkId}</strong>.<br> Basta clicar em "Copiar Pacote" lá no gerador. O prompt de continuidade será injetado sozinho!
                     </small>
-                    <button class="btn-copy-chave-quick" 
-                            data-chk-id="${chkId}"
-                            onclick="window.copiarChaveCheckpoint(this, '${chkId}'); event.stopPropagation();" 
-                            aria-label="Copiar chave de continuidade para a área de transferência">
-                        🔑 Copiar Chave
-                    </button>
                 </aside>
 
                 <p style="display: none;" aria-hidden="true">${escaparHTML(anotacao.conteudo)}</p>
