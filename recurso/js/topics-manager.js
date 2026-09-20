@@ -667,22 +667,37 @@ window.TopicsManager = (function () {
         const isSaida = anotacao.tipo === 'checkpoint_saida';
         const volumeNum = isSaida ? anotacao.metaHandoff.versao : (anotacao.metaHandoff.versao + 1);
         const romano = toRoman(volumeNum);
-        const titulo = `Volume ${romano}`;
         const chkId = escaparHTML(anotacao.metaHandoff.chkId || '');
 
-        return `
-        <div class="timeline-item-master align-left" id="timeline-wrapper-${anotacao.uuid || index}" style="justify-content: center; margin-bottom: 24px;">
-            <div class="sub-annotation-card borda-checkpoint-minimalista" style="width: 80%; max-width: 600px; margin: 0 auto; border-top-color: #2e7d32;">
-                <h3 class="checkpoint-title" style="color: #2e7d32;">${titulo}</h3>
-                
-                <aside class="checkpoint-hint-box" aria-label="Lembrete de transição de IA">
-                    <small class="checkpoint-hint-text">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="2" style="width:14px; height:14px; margin-right:4px; vertical-align:text-bottom;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                        <strong style="color: #2e7d32;">Automação Ativa:</strong> O <em>Gerador de Contexto</em> já detectou a chave <strong>${chkId}</strong>.<br> Basta clicar em "Copiar Pacote" lá no gerador. O prompt de continuidade será injetado sozinho!
-                    </small>
-                </aside>
+        // ATRIBUTO DE DADOS: Mantém o payload para leitura sistêmica, limpo do DOM visual
+        const payloadSafe = escaparHTML(anotacao.conteudo);
 
-                <p style="display: none;" aria-hidden="true">${escaparHTML(anotacao.conteudo)}</p>
+        if (isSaida) {
+            return `
+            <div class="timeline-item-master align-left" id="timeline-wrapper-${anotacao.uuid || index}" data-chk-payload="${payloadSafe}" style="justify-content: center; margin-bottom: 24px;">
+                <div class="sub-annotation-card borda-checkpoint-minimalista checkpoint-card--saida" style="width: 80%; max-width: 600px; margin: 0 auto;">
+                    <h3 class="checkpoint-title" style="color: #2e7d32;">Fim do Volume</h3>
+                    <aside class="checkpoint-hint-box" aria-label="Lembrete de transição">
+                        <small class="checkpoint-hint-text">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="#2e7d32" stroke-width="2" style="width:14px; height:14px; margin-right:4px; vertical-align:text-bottom;"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                            <strong style="color: #2e7d32;">Volume Fechado:</strong> A continuação deste assunto foi transferida para a nova aba criada acima.
+                        </small>
+                    </aside>
+                </div>
+            </div>`;
+        }
+
+        // Layout de Entrada (Volume 2+)
+        return `
+        <div class="timeline-item-master align-left" id="timeline-wrapper-${anotacao.uuid || index}" data-chk-payload="${payloadSafe}" style="justify-content: center; margin-bottom: 24px;">
+            <div class="sub-annotation-card borda-checkpoint-minimalista checkpoint-card--entrada" style="width: 80%; max-width: 600px; margin: 0 auto;">
+                <div class="checkpoint-badge-link">🔗 Vinculado ao Volume Anterior</div>
+                <h3 class="checkpoint-title" style="color: #f57c00; font-size: 1rem;">Volume ${romano}: Como prosseguir?</h3>
+                
+                <div class="checkpoint-instructions">
+                    <p><strong>Passo 1:</strong> Continue analisando os autos e marcando as novas provas normalmente aqui nesta tela.</p>
+                    <p><strong>Passo 2:</strong> Ao terminar as marcações, abra o Gerador de Contexto. A ordem para a IA continuar de onde parou será enviada automaticamente.</p>
+                </div>
             </div>
         </div>`;
     }
@@ -2190,8 +2205,15 @@ window.TopicsManager = (function () {
 
             const btn = document.getElementById('btn-dividir-topico');
             if (btn) {
-                btn.classList.toggle('limite-pulse-alert', total >= 30);
+                const limiteAtingido = total >= 30;
+                btn.classList.toggle('limite-pulse-alert', limiteAtingido);
                 btn.disabled = false;
+                
+                if (limiteAtingido) {
+                    btn.title = '⚠️ Este tópico está muito longo! Clique para dividir em um novo volume e evitar que a IA se perca ou esqueça do contexto.';
+                } else {
+                    btn.title = 'Dividir Tópico em Volumes (Checkpoint IA)';
+                }
             }
         }, 500);
     }
@@ -2376,6 +2398,7 @@ window.TopicsManager = (function () {
         fecharModalPilhaProcessual,
         salvarPilhaProcessual,
         desagruparPilhaProcessual,
+        toRoman,
         acionarDivisaoTopico
     };
 
