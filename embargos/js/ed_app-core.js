@@ -680,6 +680,15 @@ window.ContratoManager = (function() {
    INICIALIZAÇÃO E INJEÇÃO DE DEPENDÊNCIAS
    ================================================ */
 document.addEventListener("DOMContentLoaded", () => {
+    // Conexão da Ferramenta Tesoura IA (Gatilho de Ação)
+    const btnTesoura = document.getElementById('btn-dividir-topico');
+    if (btnTesoura) {
+        btnTesoura.addEventListener('click', () => {
+            if (window.TopicsManager && typeof window.TopicsManager.acionarDivisaoTopico === 'function') {
+                window.TopicsManager.acionarDivisaoTopico();
+            }
+        });
+    }
     document.body.dataset.activeTab = 'leitura';
     SplashScreenManager.init();
     
