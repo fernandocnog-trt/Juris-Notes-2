@@ -1319,7 +1319,15 @@
 
     <div id="modal-gerador-contexto" class="crop-wizard-popup" style="display:none; z-index: 4005;">
         <div class="wizard-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <span>🧩 Gerador de Contexto para IA</span>
+            <span style="display: flex; align-items: center; gap: 8px; color: var(--text-dark);">
+                🧩 Gerador de Contexto para IA
+            </span>
+
+            <!-- NOVO: Selo de Continuidade Semântico -->
+            <div id="banner-continuacao-ia" class="continuity-badge">
+                🔗 Modo Continuação Ativo (Volume <span id="span-vol-atual">II</span>)
+            </div>
+
             <button style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #64748b;" onclick="fecharModalGeradorContexto()">✕</button>
         </div>
         
