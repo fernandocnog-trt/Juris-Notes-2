@@ -1016,11 +1016,11 @@ window.limparAreaInternaLGPD = function() {
    ======================================================== */
 
 (function initMinutaActions() {
-    // 1. CONTRATO DE ACOPLAMENTO DOM (Preencher com os seletores reais da sua interface)
+    // 1. CONTRATO DE ACOPLAMENTO DOM (Mapeado via Acessibilidade do index.html)
     const CONFIG = {
         idTextarea: 'ctx-minuta-anterior',
-        seletorBtnColar: '.btn-colar-minuta-real',  // <-- INSIRA O SELETOR REAL DO BOTÃO AQUI
-        seletorBtnLimpar: '.btn-limpar-minuta-real' // <-- INSIRA O SELETOR REAL DO BOTÃO AQUI
+        seletorBtnColar: 'button[aria-label="Colar da área de transferência"]',
+        seletorBtnLimpar: 'button[aria-label="Limpar texto atual"]'
     };
 
     // 2. ESTADO INTERNO
