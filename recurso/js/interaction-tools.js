@@ -1011,14 +1011,137 @@ window.limparAreaInternaLGPD = function() {
     exibirToast('Área restrita limpa.', 'info');
 };
 
-/* --- NOVA FUNÇÃO DE LIMPEZA MANUAL --- */
-window.limparAreaInternaLGPD = function() {
-    document.getElementById('ctx-teor-sentenca').value = '';
-    document.getElementById('ctx-teor-recurso').value = '';
-    sessionStorage.removeItem('juris_ctx_sentenca');
-    sessionStorage.removeItem('juris_ctx_recurso');
-    exibirToast('Área restrita limpa.', 'info');
-};
+/* ========================================================
+   MÓDULO: AÇÕES DO HISTÓRICO DA MINUTA (COLAR / LIMPAR SEGURO)
+   ======================================================== */
+
+(function initMinutaActions() {
+    // 1. CONTRATO DE ACOPLAMENTO DOM
+    // ATENÇÃO: Substitua os valores abaixo pelos seletores reais (IDs ou Classes únicas)
+    // que você inspecionou no Passo 1.
+    const CONFIG = {
+        idTextarea: 'ctx-minuta-anterior',
+        seletorBtnColar: '.btn-colar-minuta-real',  // <-- INSIRA O SELETOR REAL AQUI
+        seletorBtnLimpar: '.btn-limpar-minuta-real' // <-- INSIRA O SELETOR REAL AQUI
+    };
+
+    // 2. ESTADO INTERNO (REDE DE SEGURANÇA)
+    let _snapshotMinutaAnterior = "";
+
+    // 3. CONTROLADORES (SERVICES)
+    window.desfazerLimpezaMinuta = function() {
+        const textarea = document.getElementById(CONFIG.idTextarea);
+        if (!textarea || !_snapshotMinutaAnterior) {
+            console.warn('[Juris Notes] Nada a desfazer ou caixa não encontrada.');
+            return;
+        }
+
+        // Guarda de segurança contra sobrescrita de novos dados digitados após a limpeza
+        if (textarea.value.trim() !== '') {
+            const prosseguir = confirm("A caixa já contém texto novo. Deseja sobrescrevê-lo com o histórico restaurado?");
+            if (!prosseguir) return;
+        }
+
+        textarea.value = _snapshotMinutaAnterior;
+        _snapshotMinutaAnterior = ""; // Invalida snapshot após consumo
+        
+        // Persistência Explícita (SSOT)
+        window.salvarRascunhoContextoDebounced?.();
+        
+        exibirToast('Texto restaurado com sucesso.', 'sucesso');
+        textarea.focus();
+    };
+
+    window.limparMinutaAnterior = function() {
+        const textarea = document.getElementById(CONFIG.idTextarea);
+        if (!textarea) return;
+        
+        if (!textarea.value) {
+            exibirToast('A caixa já está vazia.', 'info');
+            return;
+        }
+
+        // Backup em Memória
+        _snapshotMinutaAnterior = textarea.value;
+        
+        // Destruição Controlada
+        textarea.value = '';
+        
+        // Persistência Explícita (Sincroniza UI com sessionStorage imediatamente)
+        window.salvarRascunhoContextoDebounced?.();
+        
+        // Feedback neutro e preciso
+        exibirToast('Histórico da minuta limpo.', 'info');
+        textarea.focus();
+    };
+
+    window.colarNaMinuta = async function() {
+        const textarea = document.getElementById(CONFIG.idTextarea);
+        if (!textarea) return;
+
+        try {
+            // Guarda de Ambiente Seguro
+            if (!window.isSecureContext || !navigator.clipboard || !navigator.clipboard.readText) {
+                throw new Error('Ambiente não seguro ou Clipboard API bloqueada.');
+            }
+
+            const textoColado = await navigator.clipboard.readText();
+            if (!textoColado) {
+                exibirToast('Sua área de transferência está vazia.', 'aviso');
+                textarea.focus();
+                return;
+            }
+
+            textarea.focus();
+
+            // Preserva pilha nativa de Undo (Ctrl+Z) e posição do cursor
+            const inseriuNativo = document.execCommand('insertText', false, textoColado);
+
+            if (!inseriuNativo) {
+                // Fallback moderno para navegadores que bloqueiam execCommand.
+                // Trade-off documentado: O texto será inserido no caret, mas a tela 
+                // NÃO rolará automaticamente para acompanhar o fim da colagem.
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                textarea.setRangeText(textoColado, start, end, 'end');
+            }
+
+            // Sincronização Explícita (SSOT)
+            window.salvarRascunhoContextoDebounced?.();
+            
+            exibirToast('Texto inserido com sucesso.', 'sucesso');
+
+        } catch (err) {
+            console.warn('[Juris Notes] Falha controlada no Clipboard:', err);
+            // Fallback focado: devolve o cursor para a caixa para permitir Ctrl+V imediato
+            textarea.focus();
+            exibirToast('Permissão bloqueada. Pressione Ctrl+V para colar.', 'erro');
+        }
+    };
+
+    // 4. BINDING DETERMINÍSTICO DE EVENTOS (Invocação Imediata)
+    const textarea = document.getElementById(CONFIG.idTextarea);
+    if (!textarea) return;
+
+    // Busca global baseada nos seletores únicos do CONFIG.
+    // Isso elimina a premissa topológica de que os botões são filhos diretos do pai da textarea.
+    const btnColar = document.querySelector(CONFIG.seletorBtnColar);
+    const btnLimpar = document.querySelector(CONFIG.seletorBtnLimpar);
+
+    if (btnColar) {
+        btnColar.removeAttribute('onclick'); // Previne double-fire de marcação suja
+        btnColar.addEventListener('click', (e) => { e.preventDefault(); window.colarNaMinuta(); });
+    } else {
+        console.warn(`[Juris Notes] Setup Falhou: Botão "Colar" não encontrado (${CONFIG.seletorBtnColar}).`);
+    }
+
+    if (btnLimpar) {
+        btnLimpar.removeAttribute('onclick');
+        btnLimpar.addEventListener('click', (e) => { e.preventDefault(); window.limparMinutaAnterior(); });
+    } else {
+        console.warn(`[Juris Notes] Setup Falhou: Botão "Limpar" não encontrado (${CONFIG.seletorBtnLimpar}).`);
+    }
+})();
 
 /* --- ATUALIZAÇÃO DO AUTO-SAVE COM INJEÇÃO DE HASH DO PROCESSO --- */
 window.salvarRascunhoContextoDebounced = _debounce(function() {
