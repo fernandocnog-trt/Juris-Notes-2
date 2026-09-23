@@ -1016,16 +1016,14 @@ window.limparAreaInternaLGPD = function() {
    ======================================================== */
 
 (function initMinutaActions() {
-    // 1. CONTRATO DE ACOPLAMENTO DOM
-    // ATENÇÃO: Substitua os valores abaixo pelos seletores reais (IDs ou Classes únicas)
-    // que você inspecionou no Passo 1.
+    // 1. CONTRATO DE ACOPLAMENTO DOM (Preencher com os seletores reais da sua interface)
     const CONFIG = {
         idTextarea: 'ctx-minuta-anterior',
-        seletorBtnColar: '.btn-colar-minuta-real',  // <-- INSIRA O SELETOR REAL AQUI
-        seletorBtnLimpar: '.btn-limpar-minuta-real' // <-- INSIRA O SELETOR REAL AQUI
+        seletorBtnColar: '.btn-colar-minuta-real',  // <-- INSIRA O SELETOR REAL DO BOTÃO AQUI
+        seletorBtnLimpar: '.btn-limpar-minuta-real' // <-- INSIRA O SELETOR REAL DO BOTÃO AQUI
     };
 
-    // 2. ESTADO INTERNO (REDE DE SEGURANÇA)
+    // 2. ESTADO INTERNO
     let _snapshotMinutaAnterior = "";
 
     // 3. CONTROLADORES (SERVICES)
@@ -1036,19 +1034,18 @@ window.limparAreaInternaLGPD = function() {
             return;
         }
 
-        // Guarda de segurança contra sobrescrita de novos dados digitados após a limpeza
+        // Guarda de segurança contra sobrescrita de novos dados
         if (textarea.value.trim() !== '') {
-            const prosseguir = confirm("A caixa já contém texto novo. Deseja sobrescrevê-lo com o histórico restaurado?");
+            const prosseguir = confirm("A caixa já contém texto. Deseja sobrescrevê-lo com o histórico restaurado?");
             if (!prosseguir) return;
         }
 
         textarea.value = _snapshotMinutaAnterior;
         _snapshotMinutaAnterior = ""; // Invalida snapshot após consumo
         
-        // Persistência Explícita (SSOT)
         window.salvarRascunhoContextoDebounced?.();
         
-        exibirToast('Texto restaurado com sucesso.', 'sucesso');
+        if (typeof exibirToast === 'function') exibirToast('Texto restaurado com sucesso.', 'sucesso');
         textarea.focus();
     };
 
@@ -1057,21 +1054,17 @@ window.limparAreaInternaLGPD = function() {
         if (!textarea) return;
         
         if (!textarea.value) {
-            exibirToast('A caixa já está vazia.', 'info');
+            if (typeof exibirToast === 'function') exibirToast('A caixa já está vazia.', 'info');
             return;
         }
 
-        // Backup em Memória
         _snapshotMinutaAnterior = textarea.value;
-        
-        // Destruição Controlada
         textarea.value = '';
         
-        // Persistência Explícita (Sincroniza UI com sessionStorage imediatamente)
         window.salvarRascunhoContextoDebounced?.();
         
-        // Feedback neutro e preciso
-        exibirToast('Histórico da minuta limpo.', 'info');
+        // Feedback neutro, sem falsas promessas de atalhos
+        if (typeof exibirToast === 'function') exibirToast('Histórico da minuta limpo.', 'aviso');
         textarea.focus();
     };
 
@@ -1080,42 +1073,37 @@ window.limparAreaInternaLGPD = function() {
         if (!textarea) return;
 
         try {
-            // Guarda de Ambiente Seguro
             if (!window.isSecureContext || !navigator.clipboard || !navigator.clipboard.readText) {
                 throw new Error('Ambiente não seguro ou Clipboard API bloqueada.');
             }
 
             const textoColado = await navigator.clipboard.readText();
             if (!textoColado) {
-                exibirToast('Sua área de transferência está vazia.', 'aviso');
+                if (typeof exibirToast === 'function') exibirToast('Sua área de transferência está vazia.', 'aviso');
                 textarea.focus();
                 return;
             }
 
             textarea.focus();
 
-            // Preserva pilha nativa de Undo (Ctrl+Z) e posição do cursor
             const inseriuNativo = document.execCommand('insertText', false, textoColado);
 
             if (!inseriuNativo) {
-                // Fallback moderno para navegadores que bloqueiam execCommand.
-                // Trade-off documentado: O texto será inserido no caret, mas a tela 
-                // NÃO rolará automaticamente para acompanhar o fim da colagem.
+                // Trade-off documentado: Em navegadores que bloqueiam execCommand, 
+                // o texto será inserido no caret, mas a tela NÃO rolará automaticamente 
+                // para acompanhar o fim da colagem. Adoção aceita por limitação de custo arquitetural.
                 const start = textarea.selectionStart;
                 const end = textarea.selectionEnd;
                 textarea.setRangeText(textoColado, start, end, 'end');
             }
 
-            // Sincronização Explícita (SSOT)
             window.salvarRascunhoContextoDebounced?.();
-            
-            exibirToast('Texto inserido com sucesso.', 'sucesso');
+            if (typeof exibirToast === 'function') exibirToast('Texto inserido com sucesso.', 'sucesso');
 
         } catch (err) {
             console.warn('[Juris Notes] Falha controlada no Clipboard:', err);
-            // Fallback focado: devolve o cursor para a caixa para permitir Ctrl+V imediato
             textarea.focus();
-            exibirToast('Permissão bloqueada. Pressione Ctrl+V para colar.', 'erro');
+            if (typeof exibirToast === 'function') exibirToast('Permissão bloqueada. Pressione Ctrl+V para colar.', 'erro');
         }
     };
 
@@ -1123,10 +1111,12 @@ window.limparAreaInternaLGPD = function() {
     const textarea = document.getElementById(CONFIG.idTextarea);
     if (!textarea) return;
 
-    // Busca global baseada nos seletores únicos do CONFIG.
-    // Isso elimina a premissa topológica de que os botões são filhos diretos do pai da textarea.
-    const btnColar = document.querySelector(CONFIG.seletorBtnColar);
-    const btnLimpar = document.querySelector(CONFIG.seletorBtnLimpar);
+    // Busca contextualizada a partir do pai para evitar vazamento de escopo
+    const container = textarea.parentElement;
+    if (!container) return;
+
+    const btnColar = container.querySelector(CONFIG.seletorBtnColar);
+    const btnLimpar = container.querySelector(CONFIG.seletorBtnLimpar);
 
     if (btnColar) {
         btnColar.removeAttribute('onclick'); // Previne double-fire de marcação suja
