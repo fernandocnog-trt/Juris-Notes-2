@@ -172,41 +172,37 @@
 }
 
 /* =========================================================================
-   NOVA ARQUITETURA DE LINHAS DECLARATIVAS (FIM DO LAYOUT THRASHING)
+   NOVA ARQUITETURA DE LINHAS (ESTILO MAPA MENTAL REFINADO)
    ========================================================================= */
 
-/* A ESPINHA DORSAL (Timeline Spine) */
-/* Aplicado apenas a cards padrão, ignorando Diretrizes e Teses */
+/* 1. A ESPINHA DORSAL (Timeline Spine) - Agora pontilhada/tracejada */
 .timeline-item-master:not(.nivel-hierarquico):not(.nivel-global) {
     position: relative;
-    /* O gap padrão do flex container é 32px. */
 }
 
-/* O tronco vertical da espinha */
 .timeline-item-master:not(.nivel-hierarquico):not(.nivel-global)::before {
     content: '';
     position: absolute;
-    top: 24px; /* Começa um pouco abaixo do topo do card mestre */
-    bottom: -112px; /* Desce até o próximo grupo (compensa a margin-bottom do master) */
-    width: 2px;
-    background-color: var(--theme-spine-line, #cbd5e1);
+    top: 24px;
+    bottom: -112px;
+    width: 0; /* Remove a largura sólida */
+    /* Cria uma linha vertical elegante e tracejada */
+    border-left: 2px dashed var(--theme-spine-line, #a0aec0); 
     z-index: 0;
-    transition: background-color 0.3s ease, opacity 0.3s ease;
+    transition: border-color 0.3s ease, opacity 0.3s ease;
 }
 
-/* Posicionamento dinâmico baseado na paridade (esquerda vs direita) */
+/* Alinhamento da Espinha */
 .timeline-item-master.align-left:not(.nivel-hierarquico):not(.nivel-global)::before {
-    left: calc(60% + 7px); /* 60% é a largura da coluna master. 7px é ajuste fino no centro do gap */
+    left: calc(60% + 7px);
 }
-
 .timeline-item-master.align-right:not(.nivel-hierarquico):not(.nivel-global)::before {
     right: calc(60% + 7px);
 }
 
 /* AS RAMIFICAÇÕES (Branches) */
-/* Ligam a espinha dorsal aos cards de ideias secundárias */
 .sub-annotation-item {
-    position: relative !important; /* Força sobreposição contra regras antigas de JS */
+    position: relative !important;
     top: auto !important;
     width: 100% !important;
 }
@@ -214,718 +210,80 @@
 .sub-annotations-wrapper {
     display: flex;
     flex-direction: column;
-    justify-content: center; /* Mantém os nós centralizados em relação à altura do Master */
+    justify-content: center;
     gap: 16px; 
 }
 
-/* Ramos dos nós de ideia - Alinhamento à Esquerda */
+/* 2. Braços esquerdos (Master na Esquerda, Ideias na Direita) */
 .timeline-item-master.align-left .sub-annotation-item::before {
     content: '';
     position: absolute;
     top: 50%;
-    left: -25px; /* Comprimento do braço até a espinha */
+    left: -25px;
     width: 25px;
-    height: 2px;
-    background-color: var(--theme-spine-line, #cbd5e1);
+    height: 0; /* É uma linha, não um bloco */
+    border-top: 2px dashed var(--theme-spine-line, #a0aec0); /* Linha tracejada */
+    background: transparent;
     z-index: 0;
-    transition: background-color 0.3s ease, opacity 0.3s ease;
+    transition: border-color 0.3s ease, opacity 0.3s ease;
 }
 
-/* Ramos dos nós de ideia - Alinhamento à Direita */
+/* Braços direitos (Master na Direita, Ideias na Esquerda) */
 .timeline-item-master.align-right .sub-annotation-item::before {
     content: '';
     position: absolute;
     top: 50%;
     right: -25px;
     width: 25px;
-    height: 2px;
-    background-color: var(--theme-spine-line, #cbd5e1);
-    z-index: 0;
-    transition: background-color 0.3s ease, opacity 0.3s ease;
-}
-
-/* ================================================
-   3. CARDS DE ANOTAÇÃO E AGRUPAMENTOS
-   ================================================ */
-.annotation-card { background-color: #ffffff; border: 1px solid var(--border-color); border-radius: 0 12px 12px 12px; padding: 14px 18px; box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06); color: var(--text-dark); font-size: 0.9rem; position: relative; z-index: 1; }
-.timeline-item-master.align-right .annotation-card { border-radius: 12px 0 12px 12px; }
-
-.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 4px; }
-.card-meta { font-size: 0.75rem; color: #888; font-weight: 400; }
-.card-texto { 
-    font-size: 0.88rem; color: #333; line-height: 1.6; font-style: italic; margin-top: 4px; 
-    /* Regras aditivas para truncamento */
-    display: -webkit-box; 
-    -webkit-line-clamp: 15; 
-    -webkit-box-orient: vertical; 
-    overflow: hidden; 
-    max-height: 24em; 
-    position: relative; 
-}
-.card-texto.expanded { 
-    -webkit-line-clamp: unset; 
-    display: block; 
-    overflow-y: auto; 
-    max-height: 450px; 
-    padding-right: 6px; 
-}
-.card-texto.is-truncated:not(.expanded)::after {
-    content: "";
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 4em;
-    pointer-events: none;
-    background: linear-gradient(to bottom, transparent, var(--theme-bg-white, #ffffff));
-}
-
-/* Herança do gradiente conforme a fase metodológica para camuflagem perfeita */
-.fase-1 .card-texto.is-truncated:not(.expanded)::after { background: linear-gradient(to bottom, transparent, var(--fase-1-bg)); }
-.fase-2 .card-texto.is-truncated:not(.expanded)::after { background: linear-gradient(to bottom, transparent, var(--fase-2-bg)); }
-.fase-3 .card-texto.is-truncated:not(.expanded)::after { background: linear-gradient(to bottom, transparent, var(--fase-3-bg)); }
-.fase-4 .card-texto.is-truncated:not(.expanded)::after { background: linear-gradient(to bottom, transparent, var(--fase-4-bg)); }
-
-.card-imagem { max-width: 100%; border-radius: 6px; margin-top: 10px; border: 1px solid var(--border-color); display: block; }
-.card-comentario { font-size: 0.84rem; color: #444; margin-top: 12px; padding-top: 10px; border-top: 1px dashed var(--border-color); line-height: 1.6; }
-.card-comentario strong { color: var(--trt-blue-mid); font-weight: 600; }
-
-.card-actions-bar { display: flex; justify-content: flex-end; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--border-color); }
-.card-actions-bar button { background: transparent; border: none; cursor: pointer; color: #888; display: flex; align-items: center; justify-content: center; padding: 4px 6px; border-radius: 4px; transition: all 0.2s; }
-.card-actions-bar button:hover { background: #f0f4f8; color: var(--trt-blue); }
-.card-actions-bar button.delete-btn:hover { background: #ffebee; color: #c62828; }
-.card-actions-bar button svg { width: 14px; height: 14px; pointer-events: none; }
-
-:root {
-    --degrav-fuchsia: #D500B5;
-    --degrav-fuchsia-dark: #A3008A;
-    --degrav-fuchsia-glow: rgba(213, 0, 181, 0.25);
-}
-
-/* ================================================
-   BOTÕES DE AÇÃO EXPRESSA (CITAÇÃO E DEGRAVAÇÃO)
-   ================================================ */
-.card-actions-bar .btn-degravacao-expressa {
-    background-color: var(--degrav-fuchsia) !important; 
-    color: #ffffff !important;           
-    border-radius: 50%;                  
-    width: 26px;                         
-    height: 26px;
-    padding: 0;
-    margin-left: 4px;
-    box-shadow: 0 2px 4px var(--degrav-fuchsia-glow);
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card-actions-bar .btn-degravacao-expressa:hover {
-    background-color: var(--degrav-fuchsia-dark) !important; 
-    transform: scale(1.15);               
-    box-shadow: 0 4px 8px var(--degrav-fuchsia-glow);
-    color: #ffffff !important;
-}
-
-.card-actions-bar .btn-degravacao-expressa:active {
-    transform: scale(0.95);
-}
-
-.card-actions-bar .btn-degravacao-expressa svg {
-    width: 14px;
-    height: 14px;
-    pointer-events: none;
-}
-
-/* ================================================
-   BOTÃO DE CITAÇÃO EXPRESSA (REFINADO)
-   ================================================ */
-.card-actions-bar .btn-citacao-expressa {
-    background-color: #c62828 !important; 
-    color: #ffffff !important;           
-    border-radius: 50%;                  
-    width: 26px;                         
-    height: 26px;
-    padding: 0;
-    margin-left: 4px;
-    box-shadow: 0 2px 4px rgba(198, 40, 40, 0.25);
-    transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), background-color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.card-actions-bar .btn-citacao-expressa:hover {
-    background-color: #b71c1c !important; 
-    transform: scale(1.15);               
-    box-shadow: 0 4px 8px rgba(198, 40, 40, 0.4);
-    color: #ffffff !important;
-}
-
-.card-actions-bar .btn-citacao-expressa:active {
-    transform: scale(0.95);
-}
-
-.card-actions-bar .btn-citacao-expressa svg {
-    width: 14px;
-    height: 14px;
-    pointer-events: none;
-}
-
-.correlated-item-wrapper { display: flex; flex-direction: column; align-items: center; width: 100%; position: relative; }
-.two-way-arrow-container { display: flex; justify-content: center; align-items: center; padding: 12px 0; color: #888; }
-.two-way-arrow-container svg { width: 20px; height: 20px; transform: translateX(45%); }
-
-.annotation-card.correlated-card { border-radius: 8px; background-color: #fafafa; border-top: 3px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04); width: 100%; position: relative; padding-bottom: 14px; }
-.btn-excluir-correlacionado { position: absolute; bottom: 8px; right: 8px; background: transparent; border: none; color: #bbb; cursor: pointer; transition: color 0.2s; padding: 4px; }
-.btn-excluir-correlacionado:hover { color: #c62828; }
-.btn-excluir-correlacionado svg { width: 16px; height: 16px; }
-
-.correlated-item-wrapper.dragging { opacity: 0.4; transform: scale(0.98); }
-.correlated-item-wrapper.drag-over { border-top: 3px dashed var(--trt-blue-mid) !important; padding-top: 4px; background-color: rgba(26, 58, 92, 0.03); }
-.correlated-drag-handle { cursor: grab; transition: color 0.2s; }
-.correlated-drag-handle:hover { color: var(--trt-blue-mid); }
-.correlated-drag-handle:active { cursor: grabbing; }
-
-.annotation-card:has(.image-resize-wrapper) { width: fit-content; min-width: 280px; max-width: 100%; }
-.image-resize-wrapper { max-width: 100%; height: auto; display: inline-block; resize: both; overflow: hidden; min-width: 150px; min-height: 80px; border: 1px solid var(--border-color); border-radius: 6px; margin-top: 10px; background: #fafafa; }
-.image-resize-wrapper img.card-imagem { width: 100%; height: 100%; object-fit: contain; margin-top: 0; border: none; pointer-events: none; }
-
-.main-card-wrapper.drag-over > .annotation-card { border-top: 3px dashed var(--trt-blue-mid) !important; background-color: rgba(26, 58, 92, 0.03); }
-.master-drag-handle:active { cursor: grabbing !important; }
-
-/* ================================================
-   10. EMPILHAMENTO DE NÓS DE IDEIAS (PILHAS)
-   ================================================ */
-.sub-annotation-stack {
-    border-color: var(--trt-blue-mid) !important;
-    will-change: transform;
-    cursor: default;
-    background-color: #ffffff;
-    position: relative; /* Necessário para os pseudo-elementos */
-}
-
-/* Efeito de Volume com Pseudo-elementos (GPU renderizado) */
-.sub-annotation-stack::before,
-.sub-annotation-stack::after {
-    content: "";
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    border-radius: inherit;
-    border: 1px solid #cbd5e1;
-    background-color: #f8fafc;
-    z-index: -1;
-}
-
-.sub-annotation-stack::before {
-    transform: translateY(4px) translateX(4px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-}
-
-.sub-annotation-stack::after {
-    transform: translateY(8px) translateX(8px);
-    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-}
-
-/* Badge Numérico Flutuante (Ação Destrutiva) */
-.stack-roman-badge {
-    position: absolute;
-    top: -10px;
-    left: -10px;
-    width: 28px;
-    height: 28px;
-    background-color: var(--trt-blue);
-    color: #ffffff;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    font-weight: 800;
-    box-shadow: var(--shadow-sm);
-    cursor: pointer;
-    z-index: 5;
-    transition: transform 0.2s cubic-bezier(0.2, 0, 0, 1), background-color 0.2s;
-}
-
-#input-pilha-descricao::placeholder {
-    color: #94a3b8;
-    font-style: italic;
-}
-
-.stack-roman-badge:hover {
-    transform: scale(1.15);
-    background-color: #ef4444; /* Vermelho alerta para Desagrupar */
-}
-
-/* Botão Interno de Abertura do Modo Leitura */
-.stack-read-btn {
-    width: 100%;
-    margin-top: 4px;
-    padding: 8px;
-    background: #f1f5f9;
-    border: 1px dashed var(--trt-blue-mid);
-    color: var(--trt-blue);
-    border-radius: 6px;
-    font-size: 0.8rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: background 0.2s, color 0.2s;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-}
-
-.stack-read-btn:hover {
-    background: var(--trt-blue);
-    color: #ffffff;
-    border-style: solid;
-}
-.card-audio { background: #fdfaf4; border: 1px solid #f2e3c6; padding: 12px; border-radius: 6px; margin-top: 10px; display: flex; align-items: center; gap: 12px; }
-.audio-icon-box { background: #ffe082; color: #d84315; padding: 10px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.audio-icon-box svg { width: 20px; height: 20px; }
-.audio-card-meta { line-height: 1.5; }
-.audio-card-meta strong { color: var(--trt-blue-mid); }
-.audio-card-meta span:not([class]) { font-size: 0.85rem; color: #555; }
-.correlated-card .audio-icon-box { transform: scale(0.85); margin-left: -8px; }
-.audio-time-badge { color: #d84315; font-weight: 600; font-size: 0.85rem; display: inline-block; margin-top: 4px; }
-.correlated-card .audio-time-badge { font-size: 0.8rem; }
-.audio-icon-box.clickable-audio { cursor: pointer; transition: transform 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease; }
-.audio-icon-box.clickable-audio:hover { transform: scale(1.1); background-color: #ffc107; box-shadow: 0 4px 12px rgba(216, 67, 21, 0.25); color: #bf360c; }
-.audio-icon-box.clickable-audio:active { transform: scale(0.95); }
-.correlated-card .audio-icon-box.clickable-audio:hover { transform: scale(0.935); }
-.correlated-card .audio-icon-box.clickable-audio:active { transform: scale(0.807); }
-
-@media (max-width: 480px) {
-    .timeline-container { padding: 24px 10px 10px; }
-    .timeline-item { width: 90%; align-self: flex-start !important; margin-bottom: 28px; }
-    .connector-wrapper { display: none; }
-}
-
-/* ================================================
-   4. NÓS DE IDEIA (SUB-ANOTAÇÕES) E INTENÇÕES DE IA
-   ================================================ */
-.sub-annotation-item { position: relative; display: flex; align-items: center; }
-.timeline-item-master.align-right .sub-annotation-item { flex-direction: row-reverse; }
-
-.sub-annotation-card { background-color: #fffdf2; border: 1px solid #e8e2c8; border-radius: 8px; padding: 14px 16px; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04); font-size: 0.85rem; color: #3a3520; line-height: 1.6; position: relative; width: 100%; }
-
-.sub-badge { position: absolute; top: -10px; right: -10px; width: 28px; height: 28px; background-color: #1a1a1a; color: #ffffff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; font-weight: 700; z-index: 3; box-shadow: var(--shadow-sm); cursor: pointer; transition: transform 0.15s ease, background-color 0.2s, box-shadow 0.2s; }
-.sub-badge:hover { transform: scale(1.15); background-color: #333; box-shadow: var(--shadow-md); }
-.sub-badge:active { transform: scale(0.95); }
-.timeline-item-master.align-right .sub-badge { right: auto; left: -10px; }
-
-.sub-badge.has-intent { width: auto; min-width: 28px; border-radius: 14px; padding: 0 8px; gap: 4px; }
-.sub-badge svg.intencao-icon { width: 14px; height: 14px; pointer-events: none; }
-.sub-badge.intencao-comando { background-color: #c62828; border: 2px solid #ffcdd2; color: #fff; }
-.sub-badge.intencao-texto { background-color: #1565c0; border: 2px solid #bbdefb; color: #fff; }
-.sub-badge.intencao-jurisprudencia { background-color: #00838F; border: 2px solid #B2EBF2; color: #fff; }
-.sub-badge.intencao-degravacao { background-color: #BF360C; border: 2px solid #FFCCBC; color: #fff; }
-.sub-badge.intencao-nota { background-color: #616161; border: 2px solid #e0e0e0; color: #fff; }
-.sub-badge.intencao-premissa { background-color: #7b1fa2; border: 2px solid #e1bee7; color: #fff; }
-.sub-badge.intencao-fundamentacao { background-color: #00695c; border: 2px solid #b2dfdb; color: #fff; }
-.sub-badge.intencao-refutacao { background-color: #8B4513; border: 2px solid #DEB887; color: #fff; }
-.sub-badge.intencao-preliminar { background-color: #5d4037; border: 2px solid #d7ccc8; color: #fff; }
-.sub-annotation-item.is-nota-interna { opacity: 0.65; }
-
-.sub-text-content { display: -webkit-box; -webkit-line-clamp: 10; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.6; max-height: 16em; position: relative; }
-.sub-text-content.expanded { -webkit-line-clamp: unset; display: block; overflow-y: auto; max-height: 350px; padding-right: 6px; margin-right: -6px; }
-
-.sub-text-content.is-truncated:not(.expanded)::after {
-    content: "";
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    height: 3.5em;
-    background: linear-gradient(to bottom, transparent, #fffdf2);
-    pointer-events: none;
-}
-.sub-text-content.expanded::-webkit-scrollbar { width: 6px; }
-.sub-text-content.expanded::-webkit-scrollbar-track { background: transparent; }
-.sub-text-content.expanded::-webkit-scrollbar-thumb { background: #d0cabc; border-radius: 4px; }
-
-/* --- ESTADO BASE --- */
-.btn-read-mode-trigger { display: none; }
-
-/* Nos Cards Principais, o botão só aparece se o texto for muito longo (truncado) */
-.has-truncated-text .btn-read-mode-trigger.card-action-read { display: inline-flex; }
-
-/* Nos Nós de Ideias, o botão flutuante inferior esquerdo ficará SEMPRE visível */
-.btn-read-mode-trigger.sub-read-badge { display: flex !important; }
-
-/* --- AÇÃO DA BARRA (CARD PRINCIPAL) --- */
-.card-action-read {
-    color: var(--trt-blue-mid);
-}
-.card-action-read svg {
-    width: 15px;
-    height: 15px;
-}
-
-/* --- BADGE DE VIDRO FLUTUANTE (NÓ DE IDEIA) --- */
-.sub-read-badge {
-    position: absolute;
-    bottom: -10px;
-    left: -10px;
-    width: 28px;
-    height: 28px;
-    background: rgba(26, 58, 92, 0.85); /* Glassmorphism Elegante */
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-    color: #ffffff;
-    border-radius: 50%;
-    align-items: center;
-    justify-content: center;
-    z-index: 5;
-    box-shadow: var(--shadow-sm);
-    cursor: pointer;
-    transition: transform 0.15s ease, background-color 0.2s, box-shadow 0.2s;
-}
-
-.sub-read-badge:hover {
-    transform: scale(1.15);
-    background-color: var(--trt-blue);
-    box-shadow: var(--shadow-md);
-}
-
-.sub-read-badge:active {
-    transform: scale(0.95);
-}
-
-.sub-read-badge svg {
-    width: 13px;
-    height: 13px;
-    pointer-events: none;
-}
-
-/* Acessibilidade visual em Notas Internas (Modo Escuro / Post-it) */
-.sub-annotation-item.is-nota-interna .sub-read-badge {
-    background: #4a5568; 
-    border: 1px solid #718096;
-}
-.sub-annotation-item.is-nota-interna .sub-read-badge:hover {
-    background: #2b6cb0;
-}
-
-/* Tipografia do conteúdo dentro do Modo Leitura */
-#reading-mode-content b, #reading-mode-content strong {
-    color: var(--trt-blue);
-    font-weight: 800;
-}
-#reading-mode-content p { margin-bottom: 1em; }
-
-/* Classes legadas do painel inline removidas para centralização no Modal Rico */
-
-/* Menus de Contexto: Estilos Específicos das Intenções de IA */
-.btn-intent-premissa { color: #7b1fa2; justify-content: flex-start; gap: 8px; width: 100%; font-size: 0.8rem; }
-.btn-intent-premissa svg { stroke: #7b1fa2; }
-.btn-intent-fundamentacao { color: #00695c; justify-content: flex-start; gap: 8px; width: 100%; font-size: 0.8rem; }
-.btn-intent-fundamentacao svg { stroke: #00695c; }
-.btn-intent-refutacao { color: #8B4513; justify-content: flex-start; gap: 8px; width: 100%; font-size: 0.8rem; transition: background 0.2s, color 0.2s; }
-.btn-intent-refutacao svg { stroke: #8B4513; transition: stroke 0.2s; }
-.btn-intent-refutacao:hover { background-color: rgba(139, 69, 19, 0.08); }
-.btn-intent-refutacao:hover svg { stroke: #6B3410; }
-.btn-intent-preliminar { color: #5d4037; justify-content: flex-start; gap: 8px; width: 100%; font-size: 0.8rem; }
-.btn-intent-preliminar svg { stroke: #5d4037; }
-
-/* ================================================
-   5. FASES METODOLÓGICAS E DASHBOARD
-   ================================================ */
-:root {
-    --z-reading-backdrop: 4030;
-    --z-reading-modal: 4031;
-    --fase-1-color: #2196F3; --fase-2-color: #4CAF50; --fase-3-color: #9C27B0; --fase-4-color: #FF9800;
-    --fase-1-bg: #E4F3FD;    --fase-2-bg: #EBF6EB;    --fase-3-bg: #F4E7F6;    --fase-4-bg: #FFF4E5;  
-}
-
-.annotation-card.fase-1, .annotation-card.correlated-card.fase-1 { background-color: var(--fase-1-bg); border-left: 4px solid var(--fase-1-color); }
-.annotation-card.fase-2, .annotation-card.correlated-card.fase-2 { background-color: var(--fase-2-bg); border-left: 4px solid var(--fase-2-color); }
-.annotation-card.fase-3, .annotation-card.correlated-card.fase-3 { background-color: var(--fase-3-bg); border-left: 4px solid var(--fase-3-color); }
-.annotation-card.fase-4, .annotation-card.correlated-card.fase-4 { background-color: var(--fase-4-bg); border-left: 4px solid var(--fase-4-color); }
-
-.main-card-wrapper > .annotation-card.fase-1 { border-left: 4px solid var(--fase-1-color); }
-.main-card-wrapper > .annotation-card.fase-2 { border-left: 4px solid var(--fase-2-color); }
-.main-card-wrapper > .annotation-card.fase-3 { border-left: 4px solid var(--fase-3-color); }
-.main-card-wrapper > .annotation-card.fase-4 { border-left: 4px solid var(--fase-4-color); }
-
-.sub-annotation-card.borda-fase-1 { border-color: rgba(33, 150, 243, 0.4); border-left: 5px solid var(--fase-1-color); }
-.sub-annotation-card.borda-fase-2 { border-color: rgba(76, 175, 80, 0.4);  border-left: 5px solid var(--fase-2-color); }
-.sub-annotation-card.borda-fase-3 { border-color: rgba(156, 39, 176, 0.4); border-left: 5px solid var(--fase-3-color); }
-.sub-annotation-card.borda-fase-4 { border-color: rgba(255, 152, 0, 0.4);  border-left: 5px solid var(--fase-4-color); }
-
-.phase-tabs { display: flex; gap: 4px; margin-bottom: 8px; border-bottom: 2px solid var(--border-color); }
-.phase-tab-btn { flex: 1; padding: 6px 2px; font-size: 0.72rem; border: none; background: transparent; cursor: pointer; font-weight: 600; color: #888; border-bottom: 3px solid transparent; transition: 0.2s;}
-.phase-tab-btn.active-f1 { color: #2196F3; border-bottom-color: #2196F3; }
-.phase-tab-btn.active-f2 { color: #4CAF50; border-bottom-color: #4CAF50; }
-.phase-tab-btn.active-f3 { color: #9C27B0; border-bottom-color: #9C27B0; }
-.phase-tab-btn.active-f4 { color: #FF9800; border-bottom-color: #FF9800; }
-
-.thesis-badge.mature::after { content: none !important; display: none !important; }
-.thesis-badge.mature::before { content: ''; position: absolute; top: -100%; left: -100%; width: 300%; height: 300%; background: conic-gradient(from 0deg, transparent 70%, rgba(255, 213, 80, 0.9) 85%, white 92%, rgba(255, 213, 80, 0.9) 95%, transparent 100%); animation: spin-glow-mature 2.5s linear infinite; z-index: 0; }
-@keyframes spin-glow-mature { 100% { transform: rotate(360deg); } }
-
-/* ================================================
-   6. PAINEL DE PREÂMBULO (RELATÓRIO FIXO)
-   ================================================ */
-.topic-preamble-panel { 
-    display: flex; 
-    flex-direction: column; 
-    gap: 8px; 
-    /* Compensação arquitetural de padding do pai (.topics-content-area tem 18px de top padding) */
-    margin-top: -18px; 
-    padding: 18px 24px 12px 24px; 
-    margin-bottom: 12px; 
-    
-    /* Configuração de Ancoragem Ergonômica */
-    position: sticky;
-    top: 0;
-    z-index: 10; /* Proteção contra overlap de cards (z:2) sem afetar modais (z:1000+) */
-    
-    /* Remoção do Blurring/Fundo para limpeza visual */
+    height: 0;
+    border-top: 2px dashed var(--theme-spine-line, #a0aec0);
     background: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    border-bottom: none;
-    border-radius: 0 6px 0 0;
+    z-index: 0;
+    transition: border-color 0.3s ease, opacity 0.3s ease;
 }
 
-.preamble-card {
-    background: #ffffff;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 12px 16px;
-    display: flex;
-    gap: 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+/* 3. O TOQUE DE CLASSE: O "Nó" de Conexão (A Bolinha do Mapa Mental) */
+/* Isso disfarça a falta da curva em S do SVG e devolve o aspecto de software de diagrama */
+.sub-annotation-item::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 6px;
+    height: 6px;
+    background-color: #ffffff;
+    border: 2px solid var(--theme-spine-line, #a0aec0);
+    border-radius: 50%;
+    z-index: 1;
+    transition: border-color 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
 }
 
-/* Bloco is-empty removido para herança nativa do card base */
-
-/* Corredor de Leitura para sub-anotações (Media Query Protegida) */
-@media (min-width: 1024px) {
-    .sub-annotation-card {
-        max-width: 440px; /* Impede a leitura em sanfona horizontal */
-        margin-left: 0;   /* Ancoragem absoluta ao lado esquerdo da sua coluna */
-    }
-}
-.preamble-card:hover { border-color: var(--trt-blue-mid); box-shadow: 0 4px 8px rgba(0,0,0,0.05); transform: translateY(-1px); }
-.preamble-alegacao { border-left: 4px solid #f57c00; }
-.preamble-origem { border-left: 4px solid #3949ab; }
-.preamble-icon { flex-shrink: 0; width: 24px; height: 24px; margin-top: 2px; }
-.preamble-alegacao .preamble-icon { color: #f57c00; }
-.preamble-origem .preamble-icon { color: #3949ab; }
-.preamble-veredito { border-left: 4px solid #e65100; }
-.preamble-veredito .preamble-icon { color: #e65100; }
-.pdf-foco-ativo { filter: blur(4px); opacity: 0.6; pointer-events: none; transition: filter 0.2s ease, opacity 0.2s ease; }
-.preamble-content { display: flex; flex-direction: column; gap: 4px; width: 100%; }
-.preamble-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; color: #777; letter-spacing: 0.5px; }
-.preamble-empty { font-size: 0.85rem; color: #aaa; font-style: italic; }
-
-/* ================================================
-   7. COMPONENTES DO ACERVO DE MODELOS E TAGS
-   ================================================ */
-.acervo-item { display: flex; flex-direction: column; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; background: #ffffff; cursor: pointer; transition: all 0.2s ease; margin-bottom: 6px; }
-.acervo-item:hover, .acervo-item.selected { background: var(--trt-light-bg); border-color: var(--trt-blue-mid); }
-.acervo-item-titulo { font-weight: 700; color: var(--trt-blue); font-size: 0.88rem; margin-bottom: 6px; }
-.acervo-node-badge { display: inline-flex; align-items: center; gap: 4px; font-size: 0.7rem; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: #f0f0f0; color: #555; margin-right: 4px; margin-bottom: 4px; }
-
-.acervo-loader { border: 3px solid rgba(0, 0, 0, 0.1); border-left-color: var(--trt-blue); border-radius: 50%; width: 24px; height: 24px; animation: spin 1s linear infinite; margin: 16px auto; }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-.acervo-node-preview { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid #eee; }
-.acervo-node-preview:last-child { border-bottom: none; }
-.acervo-node-preview svg { width: 16px; height: 16px; flex-shrink: 0; }
-.acervo-node-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #555; font-style: italic; }
-
-/* Dimensionamento e display destes seletores foram centralizados em
-   juris-reader-tools.css para eliminar conflito de cascata entre arquivos
-   (ambos com mesma especificidade — o último carregado sempre vencia). */
-#acervo-items-wrapper .acervo-item { content-visibility: auto; }
-.acervo-item-header { display: flex; justify-content: space-between; align-items: flex-start; }
-.acervo-action-btn { background: transparent; border: none; color: #999; cursor: pointer; padding: 6px; border-radius: 4px; display: flex; align-items: center; transition: all 0.2s ease; }
-.acervo-action-btn:hover { background: #f0f4f8; color: var(--trt-blue); }
-.acervo-action-btn.delete-btn:hover { background: #ffebee; color: #c62828; }
-.acervo-action-btn svg { width: 16px; height: 16px; pointer-events: none; }
-
-.acervo-node-edit-box { display: flex; gap: 8px; align-items: flex-start; padding: 12px; border: 1px solid var(--border-color); border-radius: 6px; margin-bottom: 8px; background: #fafafa; }
-.acervo-node-edit-textarea { flex: 1; min-height: 60px; font-family: inherit; font-size: 0.85rem; padding: 8px; border: 1px solid var(--border-color); border-radius: 4px; resize: vertical; outline: none; transition: border-color 0.2s; }
-.acervo-node-edit-textarea:focus { border-color: var(--trt-blue-mid); background: white; }
-
-/* Menus de Tags e Chips Neon */
-.tags-dropdown-menu { position: absolute; top: calc(100% + 4px); left: 0; width: 100%; background: #ffffff; border: 1px solid var(--border-color); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.15); max-height: 180px; overflow-y: auto; z-index: 100; }
-.tag-dropdown-item { padding: 10px 12px; cursor: pointer; font-size: 0.85rem; color: var(--text-dark); border-bottom: 1px solid #f0f0f0; transition: background-color 0.15s, color 0.15s; }
-.tag-dropdown-item:last-child { border-bottom: none; }
-.tag-dropdown-item:hover { background: var(--trt-light-bg); color: var(--trt-blue); font-weight: 600; }
-.tag-dropdown-item.criar-nova { background-color: #f1f8e9; color: #2e7d32; font-weight: 600; border-top: 1px dashed #c5e1a5; display: flex; align-items: center; gap: 8px; }
-.tag-dropdown-item.criar-nova:hover { background-color: #e8f5e9; color: #1b5e20; }
-
-.chip-remover { cursor: pointer; margin-left: 8px; font-size: 1rem; line-height: 0.8; color: #a0a090; font-weight: bold; transition: color 0.2s, transform 0.1s; }
-.chip-remover:hover { color: #c62828; transform: scale(1.2); }
-.acervo-item-tags-lista { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
-
-:root { 
-    --ro-neon-bg: #FFC107; 
-    --ro-neon-stroke: #E5C100; 
-    --ro-neon-text: #FFFFFF; 
-}
-.icone-ro-neon { stroke: var(--ro-neon-stroke); }
-.tag-btn-ro { 
-    background-color: var(--ro-neon-bg); 
-    border: 1px solid var(--ro-neon-stroke); 
-    color: var(--ro-neon-text); 
-    transition: background-color 0.2s;
-}
-.tag-btn-ro:hover {
-    background-color: #E5B22D;
-}
-.acervo-tag-chip { 
-    background-color: var(--ro-neon-bg); 
-    color: var(--ro-neon-text); 
-    padding: 3px 10px; 
-    border-radius: 12px; 
-    font-size: 0.7rem; 
-    font-weight: 700; 
-    border: 1px solid var(--ro-neon-stroke); 
-    display: inline-flex; 
-    align-items: center; 
-}
-
-.acervo-node-edit-box .svg-icon-wrapper.sub-badge.modal-static-badge { position: static; box-shadow: none; transform: none; cursor: default; align-self: flex-start; margin-top: 4px; width: auto; min-width: 28px; border-radius: 14px; padding: 2px 8px; display: flex; align-items: center; justify-content: center; }
-.acervo-node-edit-box .svg-icon-wrapper.modal-static-badge svg { margin: 0; stroke: currentColor !important; fill: none !important; }
-
-#modal-gerenciar-tags .wizard-header + div { display: flex; gap: 8px; align-items: center; }
-#input-nova-tag { flex: 1; }
-
-.btn-copy-degravacao { background: transparent; border: none; cursor: pointer; color: var(--trt-blue-mid); padding: 4px; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s ease; margin-left: 6px; vertical-align: middle; }
-.btn-copy-degravacao:hover { background: rgba(26, 58, 92, 0.08); color: var(--trt-blue); transform: scale(1.1); }
-.btn-copy-degravacao:active { transform: scale(0.95); }
-
-/* ================================================
-   8. HIERARQUIA DE DIRETRIZES (GLOBAIS E DE TESE)
-   ================================================ */
-.timeline-item-master.nivel-hierarquico {
-    margin-bottom: 24px;
-}
-
-.timeline-icon-box {
-    width: 32px;
-    height: 32px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #ffffff;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    z-index: 2;
-}
-
-.timeline-icon-box svg { width: 18px; height: 18px; }
-
-/* === NOVO DESIGN: DIRETRIZES GLOBAIS === */
-.nivel-global .timeline-icon-box { background-color: #0f253d; /* Ícone super escuro mantido */ }
-
-.nivel-global .annotation-card { 
-    border-left: 4px solid #0f253d; /* Borda acompanha o ícone */
-    background-color: #274b72; /* <--- AQUI: Clareamos o fundo do card! */ 
-    color: #ffffff; 
-}
-
-.nivel-global .hierarquia-titulo { color: #ffffff; font-weight: bold; font-size: 0.95rem; }
-
-.nivel-global .card-actions-bar button { color: #aab8c5; }
-.nivel-global .card-actions-bar button:hover { background: rgba(255, 255, 255, 0.15); color: #ffffff; }
-
-/* Nós (sub-anotações) da Diretriz Global */
-.sub-annotation-card.borda-global {
-    border-color: rgba(39, 75, 114, 0.4); /* Fica em harmonia com o card */
-    border-left: 5px solid #0f253d; /* O traço esquerdo amarra com o ícone pai */
-}
-
-.nivel-tese .timeline-icon-box { background-color: #6a1b9a; }
-.nivel-tese .annotation-card { border-left: 4px solid #6a1b9a; background-color: #fdfbfd; }
-.nivel-tese .hierarquia-titulo { color: #6a1b9a; font-weight: bold; font-size: 0.95rem; }
-
-/* ================================================
-   9. MODO ZEN E TRANSIÇÕES BIDIRECIONAIS
-   ================================================ */
-.sub-annotation-item,
-.main-card-wrapper,
-.thesis-summary-panel,
-.topic-preamble-panel {
-    transition: top 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), 
-                opacity 0.3s ease, 
-                filter 0.3s ease;
-}
-
-#topics-tab-content.zen-mode-ativo .sub-annotation-item:not(.is-zen-focused),
-#topics-tab-content.zen-mode-ativo .main-card-wrapper:not(.is-zen-focused),
-#topics-tab-content.zen-mode-ativo .thesis-summary-panel,
-#topics-tab-content.zen-mode-ativo .topic-preamble-panel {
-    opacity: 0.15;
-    filter: blur(2px);
-    pointer-events: none;
-}
-
-#topics-tab-content.zen-mode-ativo .main-card-wrapper.is-zen-focused {
-    opacity: 1 !important;
-    filter: none !important;
-    pointer-events: auto !important;
-    z-index: 10;
-}
-
-.main-card-wrapper.is-zen-focused > .annotation-card {
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
-    transform: scale(1.02);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    border-color: var(--trt-blue-mid) !important;
-}
-
-.sub-annotation-card.zen-focused {
-    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
-    transform: scale(1.02);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    border-color: var(--trt-blue-mid) !important;
-    z-index: 10; 
-}
-
-.btn-copiar-zen {
-    display: none;
-    background: rgba(26, 58, 92, 0.08);
-    color: var(--trt-blue);
-    border: none;
-    border-radius: 4px;
-    padding: 6px 10px;
-    font-size: 0.75rem;
-    font-weight: bold;
-    cursor: pointer;
-    margin-top: 10px;
-    margin-left: 8px;
-    transition: background 0.2s, transform 0.1s;
-}
-
-.btn-copiar-zen:hover { background: rgba(26, 58, 92, 0.15); }
-.btn-copiar-zen:active { transform: scale(0.95); }
-
-.zen-focused .btn-copiar-zen {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-}
+.timeline-item-master.align-left .sub-annotation-item::after { left: -4px; }
+.timeline-item-master.align-right .sub-annotation-item::after { right: -4px; }
 
 /* =========================================================================
-   BLINDAGEM DO MODO ZEN (Animação de Foco Pura via CSS)
+   BLINDAGEM DO MODO ZEN (Atualizado para bordas e nós)
    ========================================================================= */
 
-/* 1. Esmaecimento Global da Árvore */
 #topics-tab-content.zen-mode-ativo .timeline-item-master::before,
-#topics-tab-content.zen-mode-ativo .sub-annotation-item:not(.is-zen-focused)::before {
+#topics-tab-content.zen-mode-ativo .sub-annotation-item:not(.is-zen-focused)::before,
+#topics-tab-content.zen-mode-ativo .sub-annotation-item:not(.is-zen-focused)::after {
     opacity: 0.15;
 }
 
-/* 2. Destaque Específico da Ramificação Focada */
+/* Foco: A linha deixa de ser tracejada e vira sólida e colorida para dar destaque */
 #topics-tab-content.zen-mode-ativo .sub-annotation-item.is-zen-focused::before {
-    background-color: var(--trt-blue-mid);
+    border-top: 3px solid var(--trt-blue-mid); /* Fica sólida e mais grossa */
     opacity: 1;
-    height: 3px; /* Braço levemente mais espesso para evidenciar o foco */
     z-index: 10;
+}
+
+#topics-tab-content.zen-mode-ativo .sub-annotation-item.is-zen-focused::after {
+    border-color: var(--trt-blue-mid);
+    background-color: var(--trt-blue-mid);
+    transform: translateY(-50%) scale(1.3); /* O nó aumenta de tamanho */
+    opacity: 1;
+    z-index: 11;
 }
 
 /* ================================================
