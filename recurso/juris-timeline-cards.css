@@ -172,10 +172,10 @@
 }
 
 /* =========================================================================
-   NOVA ARQUITETURA DE LINHAS (ESTILO MAPA MENTAL REFINADO)
+   NOVA ARQUITETURA DE LINHAS (ESTILO MAPA MENTAL - MATEMÁTICA CORRIGIDA)
    ========================================================================= */
 
-/* 1. A ESPINHA DORSAL (Timeline Spine) - Agora pontilhada/tracejada */
+/* 1. A ESPINHA DORSAL (Timeline Spine) */
 .timeline-item-master:not(.nivel-hierarquico):not(.nivel-global) {
     position: relative;
 }
@@ -185,28 +185,28 @@
     position: absolute;
     top: 24px;
     bottom: -112px;
-    width: 0; /* Remove a largura sólida */
-    /* Cria uma linha vertical elegante e tracejada */
-    border-left: 2px dashed var(--theme-spine-line, #a0aec0); 
+    width: 0; 
+    border-left: 2px dashed var(--theme-spine-line, #cbd5e1); 
     z-index: 0;
     transition: border-color 0.3s ease, opacity 0.3s ease;
 }
 
-/* Alinhamento da Espinha */
+/* Alinhamento exato no centro do Gap (60%) */
 .timeline-item-master.align-left:not(.nivel-hierarquico):not(.nivel-global)::before {
-    left: calc(60% + 7px);
+    left: 60%; 
 }
 .timeline-item-master.align-right:not(.nivel-hierarquico):not(.nivel-global)::before {
-    right: calc(60% + 7px);
+    right: 60%;
 }
 
-/* AS RAMIFICAÇÕES (Branches) */
+/* 2. AS RAMIFICAÇÕES (Branches) */
 .sub-annotation-item {
     position: relative !important;
     top: auto !important;
     width: 100% !important;
 }
 
+/* MANTIDO PARA PRESERVAR O LAYOUT FLEX E EMPILHAMENTO */
 .sub-annotations-wrapper {
     display: flex;
     flex-direction: column;
@@ -214,36 +214,35 @@
     gap: 16px; 
 }
 
-/* 2. Braços esquerdos (Master na Esquerda, Ideias na Direita) */
+/* Braços esquerdos */
 .timeline-item-master.align-left .sub-annotation-item::before {
     content: '';
     position: absolute;
     top: 50%;
-    left: -25px;
-    width: 25px;
-    height: 0; /* É uma linha, não um bloco */
-    border-top: 2px dashed var(--theme-spine-line, #a0aec0); /* Linha tracejada */
+    left: -18px; /* Alcança exatamente a espinha sem invadir o card */
+    width: 18px;
+    height: 0;
+    border-top: 2px dashed var(--theme-spine-line, #cbd5e1); 
     background: transparent;
     z-index: 0;
     transition: border-color 0.3s ease, opacity 0.3s ease;
 }
 
-/* Braços direitos (Master na Direita, Ideias na Esquerda) */
+/* Braços direitos */
 .timeline-item-master.align-right .sub-annotation-item::before {
     content: '';
     position: absolute;
     top: 50%;
-    right: -25px;
-    width: 25px;
+    right: -18px;
+    width: 18px;
     height: 0;
-    border-top: 2px dashed var(--theme-spine-line, #a0aec0);
+    border-top: 2px dashed var(--theme-spine-line, #cbd5e1);
     background: transparent;
     z-index: 0;
     transition: border-color 0.3s ease, opacity 0.3s ease;
 }
 
-/* 3. O TOQUE DE CLASSE: O "Nó" de Conexão (A Bolinha do Mapa Mental) */
-/* Isso disfarça a falta da curva em S do SVG e devolve o aspecto de software de diagrama */
+/* 3. O "Nó" de Conexão (A Bolinha do Mapa Mental) */
 .sub-annotation-item::after {
     content: '';
     position: absolute;
@@ -252,28 +251,26 @@
     width: 6px;
     height: 6px;
     background-color: #ffffff;
-    border: 2px solid var(--theme-spine-line, #a0aec0);
+    border: 2px solid var(--theme-spine-line, #cbd5e1);
     border-radius: 50%;
     z-index: 1;
-    transition: border-color 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
+    transition: border-color 0.3s ease, background-color 0.3s ease;
 }
 
 .timeline-item-master.align-left .sub-annotation-item::after { left: -4px; }
 .timeline-item-master.align-right .sub-annotation-item::after { right: -4px; }
 
 /* =========================================================================
-   BLINDAGEM DO MODO ZEN (Atualizado para bordas e nós)
+   BLINDAGEM DO MODO ZEN (Foco interativo)
    ========================================================================= */
-
 #topics-tab-content.zen-mode-ativo .timeline-item-master::before,
 #topics-tab-content.zen-mode-ativo .sub-annotation-item:not(.is-zen-focused)::before,
 #topics-tab-content.zen-mode-ativo .sub-annotation-item:not(.is-zen-focused)::after {
     opacity: 0.15;
 }
 
-/* Foco: A linha deixa de ser tracejada e vira sólida e colorida para dar destaque */
 #topics-tab-content.zen-mode-ativo .sub-annotation-item.is-zen-focused::before {
-    border-top: 3px solid var(--trt-blue-mid); /* Fica sólida e mais grossa */
+    border-top: 3px solid var(--trt-blue-mid);
     opacity: 1;
     z-index: 10;
 }
@@ -281,7 +278,7 @@
 #topics-tab-content.zen-mode-ativo .sub-annotation-item.is-zen-focused::after {
     border-color: var(--trt-blue-mid);
     background-color: var(--trt-blue-mid);
-    transform: translateY(-50%) scale(1.3); /* O nó aumenta de tamanho */
+    transform: translateY(-50%) scale(1.3); 
     opacity: 1;
     z-index: 11;
 }
@@ -1337,4 +1334,30 @@ BOTÃO DE PLAY DO CARD DE ÁUDIO — REFINAMENTO
 }
 .checkpoint-instructions p:last-child {
     margin-bottom: 0;
+}
+
+/* =========================================================================
+   PATCH DE EMERGÊNCIA: TRAVA DE TAMANHO DOS ÍCONES SVG
+   ========================================================================= */
+.timeline-container svg {
+    max-width: 24px !important;
+    max-height: 24px !important;
+}
+
+.sub-badge svg,
+.btn-read-mode-trigger svg,
+.card-actions-bar button svg,
+.btn-copiar-zen svg,
+.tese-icon-circle svg {
+    width: 14px !important;
+    height: 14px !important;
+    max-width: 14px !important;
+    max-height: 14px !important;
+}
+
+.two-way-arrow-container svg {
+    width: 20px !important;
+    height: 20px !important;
+    max-width: 20px !important;
+    max-height: 20px !important;
 }
