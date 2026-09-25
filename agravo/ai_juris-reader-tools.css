@@ -286,18 +286,11 @@ button#btn-ferramenta-extrator.extrator-completo:not(:disabled) svg {
     }
 }
 
-/* Estado Ativo: Joga o posicionamento para a GPU e reduz opacidade */
+/* Estado Ativo: Joga o posicionamento para a GPU */
 body.fab-layout-vertical .scroll-fab-container {
     bottom: auto;
     top: 50%;
     transform: translateY(-50%);
-    opacity: 0.35; 
-}
-
-/* UX: Restaura visibilidade completa no mouse ou foco de teclado (Tab) */
-body.fab-layout-vertical .scroll-fab-container:hover,
-body.fab-layout-vertical .scroll-fab-container:focus-within {
-    opacity: 1;
 }
 
 /* ================================================
