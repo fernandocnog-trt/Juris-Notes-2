@@ -167,11 +167,7 @@ window.TopicsManager = (function () {
             _layoutDebounceTimer = setTimeout(() => {
                 _isUpdatingLayout = true;
                 requestAnimationFrame(() => {
-                    const container = document.getElementById('timeline-container');
-                    if (container && container.offsetParent !== null) {
-                        posicionarNosDeIdeia(container);
-                        desenharConexoes();
-                    }
+                    // Sem necessidade de recálculos gulosos, o CSS nativo se ajusta.
                     setTimeout(() => { _isUpdatingLayout = false; }, 50);
                 });
             }, 150); 
@@ -1522,7 +1518,7 @@ window.TopicsManager = (function () {
 
         conteudoCentralHtml = sumarioHtml + `
             <div class="timeline-container" id="timeline-container">
-                <svg id="connections-canvas"></svg>
+                <!-- SVG canvas removido: renderização de linhas feita via CSS puro -->
                 ${htmlDiretrizesGlobais}
                 ${cardsHTML}
             </div>`;
@@ -1562,18 +1558,11 @@ window.TopicsManager = (function () {
             
             if (headerEl && typeof resizeObserver !== 'undefined') resizeObserver.observe(headerEl);
 
-            document.querySelectorAll('.image-resize-wrapper').forEach(wrapper => {
-                wrapper.addEventListener('mouseup', () => desenharConexoes());
-                wrapper.addEventListener('mouseleave', () => desenharConexoes());
-            });
-
             const container = document.getElementById('timeline-container');
             if (container) {
-                posicionarNosDeIdeia(container);
                 restaurarScroll();
                 
                 requestAnimationFrame(() => {
-                    desenharConexoes();
                     _reassertScroll();
                 });
             } else {
@@ -1588,182 +1577,11 @@ window.TopicsManager = (function () {
         atualizarAlertaCapacidadeTopico(topicoAtivo);
     }
 
-    /**
-     * Motor Geométrico: Mede a última linha e preenche o espaço restante com abas inativas.
-     * Evita Layout Thrashing através de leitura em massa (Passe A) seguida de mutação (Passe B)
-     */
-    function posicionarNosDeIdeia(container) {
-        const masterItems = container.querySelectorAll('.timeline-item-master');
-        
-        masterItems.forEach(master => {
-            const mainCard = master.querySelector('.main-card-wrapper > .annotation-card');
-            const subWrapper = master.querySelector('.sub-annotations-wrapper');
-            const subItems = master.querySelectorAll('.sub-annotation-item');
-
-            if (!mainCard || subItems.length === 0 || !subWrapper) return;
-
-            const wrapperRect = subWrapper.getBoundingClientRect();
-            
-            // Passe A: Leituras (Evita Layout Thrashing)
-            const measurements = Array.from(subItems).map(subItem => {
-                const sourceRef = subItem.dataset.source;
-                let sourceCard = mainCard;
-                if (sourceRef !== 'main') {
-                    const correlatedWrapper = master.querySelector(`.correlated-item-wrapper[data-cidx="${sourceRef}"]`);
-                    if (correlatedWrapper) sourceCard = correlatedWrapper.querySelector('.annotation-card');
-                }
-                
-                // TRAVA DE SEGURANÇA: Previne o bug de sobreposição ao trocar abas no navegador
-                if (sourceCard.offsetHeight === 0) return null;
-
-                return {
-                    el: subItem,
-                    sourceCenterY: (sourceCard.getBoundingClientRect().top - wrapperRect.top) + (sourceCard.getBoundingClientRect().height / 2),
-                    height: subItem.offsetHeight
-                };
-            }).filter(m => m !== null); // Remove os itens inválidos da contagem
-
-            if (measurements.length === 0) return; // Aborta mutação em views ocultas
-
-            // Passe B: Mutações
-            let currentY = 0;
-            measurements.forEach(m => {
-                let desiredTop = m.sourceCenterY - (m.height / 2);
-                if (desiredTop < currentY) desiredTop = currentY;
-                
-                m.el.style.position = 'absolute';
-                m.el.style.top = desiredTop + 'px';
-                m.el.style.width = '100%';
-                
-                currentY = desiredTop + m.height + 16;
-            });
-
-            subWrapper.style.minHeight = currentY + 'px';
-        });
-    }
-
-    /**
-     * Motor Dinâmico de Conexões Sinuosas (Padrão FastDOM para evitar Layout Thrashing)
-     * @param {boolean} isZenActive - Indica se o Modo Zen está ativo (injetado para evitar reflows no loop)
-     */
-    function desenharConexoes(isZenActive = false) {
-        const container = document.getElementById('timeline-container');
-        const svg = document.getElementById('connections-canvas');
-        if (!container || !svg) return;
-
-        const containerRect = container.getBoundingClientRect();
-        
-        // --- LOOP 1: APENAS LEITURA (MEMÓRIA GEOMÉTRICA) ---
-        const spineGeometria = [];
-        const tracejadasGeometria = []; 
-
-        const masterItemsForSpine = Array.from(container.querySelectorAll('.timeline-item-master:not(.nivel-global)'));
-        for (let i = 0; i < masterItemsForSpine.length - 1; i++) {
-            const currentGroup = masterItemsForSpine[i];
-            const nextGroup = masterItemsForSpine[i + 1];
-
-            const currentCorrelated = currentGroup.querySelectorAll('.correlated-item-wrapper > .annotation-card');
-            let cardAtual = currentCorrelated.length > 0 ? currentCorrelated[currentCorrelated.length - 1] : currentGroup.querySelector('.main-card-wrapper > .annotation-card');
-            const cardProx = nextGroup.querySelector('.main-card-wrapper > .annotation-card');
-
-            if (!cardAtual || !cardProx) continue;
-
-            const rectAtual = cardAtual.getBoundingClientRect();
-            const rectProx = cardProx.getBoundingClientRect();
-
-            spineGeometria.push({
-                startX: (rectAtual.left + rectAtual.width / 2) - containerRect.left,
-                startY: rectAtual.bottom - containerRect.top,
-                endX: (rectProx.left + rectProx.width / 2) - containerRect.left,
-                endY: rectProx.top - containerRect.top
-            });
-        }
-
-        const masterItems = container.querySelectorAll('.timeline-item-master');
-        masterItems.forEach(master => {
-            const mainCard = master.querySelector('.main-card-wrapper > .annotation-card');
-            const subItems = master.querySelectorAll('.sub-annotation-item');
-            if (!mainCard || subItems.length === 0) return;
-
-            const isRightAligned = master.classList.contains('align-right');
-            
-            subItems.forEach(subItem => {
-                const subCard = subItem.querySelector('.sub-annotation-card');
-                const subRect = subCard.getBoundingClientRect();
-                const sourceRef = subItem.dataset.source;
-                
-                let sourceCard = mainCard;
-                if (sourceRef !== 'main') {
-                    const correlatedWrapper = master.querySelector(`.correlated-item-wrapper[data-cidx="${sourceRef}"]`);
-                    if (correlatedWrapper) sourceCard = correlatedWrapper.querySelector('.annotation-card');
-                }
-                const sourceRect = sourceCard.getBoundingClientRect();
-
-                tracejadasGeometria.push({
-                    startX: isRightAligned ? sourceRect.left - containerRect.left : sourceRect.right - containerRect.left,
-                    endX: isRightAligned ? subRect.right - containerRect.left : subRect.left - containerRect.left,
-                    startY: (sourceRect.top + sourceRect.height / 2) - containerRect.top,
-                    endY: (subRect.top + subRect.height / 2) - containerRect.top,
-                    isZenFocused: subItem.classList.contains('is-zen-focused')
-                });
-            });
-        });
-
-        // --- LOOP 2: APENAS ESCRITA (CRIAÇÃO DA STRING HTML) ---
-        let svgContent = '';
-        const tick = 8; 
-        
-        spineGeometria.forEach(coord => {
-            const ctrlY = (coord.startY + coord.endY) / 2;
-            const pathD = `M ${coord.startX - tick},${coord.startY} L ${coord.startX + tick},${coord.startY} ` +
-                          `M ${coord.startX},${coord.startY} C ${coord.startX},${ctrlY} ${coord.endX},${ctrlY} ${coord.endX},${coord.endY} ` +
-                          `M ${coord.endX - tick},${coord.endY} L ${coord.endX + tick},${coord.endY}`;
-            svgContent += `<path class="spine-connection" d="${pathD}" />`;
-        });
-
-        tracejadasGeometria.forEach(coord => {
-            const ctrlX = (coord.startX + coord.endX) / 2;
-            let strokeColor = "#777", strokeOpacity = "1", strokeWidth = "1.5", dashArray = "5 4";
-            
-            if (isZenActive) {
-                if (coord.isZenFocused) {
-                    strokeColor = _activeTopicoCor; strokeWidth = "2.5"; dashArray = "none";
-                } else { strokeOpacity = "0.15"; }
-            }
-            svgContent += `<path d="M ${coord.startX},${coord.startY} C ${ctrlX},${coord.startY} ${ctrlX},${coord.endY} ${coord.endX},${coord.endY}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="${dashArray}" opacity="${strokeOpacity}" fill="none" stroke-linecap="round"/>`;
-        });
-
-        svg.innerHTML = svgContent; // Reflow executado em lote, sem quebras
-    }
-        
-    /**
-     * Motor de Sincronia: Executa o posicionamento UMA vez, e depois 
-     * aciona o loop de redesenho SVG passivo por 350ms (acompanhando CSS transition).
-     */
-    function _sincronizarConexoesComAnimacao(container) {
-        // 1. Snapshot Único: Aciona as transições CSS definindo o destino final
-        posicionarNosDeIdeia(container);
-        
-        // 2. Captura o estado Zen uma única vez fora do loop
-        const isZenModeActive = document.getElementById('topics-tab-content').classList.contains('zen-mode-ativo');
-        
-        // 3. Loop de Acompanhamento (Leitura passiva)
-        let start = null;
-        const duration = 350; // Tempo do CSS transition (0.3s) + 50ms de segurança
-
-        function step(timestamp) {
-            if (!start) start = timestamp;
-            const progress = timestamp - start;
-            
-            // Desenha com base nas posições intermediárias calculadas pelo CSS
-            desenharConexoes(isZenModeActive);
-
-            if (progress < duration) {
-                requestAnimationFrame(step);
-            }
-        }
-        requestAnimationFrame(step);
-    }
+    /* 
+       [REMOVIDO] Funções obsoletas posicionarNosDeIdeia, desenharConexoes e _sincronizarConexoesComAnimacao
+       Motivo: Erradicação do Layout Thrashing. 
+       A renderização da árvore conectiva (Timeline Spine) agora é 100% nativa (CSS Declarativo)
+    */
 
     // A função toggleTextExpansion foi removida. O sistema agora utiliza o Modo de Leitura Centralizado.
 
