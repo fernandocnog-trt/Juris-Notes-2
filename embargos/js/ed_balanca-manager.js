@@ -57,6 +57,15 @@ window.BalancaManager = (function() {
             htmlState = event.data.html;
             iframe.removeAttribute('src'); 
             
+            // CORREÇÃO: Acopla o verificador de DOM nativo antes de injetar o HTML.
+            // Isso garante que a Trilha de Julgamento seja focada com precisão (aguardando o readyState)
+            // assim que o novo Dossiê terminar de ser processado pelo navegador.
+            const onIframeLoadGenerate = () => {
+                aguardarDomERolarParaTrilha(iframe);
+                iframe.removeEventListener('load', onIframeLoadGenerate);
+            };
+            iframe.addEventListener('load', onIframeLoadGenerate);
+            
             // Esta mutação síncrona destrói o documento atual do iframe e renderiza o novo.
             // O feedback visual de sucesso para o usuário é a própria renderização do Dossiê.
             iframe.srcdoc = htmlState;     
