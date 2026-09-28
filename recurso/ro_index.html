@@ -1857,5 +1857,42 @@ Crie um sumário hierárquico enxuto com as Grandes Categorias e Subcategorias q
             </div>
         </div>
     </div>
+
+    <!-- BACKDROP E MODAL: SAFETY CHECKPOINT (TESOURA) -->
+    <div id="safecut-backdrop" class="safe-cut-backdrop" onclick="TopicsManager.fecharModalPreDivisao()"></div>
+    
+    <div id="modal-predivisao" class="safe-cut-modal fechavel-por-esc" role="dialog" aria-modal="true" aria-labelledby="safecut-title">
+        <div class="wizard-header" style="color: #d32f2f; border-bottom: 2px solid #ffebee; display: flex; align-items: center; gap: 8px; padding: 16px 20px;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 22px; height: 22px;">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                <line x1="12" y1="9" x2="12" y2="13"></line>
+                <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+            <span id="safecut-title">Atenção: Ponto Sem Retorno</span>
+        </div>
+        
+        <p style="font-size: 0.95rem; color: #333; margin: 16px 20px; line-height: 1.6;">
+            Você está prestes a selar este tópico e dividi-lo em um novo Volume. Esta ação <strong>modifica a estrutura do mapa mental permanentemente</strong> e o sistema enviará novas pontes para a Inteligência Artificial.
+        </p>
+        
+        <div class="safe-cut-warning-box">
+            <p style="font-size: 0.85rem; color: #e65100; margin: 0; font-weight: 800;">Recomendação de Segurança:</p>
+            <p style="font-size: 0.82rem; color: #d84315; margin-top: 6px; line-height: 1.5;">
+                Clique em <strong>"Baixar Backup Seguro"</strong> antes de prosseguir. O sistema gerará um arquivo inalterado com o estado exato de agora.
+            </p>
+        </div>
+
+        <div class="wizard-actions" style="justify-content: space-between; align-items: center; border-top: 1px solid #eee; padding: 16px 20px; margin: 0; background: #fdfdfd; border-radius: 0 0 12px 12px;">
+            <button class="chip-btn chip-cancelar" onclick="TopicsManager.fecharModalPreDivisao()">Cancelar</button>
+            <div style="display: flex; gap: 8px;">
+                <button class="chip-btn" style="background: #fffdf2; border: 1px solid #ffe082; color: #e65100; font-weight: 700; transition: transform 0.15s ease;" onclick="TopicsManager.baixarBackupPreCorte()" title="Gera um arquivo .json com a fotografia de agora">
+                    📥 Baixar Backup Seguro
+                </button>
+                <button id="btn-executar-tesoura" class="chip-btn chip-re btn-confirmar-corte-guiado" style="background: #d32f2f; color: white; border: none; font-weight: 700; transition: all 0.2s ease;" onclick="TopicsManager.executarDivisaoTopico()">
+                    ✂️ Confirmar Corte
+                </button>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

@@ -1792,3 +1792,65 @@ MINI PLAYER DE ÁUDIO — MODAL FOCADO
     0% { opacity: 0; transform: translateY(-8px); }
     100% { opacity: 1; transform: translateY(0); }
 }
+
+/* ================================================
+   MODAL: SAFETY CHECKPOINT (PRÉ-CORTE TESOURA)
+   ================================================ */
+.safe-cut-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.75); /* Tom slate muito escuro para foco */
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: var(--z-safecut-backdrop);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.safe-cut-backdrop.is-active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.safe-cut-modal {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -45%) scale(0.95);
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.35);
+    z-index: var(--z-safecut-modal);
+    width: 90vw;
+    max-width: 520px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), visibility 0.25s ease;
+}
+
+.safe-cut-backdrop.is-active + .safe-cut-modal {
+    opacity: 1;
+    visibility: visible;
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.safe-cut-warning-box {
+    background: #fff3e0;
+    border-left: 4px solid #ff9800;
+    padding: 14px;
+    margin: 16px 20px;
+    border-radius: 4px;
+}
+
+/* Animação que guia o olhar para o botão final após o backup */
+@keyframes attention-pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.6); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(211, 47, 47, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(211, 47, 47, 0); }
+}
+
+.btn-confirmar-corte-guiado.ready-to-cut {
+    animation: attention-pulse 1.5s infinite;
+}
