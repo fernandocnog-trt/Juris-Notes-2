@@ -420,7 +420,7 @@
             try {
                 // PASSO 1: Baixar e injetar o HTML dos modais
                 const response = await fetch('modais.html');
-                if (!response.ok) throw new Error('Falha ao buscar modais');
+                if (!response.ok) throw new Error(`Falha no fetch do modais.html (Status: ${response.status})`);
                 const html = await response.text();
                 document.getElementById('modais-dinamicos-container').innerHTML = html;
                 
@@ -449,9 +449,10 @@
                     await new Promise((resolve, reject) => {
                         const script = document.createElement('script');
                         script.src = src;
-                        script.async = false; // Garante a ordem exata do array
+                        script.async = false; 
                         script.onload = resolve;
-                        script.onerror = reject;
+                        // NOVO: Agora ele diz EXATAMENTE qual arquivo falhou!
+                        script.onerror = () => reject(new Error(`O arquivo não foi encontrado ou foi bloqueado: ${src}`));
                         document.body.appendChild(script);
                     });
                 }
@@ -463,9 +464,10 @@
                 console.log('🚀 Juris Notes inicializado com sucesso via Bootstrapper.');
 
             } catch (error) {
-                console.error('🚨 Erro Crítico na Inicialização:', error);
+                // NOVO: Imprime o erro detalhado no console (vermelho)
+                console.error('🚨 Erro Crítico na Inicialização:', error.message || error);
                 const splashText = document.getElementById('splash-dynamic-text');
-                if(splashText) splashText.innerText = "Erro ao carregar sistema. Use um servidor web local.";
+                if(splashText) splashText.innerText = "Erro ao carregar o sistema: " + (error.message || "Verifique o Console (F12).");
             }
         })();
     </script>
