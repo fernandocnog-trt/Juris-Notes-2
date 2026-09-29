@@ -453,13 +453,18 @@
                         script.src = src;
                         script.async = false; 
                         script.onload = resolve;
-                        // NOVO: Agora ele diz EXATAMENTE qual arquivo falhou!
                         script.onerror = () => reject(new Error(`O arquivo não foi encontrado ou foi bloqueado: ${src}`));
                         document.body.appendChild(script);
                     });
                 }
 
-                // PASSO 3: Tudo carregado (DOM + JS). Removemos o Splash Screen.
+                // PASSO 3: Disparo de Gatilho de Inicialização (Vital para reviver o Menu)
+                // Como o carregamento foi diferido, simulamos o evento de conclusão da página
+                // para que o seu JS original ative os listeners de localStorage e temas.
+                window.document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true, cancelable: true }));
+                window.dispatchEvent(new Event('load', { bubbles: true, cancelable: true }));
+
+                // PASSO 4: Tudo carregado e inicializado. Removemos o Splash Screen.
                 const splash = document.getElementById('juris-splash');
                 if(splash) splash.style.display = 'none';
 

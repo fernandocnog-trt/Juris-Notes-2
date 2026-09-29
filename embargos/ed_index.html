@@ -427,7 +427,11 @@
                     });
                 }
 
-                // PASSO 3: Tudo carregado (DOM + JS). Removemos o Splash Screen.
+                // PASSO 3: Disparo de Gatilho de Inicialização (Vital para reviver o Menu)
+                window.document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true, cancelable: true }));
+                window.dispatchEvent(new Event('load', { bubbles: true, cancelable: true }));
+
+                // PASSO 4: Tudo carregado e inicializado. Removemos o Splash Screen.
                 const splash = document.getElementById('juris-splash');
                 if(splash) splash.style.display = 'none';
 
