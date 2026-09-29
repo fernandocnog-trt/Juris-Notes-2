@@ -414,6 +414,9 @@
     <!-- 1. Container para injeção dinâmica de Modais -->
     <div id="modais-dinamicos-container"></div>
 
+    <!-- 1.5 Bibliotecas Externas (Fora do Bootstrapper para evitar bloqueios de segurança do navegador) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/morphdom/2.7.4/morphdom-umd.min.js"></script>
+
     <!-- 2. Bootstrapper de Inicialização Diferida -->
     <script>
         (async function AppBootstrapper() {
@@ -424,9 +427,8 @@
                 const html = await response.text();
                 document.getElementById('modais-dinamicos-container').innerHTML = html;
                 
-                // PASSO 2: Fila ordenada de scripts
+                // PASSO 2: Fila ordenada de scripts locais da aplicação
                 const scriptsParaCarregar = [
-                    "https://cdnjs.cloudflare.com/ajax/libs/morphdom/2.7.4/morphdom-umd.min.js",
                     "js/store.js",
                     "js/backup-manager.js",
                     "js/contrato-manager.js",
