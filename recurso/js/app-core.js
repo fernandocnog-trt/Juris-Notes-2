@@ -722,7 +722,24 @@ document.addEventListener("DOMContentLoaded", () => {
             getTopicos: () => topicos,
             exibirToast: exibirToast,
             atualizarDisplayPaginador: atualizarDisplayPaginador,
-            validarPdf: (buffer) => BackupManager.validarPdf(buffer),
+            validarPdf: async (buffer) => {
+                const isValido = await BackupManager.validarPdf(buffer);
+                if (isValido) return true;
+
+                // INTERCEPTOR: PDF diferente detectado. Trata-se de diligência?
+                const msgAlerta = "⚠️ PDF DIFERENTE DETECTADO ⚠️\n\n" +
+                                  "Parece que você está tentando carregar um PDF atualizado (ex: Retorno de Diligência).\n\n" +
+                                  "REGRA VITAL: O Juris Notes só suporta atualizações se os novos documentos foram anexados EXCLUSIVAMENTE AO FINAL do processo. Se houve inserção de páginas no meio (Page Shift), suas anotações sairão do lugar.\n\n" +
+                                  "Deseja atualizar a impressão digital do processo e carregar este novo PDF?";
+                
+                if (confirm(msgAlerta)) {
+                    await BackupManager.atualizarHashPdf(buffer);
+                    if (typeof salvarBackupAutomatico === 'function') await salvarBackupAutomatico();
+                    return true; // Engana o PdfEngine e autoriza o carregamento
+                }
+                
+                return false; // Usuário cancelou ou PDF incorreto
+            },
             iniciarSessaoBackup: (name, buffer) => BackupManager.iniciarSessao(name, buffer),
             habilitarFerramentas: habilitarFerramentasDeTrabalho,
             onProcessoIdentificado: (numeroCurto) => {
@@ -990,7 +1007,7 @@ function atualizarStatusBackup(texto, ativa = false) {
 }
 
 function habilitarFerramentasDeTrabalho() {
-    ['btn-ferramenta-recorte', 'btn-ferramenta-texto', 'btn-novo-topico', 'btn-encerrar-sessao', 'btn-ferramenta-audio', 'btn-balanca-justica', 'btn-ferramenta-extrator', 'btn-visao-estruturada', 'btn-visao-minuta']
+    ['btn-ferramenta-recorte', 'btn-ferramenta-texto', 'btn-novo-topico', 'btn-encerrar-sessao', 'btn-ferramenta-audio', 'btn-balanca-justica', 'btn-ferramenta-extrator', 'btn-visao-estruturada', 'btn-visao-minuta', 'btn-atualizar-pdf']
         .forEach(id => {
             const btn = document.getElementById(id);
             if (btn) btn.disabled = false;
@@ -1061,7 +1078,7 @@ function encerrarSessao() {
     }
     window._nomeArquivoSugerido = null;
 
-    ['btn-ferramenta-recorte', 'btn-ferramenta-texto', 'btn-novo-topico', 'btn-encerrar-sessao', 'btn-ferramenta-audio', 'btn-ferramenta-extrator', 'btn-visao-estruturada', 'btn-visao-minuta']
+    ['btn-ferramenta-recorte', 'btn-ferramenta-texto', 'btn-novo-topico', 'btn-encerrar-sessao', 'btn-ferramenta-audio', 'btn-ferramenta-extrator', 'btn-visao-estruturada', 'btn-visao-minuta', 'btn-atualizar-pdf']
         .forEach(id => {
             const el = document.getElementById(id);
             if (el) {
@@ -2511,3 +2528,38 @@ document.addEventListener("DOMContentLoaded", () => {
         };
     }
 });
+
+/* ================================================
+   HOT-SWAP: SUBSTITUIÇÃO DE PDF NA SESSÃO ATIVA
+   ================================================ */
+window.substituirPdfSessaoAtiva = async function(event) {
+    const file = event.target.files[0];
+    if (!file || file.type !== 'application/pdf') return;
+
+    const msgAlerta = "⚠️ ATUALIZAR PDF DA SESSÃO ATUAL ⚠️\n\n" +
+                      "Você está prestes a trocar o PDF de fundo. Lembre-se: novos atos devem estar APENSADOS AO FINAL do processo para não quebrar a sincronia das marcações.\n\n" +
+                      "Deseja prosseguir com a atualização (Retorno de Diligência)?";
+
+    if (!confirm(msgAlerta)) {
+        event.target.value = '';
+        return;
+    }
+
+    await window.SplashScreenManager.showWithYield("Sincronizando novo PDF...");
+
+    const fileReader = new FileReader();
+    fileReader.onload = async function () {
+        const arrayBuffer = this.result;
+        
+        await BackupManager.atualizarHashPdf(arrayBuffer);
+        
+        if (window.PdfEngine) {
+            await PdfEngine.carregarPDF(file, true); // true evita apagar o fichário
+            if (typeof salvarBackupAutomatico === 'function') await salvarBackupAutomatico();
+            exibirToast("Processo atualizado com sucesso. Sessão mantida!", "sucesso");
+        }
+        window.SplashScreenManager.hide();
+        event.target.value = '';
+    };
+    fileReader.readAsArrayBuffer(file);
+};

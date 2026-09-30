@@ -158,6 +158,15 @@
                 </label>
                 <input type="file" id="pdf-upload" accept="application/pdf" style="display:none;" onchange="novoProcesso(event)">
                 
+                <!-- BOTÃO HOT-SWAP (RETORNO DILIGÊNCIA) -->
+                <label for="pdf-update-upload" class="icon-btn" id="btn-atualizar-pdf" title="Atualizar PDF (Retorno de Diligência)&#10;Substitui o arquivo mantendo as anotações" disabled style="pointer-events: none; opacity: 0.5;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-5.27l-3.26-1.4"></path>
+                        <path d="M2 12c0-5.52 4.48-10 10-10"></path>
+                    </svg>
+                </label>
+                <input type="file" id="pdf-update-upload" accept="application/pdf" style="display:none;" onchange="substituirPdfSessaoAtiva(event)">
+                
                 <button class="icon-btn" id="btn-retomar-sessao" onclick="retomarProcesso()" title="Retomar Processo Já em Análise">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
