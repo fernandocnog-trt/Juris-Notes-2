@@ -161,8 +161,12 @@
                 <!-- BOTÃO HOT-SWAP (RETORNO DILIGÊNCIA) -->
                 <label for="pdf-update-upload" class="icon-btn" id="btn-atualizar-pdf" title="Atualizar PDF (Retorno de Diligência)&#10;Substitui o arquivo mantendo as anotações" disabled style="pointer-events: none; opacity: 0.5;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.92-5.27l-3.26-1.4"></path>
-                        <path d="M2 12c0-5.52 4.48-10 10-10"></path>
+                        <!-- Contorno do Disquete Moderno -->
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                        <!-- Rótulo inferior do Disquete -->
+                        <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                        <!-- Detalhe superior metálico do Disquete -->
+                        <polyline points="7 3 7 8 15 8"></polyline>
                     </svg>
                 </label>
                 <input type="file" id="pdf-update-upload" accept="application/pdf" style="display:none;" onchange="substituirPdfSessaoAtiva(event)">
