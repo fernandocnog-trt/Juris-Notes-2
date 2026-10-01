@@ -701,7 +701,7 @@ window.TopicsManager = (function () {
             htmlComentario = audioData.htmlComentario;
         }
 
-        const isLeft     = index % 2 === 0;
+        const isLeft     = (numero - 1) % 2 === 0;
         const alignClass = isLeft ? 'align-left' : 'align-right';
         const isLast     = index === total - 1;
         
@@ -1010,8 +1010,11 @@ window.TopicsManager = (function () {
         const chaveCruaSegura = chaveVicioCrua || 'vicio_desconhecido';
         const tituloSeguroUI = titulo || 'Vício Não Identificado';
         
-        // NÚCLEO DA CORREÇÃO: paridade dinâmica baseada no índice global
-        const isLeft = (indexGlobal % 2 === 0);
+        // NÚCLEO DA CORREÇÃO: paridade dinâmica baseada nos blocos visuais renderizados
+        if (renderContext.blocosVisuais === undefined) renderContext.blocosVisuais = 0;
+        const isLeft = (renderContext.blocosVisuais % 2 === 0);
+        renderContext.blocosVisuais++;
+        
         const alignClass = isLeft ? 'align-left' : 'align-right';
 
         const iconSvg = isGlobal 
