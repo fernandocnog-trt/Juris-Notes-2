@@ -674,7 +674,7 @@ window.TopicsManager = (function () {
 
         if (isSaida) {
             return `
-            <div class="timeline-item-master align-left" id="timeline-wrapper-${anotacao.uuid || index}" data-chk-payload="${payloadSafe}" style="justify-content: center; margin-bottom: 24px;">
+            <div class="timeline-item-master is-checkpoint align-left" id="timeline-wrapper-${anotacao.uuid || index}" data-chk-payload="${payloadSafe}" style="justify-content: center; margin-bottom: 24px;">
                 <div class="sub-annotation-card borda-checkpoint-minimalista checkpoint-card--saida" style="width: 80%; max-width: 600px; margin: 0 auto;">
                     <h3 class="checkpoint-title" style="color: #2e7d32;">Fim do Volume</h3>
                     <aside class="checkpoint-hint-box" aria-label="Lembrete de transição">
@@ -689,7 +689,7 @@ window.TopicsManager = (function () {
 
         // Layout de Entrada (Volume 2+)
         return `
-        <div class="timeline-item-master align-left" id="timeline-wrapper-${anotacao.uuid || index}" data-chk-payload="${payloadSafe}" style="justify-content: center; margin-bottom: 24px;">
+        <div class="timeline-item-master is-checkpoint align-left" id="timeline-wrapper-${anotacao.uuid || index}" data-chk-payload="${payloadSafe}" style="justify-content: center; margin-bottom: 24px;">
             <div class="sub-annotation-card borda-checkpoint-minimalista checkpoint-card--entrada" style="width: 80%; max-width: 600px; margin: 0 auto;">
                 <div class="checkpoint-badge-link">🔗 Vinculado ao Volume Anterior</div>
                 <h3 class="checkpoint-title" style="color: #f57c00; font-size: 1rem;">Volume ${romano}: Como prosseguir?</h3>
@@ -715,7 +715,7 @@ window.TopicsManager = (function () {
         }
 
         const total    = arr.length;
-        const numero   = index + 1;
+        const numero   = renderContext.numeroVisual++;
         const tagClass = poloParaClasse(anotacao.polo);
         const metaTexto = _obterMetaTexto(anotacao);
 
@@ -740,7 +740,7 @@ window.TopicsManager = (function () {
             htmlComentario = audioData.htmlComentario;
         }
 
-        const isLeft     = index % 2 === 0;
+        const isLeft     = (numero - 1) % 2 === 0;
         const alignClass = isLeft ? 'align-left' : 'align-right';
         const isLast     = index === total - 1;
         
@@ -1150,9 +1150,11 @@ window.TopicsManager = (function () {
         const corTituloTese = escurecerCor(corTema, 0.6);
         const corTextoTese = obterCorContraste(corTema);
 
-        // NÚCLEO DA CORREÇÃO: paridade dinâmica baseada no índice global,
-        // não em um número fixo de "grupo".
-        const isLeft = (indexGlobal % 2 === 0);
+        // NÚCLEO DA CORREÇÃO: paridade dinâmica baseada nos blocos visuais renderizados
+        if (renderContext.blocosVisuais === undefined) renderContext.blocosVisuais = 0;
+        const isLeft = (renderContext.blocosVisuais % 2 === 0);
+        renderContext.blocosVisuais++;
+        
         const alignClass = isLeft ? 'align-left' : 'align-right';
         const teseViewSource = `tese:${teseAtual}`;
 
@@ -1429,11 +1431,15 @@ window.TopicsManager = (function () {
         }
         
         let cardsHTML = '';
+        let checkpointsHTML = '';
+        let temCheckpoint = false;
         let ultimaTeseRenderizada = null;
 
         const renderContext = {
             romanCounter: 0,
-            romanMap: new Map()
+            romanMap: new Map(),
+            numeroVisual: 1,
+            blocosVisuais: 0
         };
 
         topicoAtivo.anotacoes.forEach((an, index) => {
@@ -1452,7 +1458,13 @@ window.TopicsManager = (function () {
                 ultimaTeseRenderizada = chaveTeseCrua;
             }
             
-            cardsHTML += criarCard(an, index, topicoAtivo.anotacoes, renderContext);
+            const htmlGerado = criarCard(an, index, topicoAtivo.anotacoes, renderContext);
+            if (an.tipo && an.tipo.startsWith('checkpoint')) {
+                checkpointsHTML += htmlGerado;
+                temCheckpoint = true;
+            } else {
+                cardsHTML += htmlGerado;
+            }
         });
 
         let htmlDiretrizesGlobais = '';
@@ -1520,11 +1532,22 @@ window.TopicsManager = (function () {
             </div>`;
         }
 
+        let fabHtml = '';
+        if (temCheckpoint) {
+            fabHtml = `
+            <button class="btn-jump-to-checkpoint" onclick="document.querySelector('.is-checkpoint').scrollIntoView({behavior: 'smooth', block: 'center'});" title="Ir para as instruções do volume">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>
+                Instruções do Volume
+            </button>`;
+        }
+
         conteudoCentralHtml = sumarioHtml + `
             <div class="timeline-container" id="timeline-container">
                 <svg id="connections-canvas"></svg>
                 ${htmlDiretrizesGlobais}
                 ${cardsHTML}
+                ${checkpointsHTML}
+                ${fabHtml}
             </div>`;
 
         const novoHtml = preambleHtml + conteudoCentralHtml;
@@ -1657,7 +1680,7 @@ window.TopicsManager = (function () {
         const spineGeometria = [];
         const tracejadasGeometria = []; 
 
-        const masterItemsForSpine = Array.from(container.querySelectorAll('.timeline-item-master:not(.nivel-global)'));
+        const masterItemsForSpine = Array.from(container.querySelectorAll('.timeline-item-master:not(.nivel-global):not(.is-checkpoint)'));
         for (let i = 0; i < masterItemsForSpine.length - 1; i++) {
             const currentGroup = masterItemsForSpine[i];
             const nextGroup = masterItemsForSpine[i + 1];
