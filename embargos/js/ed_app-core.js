@@ -1599,6 +1599,13 @@ document.getElementById('goto-page-input')?.addEventListener('keypress', functio
 
 document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
+        const modalBalanca = document.getElementById('balanca-painel');
+        // Se a balança estiver aberta, delega o fechamento com salvamento seguro
+        if (modalBalanca && modalBalanca.style.display === 'flex') {
+            if (window.BalancaManager) window.BalancaManager.fecharPainel();
+            return;
+        }
+
         if (typeof fecharPopupClassificacao === 'function') fecharPopupClassificacao();
         if (typeof cancelarRecorteWizard === 'function') cancelarRecorteWizard();
         
