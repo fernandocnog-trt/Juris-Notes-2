@@ -1150,10 +1150,8 @@ window.TopicsManager = (function () {
         const corTituloTese = escurecerCor(corTema, 0.6);
         const corTextoTese = obterCorContraste(corTema);
 
-        // NÚCLEO DA CORREÇÃO: paridade dinâmica baseada nos blocos visuais renderizados
-        if (renderContext.blocosVisuais === undefined) renderContext.blocosVisuais = 0;
-        const isLeft = (renderContext.blocosVisuais % 2 === 0);
-        renderContext.blocosVisuais++;
+        // NÚCLEO DA CORREÇÃO: A Tese herda a exata posição geométrica do cartão de prova
+        const isLeft = ((renderContext.numeroVisual - 1) % 2 === 0);
         
         const alignClass = isLeft ? 'align-left' : 'align-right';
         const teseViewSource = `tese:${teseAtual}`;
@@ -1217,7 +1215,7 @@ window.TopicsManager = (function () {
 
         return `
         <div class="timeline-item-master ${alignClass} nivel-hierarquico" id="timeline-wrapper-tese-${teseSlug}">
-            <div class="main-card-wrapper">
+            <div class="main-card-wrapper" data-cidx="${teseViewSource.replace(/'/g, "\\'")}">
                 <div class="annotation-number-area">
                     <div class="timeline-icon-box" title="Tese" style="background-color: ${corTema}; color: ${corTextoTese};">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle></svg>
@@ -1509,7 +1507,7 @@ window.TopicsManager = (function () {
 
             htmlDiretrizesGlobais = `
             <div class="timeline-item-master align-left nivel-hierarquico nivel-global" id="timeline-wrapper-globais-${activeTabId}">
-                <div class="main-card-wrapper">
+                <div class="main-card-wrapper" data-cidx="global">
                     <div class="annotation-number-area">
                         <div class="timeline-icon-box" title="Diretrizes Globais do Tópico">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
