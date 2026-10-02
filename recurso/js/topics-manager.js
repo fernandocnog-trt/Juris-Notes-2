@@ -1647,7 +1647,7 @@ window.TopicsManager = (function () {
             let folgaFinal = 0;
             let maxSubBottom = 0;
 
-            originData.forEach(({ wrapper, cardHeight, cardTop, subItems }) => {
+            originData.forEach(({ wrapper, cardHeight, cardTop, subItems }, index) => {
                 if (subItems.length === 0 || cardHeight === 0) {
                     wrapper.style.setProperty('--slot-extra', '0px');
                     return;
@@ -1658,6 +1658,14 @@ window.TopicsManager = (function () {
 
                 // Expansão do slot gravada no container pai
                 wrapper.style.setProperty('--slot-extra', `${demand}px`);
+
+                // Calcula o quanto os nós vazam para CIMA do cartão
+                const topSpill = Math.max(0, (alturaTotalNos - cardHeight) / 2);
+                
+                // Se for o cartão principal (index 0) do grupo, passa esse vazamento para o Master
+                if (index === 0) {
+                    master.style.setProperty('--slot-top', `${topSpill}px`);
+                }
 
                 // Ancoragem e centralização do bloco de nós
                 const cardCenterY = (cardTop - wrapperRectTop) + (cardHeight / 2);
