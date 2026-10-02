@@ -256,6 +256,20 @@ window.TopicsManager = (function () {
             .replace(/'/g, '&#39;');
     }
 
+    /**
+     * Conector visual entre cartões correlacionados: duas hastes finas em sentidos opostos.
+     * Toda a geometria é CSS (.correlated-link); aqui só se emite o markup.
+     * @param {string} titulo - Tooltip exibido ao passar o mouse (texto livre, é escapado).
+     */
+    function _htmlConectorCorrelacao(titulo) {
+        return `<div class="correlated-link correlated-drag-handle" title="${escaparHTML(titulo)}" aria-hidden="true">
+            <div class="correlated-link__lines">
+                <span class="correlated-link__line correlated-link__line--up"></span>
+                <span class="correlated-link__line correlated-link__line--down"></span>
+            </div>
+        </div>`;
+    }
+
     function renderizarMarkdownSeguro(strEscapada) {
         if (!strEscapada) return '';
         
@@ -889,9 +903,7 @@ window.TopicsManager = (function () {
                          ondragleave="DnDManager.dragLeave(event)"
                          ondragend="DnDManager.dragEnd(event)">
                          
-                        <div class="two-way-arrow-container correlated-drag-handle" title="Arraste a pasta inteira para reordenar">
-                            <svg viewBox="0 0 24 24" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l-4-4m4 4l4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </div>
+                        ${_htmlConectorCorrelacao('Arraste a pasta inteira para reordenar')}
                         
                         <div class="annotation-card correlated-card pilha-processual-card ${faseClass}">
                             <div class="card-header">
@@ -941,11 +953,7 @@ window.TopicsManager = (function () {
                      ondragenter="DnDManager.dragEnter(event)"
                      ondragleave="DnDManager.dragLeave(event)"
                      ondragend="DnDManager.dragEnd(event)">
-                    <div class="two-way-arrow-container correlated-drag-handle" title="Arraste para reordenar">
-                        <svg viewBox="0 0 24 24" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l-4-4m4 4l4-4" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
+                    ${_htmlConectorCorrelacao('Arraste para reordenar')}
                     <div class="annotation-card correlated-card fase-${typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(item.documento) : 4}">
                         <div class="card-header">
                             <div style="display:flex; gap:6px;">
@@ -1589,10 +1597,19 @@ window.TopicsManager = (function () {
 
         // PASSE B: ESCRITA DAS FOLGAS (sempre grava, inclusive 0px, para limpar resíduos)
         planos.forEach(({ origens }) => {
-            origens.forEach(o => {
+            origens.forEach((o, i) => {
                 const valor = `${o.pad}px`;
                 if (o.wrapper.style.getPropertyValue('--slot-pad') !== valor) {
                     o.wrapper.style.setProperty('--slot-pad', valor);
+                }
+
+                // Folga da origem anterior: soma-se à própria para que o conector
+                // alcance o cartão de cima, por maior que seja o vão.
+                if (i > 0) {
+                    const valorPrev = `${origens[i - 1].pad}px`;
+                    if (o.wrapper.style.getPropertyValue('--slot-pad-prev') !== valorPrev) {
+                        o.wrapper.style.setProperty('--slot-pad-prev', valorPrev);
+                    }
                 }
             });
         });
