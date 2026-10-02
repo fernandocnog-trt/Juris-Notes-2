@@ -302,6 +302,20 @@ window.TopicsManager = (function () {
             .replace(/'/g, '&#39;');
     }
 
+    /**
+     * Conector visual entre cartões correlacionados: duas hastes finas em sentidos opostos.
+     * Toda a geometria é CSS (.correlated-link); aqui só se emite o markup.
+     * @param {string} titulo - Tooltip exibido ao passar o mouse (texto livre, é escapado).
+     */
+    function _htmlConectorCorrelacao(titulo) {
+        return `<div class="correlated-link correlated-drag-handle" title="${escaparHTML(titulo)}" aria-hidden="true">
+            <div class="correlated-link__lines">
+                <span class="correlated-link__line correlated-link__line--up"></span>
+                <span class="correlated-link__line correlated-link__line--down"></span>
+            </div>
+        </div>`;
+    }
+
     function renderizarMarkdownSeguro(strEscapada) {
         if (!strEscapada) return '';
         
@@ -649,18 +663,6 @@ window.TopicsManager = (function () {
         }
         const idFormt = item.pjeId ? `Id. ${item.pjeId} - ` : '';
         return item.pagina ? `(${idFormt}fl. ${item.pagina})` : '';
-    }
-
-    /**
-     * Retorna o HTML do conector visual bidirecional para cards correlacionados.
-     */
-    function _htmlConectorCorrelacao(tituloTooltip) {
-        return `<div class="two-way-arrow-container correlated-drag-handle" title="${escaparHTML(tituloTooltip)}">
-                    <div class="correlation-lines" aria-hidden="true">
-                        <div class="correlation-lines-arrows"></div>
-                        <div class="correlation-lines-dots"></div>
-                    </div>
-                </div>`;
     }
 
     /**
@@ -1666,10 +1668,19 @@ window.TopicsManager = (function () {
 
         // PASSE B: ESCRITA DAS FOLGAS (sempre grava, inclusive 0px, para limpar resíduos)
         planos.forEach(({ origens }) => {
-            origens.forEach(o => {
+            origens.forEach((o, i) => {
                 const valor = `${o.pad}px`;
                 if (o.wrapper.style.getPropertyValue('--slot-pad') !== valor) {
                     o.wrapper.style.setProperty('--slot-pad', valor);
+                }
+
+                // Folga da origem anterior: soma-se à própria para que o conector
+                // alcance o cartão de cima, por maior que seja o vão.
+                if (i > 0) {
+                    const valorPrev = `${origens[i - 1].pad}px`;
+                    if (o.wrapper.style.getPropertyValue('--slot-pad-prev') !== valorPrev) {
+                        o.wrapper.style.setProperty('--slot-pad-prev', valorPrev);
+                    }
                 }
             });
         });
