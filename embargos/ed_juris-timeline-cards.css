@@ -88,12 +88,12 @@
    ================================================ */
 .timeline-container { position: relative; padding: 24px 15px 10px; display: flex; flex-direction: column; }
 #connections-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
-.timeline-item-master { position: relative; z-index: 2; display: flex; gap: 32px; width: 100%; margin-bottom: 112px; align-items: stretch; overflow: visible; }
+.timeline-item-master { --juris-gutter: 56px; position: relative; z-index: 2; display: flex; gap: var(--juris-gutter); width: 100%; margin-bottom: 112px; align-items: stretch; overflow: visible; }
 .timeline-item-master.align-left { flex-direction: row; }
 .timeline-item-master.align-right { flex-direction: row-reverse; }
 
-.main-card-wrapper { position: relative; width: calc(60% - 16px); flex-shrink: 0; overflow: visible; }
-.sub-annotations-wrapper { display: flex; flex-direction: column; width: calc(40% - 16px); position: relative; overflow: visible; }
+.main-card-wrapper { position: relative; width: calc(60% - (var(--juris-gutter) / 2)); flex-shrink: 0; overflow: visible; }
+.sub-annotations-wrapper { display: flex; flex-direction: column; width: calc(40% - (var(--juris-gutter) / 2)); position: relative; overflow: visible; }
 
 .annotation-number-area { position: absolute; left: -15px; top: -15px; display: flex; flex-direction: column; align-items: center; z-index: 3; }
 .timeline-number { width: 42px; height: 42px; background-color: #fff9c4; border: 2px solid var(--notes-marker-border); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; font-weight: 800; color: #424242; box-shadow: var(--shadow-sm); flex-shrink: 0; cursor: pointer; transition: transform 0.15s ease, background-color 0.2s, box-shadow 0.2s, border-color 0.3s ease; }
@@ -238,7 +238,11 @@
 
 .correlated-item-wrapper { display: flex; flex-direction: column; align-items: center; width: 100%; position: relative; }
 .two-way-arrow-container { display: flex; justify-content: center; align-items: center; padding: 12px 0; color: #888; }
-.two-way-arrow-container svg { width: 20px; height: 20px; transform: translateX(45%); }
+.two-way-arrow-container svg {
+    width: 20px;
+    height: clamp(20px, calc(20px + var(--slot-pad, 0px) * 0.5), 48px);
+    transform: translateX(45%);
+}
 
 .annotation-card.correlated-card { border-radius: 8px; background-color: #fafafa; border-top: 3px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04); width: 100%; position: relative; padding-bottom: 14px; }
 .btn-excluir-correlacionado { position: absolute; bottom: 8px; right: 8px; background: transparent; border: none; color: #bbb; cursor: pointer; transition: color 0.2s; padding: 4px; }
@@ -1684,6 +1688,25 @@ body[data-context="ed"] .topics-content-area {
 .btn-copy-chave-quick:active {
     transform: scale(0.95);
 }
+
+/* ================================================
+   SLOTS ELÁSTICOS POR ORIGEM
+   --slot-pad é gravado pelo JS (posicionarNosDeIdeia) em cada origem:
+   metade do que os nós excedem a altura do cartão.
+   ================================================ */
+
+/* Cartão principal: folga acima (no wrapper) e abaixo (no cartão) */
+.main-card-wrapper { --slot-pad: 0px; margin-top: var(--slot-pad); }
+.main-card-wrapper > .annotation-card { margin-bottom: var(--slot-pad); }
+
+/* Correlacionados: padding (e não margin) para evitar colapso de margens entre irmãos */
+.correlated-item-wrapper { --slot-pad: 0px; padding-block: var(--slot-pad); }
+
+/* Durante o arraste, preserva a folga em vez do padding-top: 4px original */
+.correlated-item-wrapper.drag-over { padding-top: var(--slot-pad, 0px); }
+
+/* Setas esticam só na vertical; o traço mantém espessura constante */
+.two-way-arrow-container svg path { vector-effect: non-scaling-stroke; }
 
 /* ================================================
    13. CHECKPOINT & TESOURA IA (UX HUMANIZADA)
