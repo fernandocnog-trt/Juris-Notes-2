@@ -652,6 +652,18 @@ window.TopicsManager = (function () {
     }
 
     /**
+     * Retorna o HTML do conector visual bidirecional para cards correlacionados.
+     */
+    function _htmlConectorCorrelacao(tituloTooltip) {
+        return `<div class="two-way-arrow-container correlated-drag-handle" title="${escaparHTML(tituloTooltip)}">
+                    <div class="correlation-lines" aria-hidden="true">
+                        <div class="correlation-lines-arrows"></div>
+                        <div class="correlation-lines-dots"></div>
+                    </div>
+                </div>`;
+    }
+
+    /**
      * Fábrica de Componente: Gera o HTML do meta-texto (ID/Folha) com interatividade.
      * @param {boolean} isModalLeitura - Se true, encadeia o fechamento síncrono do modal antes de saltar para o PDF.
      */
@@ -969,9 +981,7 @@ window.TopicsManager = (function () {
                          ondragleave="DnDManager.dragLeave(event)"
                          ondragend="DnDManager.dragEnd(event)">
                          
-                        <div class="two-way-arrow-container correlated-drag-handle" title="Arraste a pasta inteira para reordenar">
-                            <svg viewBox="0 0 24 24" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l-4-4m4 4l4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                        </div>
+                        ${_htmlConectorCorrelacao('Arraste a pasta inteira para reordenar')}
                         
                         <div class="annotation-card correlated-card pilha-processual-card ${faseClass}">
                             <div class="card-header">
@@ -1022,11 +1032,7 @@ window.TopicsManager = (function () {
                      ondragenter="DnDManager.dragEnter(event)"
                      ondragleave="DnDManager.dragLeave(event)"
                      ondragend="DnDManager.dragEnd(event)">
-                    <div class="two-way-arrow-container correlated-drag-handle" title="Arraste para reordenar">
-                        <svg viewBox="0 0 24 24" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l-4-4m4 4l4-4" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </div>
+                    ${_htmlConectorCorrelacao('Arraste para reordenar')}
                     <div class="annotation-card correlated-card fase-${typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(item.documento) : 4}">
                         <div class="card-header">
                             <div style="display:flex; gap:6px;">

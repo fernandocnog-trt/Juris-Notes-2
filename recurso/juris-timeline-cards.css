@@ -293,12 +293,96 @@
     pointer-events: none;
 }
 
-.correlated-item-wrapper { display: flex; flex-direction: column; align-items: center; width: 100%; position: relative; }
-.two-way-arrow-container { display: flex; justify-content: center; align-items: center; padding: 12px 0; color: #888; }
-.two-way-arrow-container svg {
-    width: 20px;
-    height: clamp(20px, calc(20px + var(--slot-pad, 0px) * 0.5), 48px);
+/* --- CONECTORES DE CORRELAÇÃO (HASTES DUPLAS ELÁSTICAS) --- */
+.correlated-item-wrapper { 
+    display: flex; flex-direction: column; align-items: center; width: 100%; position: relative; 
+}
+
+.two-way-arrow-container {
+    position: absolute;
+    /* Expansão geométrica consumindo nativamente a folga do slot-pad */
+    top: calc(var(--slot-pad, 0px) * -0.5);
+    bottom: calc(var(--slot-pad, 0px) * -0.5);
+    left: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    color: rgba(107, 107, 107, 0.75); /* Cinza escuro translúcido - Contraste ideal */
+    pointer-events: none;
+    z-index: 0;
+}
+
+.correlated-drag-handle {
+    cursor: grab;
+    pointer-events: auto;
+    transition: color 0.2s;
+    width: 32px;
     transform: translateX(45%);
+}
+
+.correlated-drag-handle:hover { color: var(--trt-blue-mid); }
+.correlated-drag-handle:active { cursor: grabbing; color: var(--trt-blue); }
+
+/* Caixa delimitadora das linhas */
+.correlation-lines {
+    position: relative;
+    width: 20px;
+    height: 100%;
+}
+
+/* Construção das Hastes (Esquerda e Direita) */
+.correlation-lines::before,
+.correlation-lines::after {
+    content: "";
+    position: absolute;
+    top: 10px;
+    bottom: 10px;
+    width: 1.5px;
+    background-color: currentColor;
+}
+.correlation-lines::before { left: 0; }
+.correlation-lines::after { right: 0; }
+
+/* Cabeças das Setas (Topo Esq e Base Dir) via CSS nativo */
+.correlation-lines-arrows::before,
+.correlation-lines-arrows::after {
+    content: "";
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    transform: rotate(-45deg);
+}
+.correlation-lines-arrows::before {
+    top: 5px;
+    left: -3px;
+    border-top: 1.5px solid currentColor;
+    border-right: 1.5px solid currentColor;
+}
+.correlation-lines-arrows::after {
+    bottom: 5px;
+    right: -3px;
+    border-bottom: 1.5px solid currentColor;
+    border-left: 1.5px solid currentColor;
+}
+
+/* Pontos de Ancoragem (Base Esq e Topo Dir) */
+.correlation-lines-dots::before,
+.correlation-lines-dots::after {
+    content: "";
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background-color: currentColor;
+}
+.correlation-lines-dots::before {
+    bottom: 5px;
+    left: -2px;
+}
+.correlation-lines-dots::after {
+    top: 5px;
+    right: -2px;
 }
 
 .annotation-card.correlated-card { border-radius: 8px; background-color: #fafafa; border-top: 3px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04); width: 100%; position: relative; padding-bottom: 14px; }
@@ -308,9 +392,6 @@
 
 .correlated-item-wrapper.dragging { opacity: 0.4; transform: scale(0.98); }
 .correlated-item-wrapper.drag-over { border-top: 3px dashed var(--trt-blue-mid) !important; padding-top: 4px; background-color: rgba(26, 58, 92, 0.03); }
-.correlated-drag-handle { cursor: grab; transition: color 0.2s; }
-.correlated-drag-handle:hover { color: var(--trt-blue-mid); }
-.correlated-drag-handle:active { cursor: grabbing; }
 
 .annotation-card:has(.image-resize-wrapper) { width: fit-content; min-width: 280px; max-width: 100%; }
 .image-resize-wrapper { max-width: 100%; height: auto; display: inline-block; resize: both; overflow: hidden; min-width: 150px; min-height: 80px; border: 1px solid var(--border-color); border-radius: 6px; margin-top: 10px; background: #fafafa; }
@@ -1867,9 +1948,6 @@ BOTÃO DE PLAY DO CARD DE ÁUDIO — REFINAMENTO
 
 /* Durante o arraste, preserva a folga em vez do padding-top: 4px original */
 .correlated-item-wrapper.drag-over { padding-top: var(--slot-pad, 0px); }
-
-/* Setas esticam só na vertical; o traço mantém espessura constante */
-.two-way-arrow-container svg path { vector-effect: non-scaling-stroke; }
 
 /* ================================================
    13. CHECKPOINT & TESOURA IA (UX HUMANIZADA)
