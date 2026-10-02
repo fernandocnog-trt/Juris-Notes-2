@@ -1612,56 +1612,70 @@ window.TopicsManager = (function () {
     }
 
     /**
-     * Motor Geométrico: Mede a última linha e preenche o espaço restante com abas inativas.
-     * Evita Layout Thrashing através de leitura em massa (Passe A) seguida de mutação (Passe B)
+     * Motor Geométrico: Batch Processing para prevenção de Layout Thrashing.
      */
     function posicionarNosDeIdeia(container) {
         const masterItems = container.querySelectorAll('.timeline-item-master');
-        
-        masterItems.forEach(master => {
-            const mainCard = master.querySelector('.main-card-wrapper > .annotation-card');
+        const GAP_NOS = 24;
+
+        // FASE 1: BATCH READ
+        const estadoDOM = Array.from(masterItems).map(master => {
             const subWrapper = master.querySelector('.sub-annotations-wrapper');
-            const subItems = master.querySelectorAll('.sub-annotation-item');
+            if (!subWrapper) return null;
 
-            if (!mainCard || subItems.length === 0 || !subWrapper) return;
+            const wrapperRectTop = subWrapper.getBoundingClientRect().top;
+            const wrappersOrigem = Array.from(master.querySelectorAll('.main-card-wrapper, .correlated-item-wrapper'));
 
-            const wrapperRect = subWrapper.getBoundingClientRect();
-            
-            // Passe A: Leituras (Evita Layout Thrashing)
-            const measurements = Array.from(subItems).map(subItem => {
-                const sourceRef = subItem.dataset.source;
-                let sourceCard = mainCard;
-                if (sourceRef !== 'main') {
-                    const correlatedWrapper = master.querySelector(`.correlated-item-wrapper[data-cidx="${sourceRef}"]`);
-                    if (correlatedWrapper) sourceCard = correlatedWrapper.querySelector('.annotation-card');
-                }
+            const originData = wrappersOrigem.map(wrapper => {
+                const card = wrapper.querySelector('.annotation-card');
+                if (!card) return null;
                 
-                // TRAVA DE SEGURANÇA: Previne o bug de sobreposição ao trocar abas no navegador
-                if (sourceCard.offsetHeight === 0) return null;
+                const cIdx = wrapper.dataset.cidx || 'main';
+                const subItems = Array.from(master.querySelectorAll(`.sub-annotation-item[data-source="${cIdx}"]`));
 
                 return {
-                    el: subItem,
-                    sourceCenterY: (sourceCard.getBoundingClientRect().top - wrapperRect.top) + (sourceCard.getBoundingClientRect().height / 2),
-                    height: subItem.offsetHeight
+                    wrapper,
+                    cardHeight: card.offsetHeight,
+                    cardTop: card.getBoundingClientRect().top,
+                    subItems: subItems.map(item => ({ el: item, height: item.offsetHeight }))
                 };
-            }).filter(m => m !== null); // Remove os itens inválidos da contagem
+            }).filter(Boolean);
 
-            if (measurements.length === 0) return; // Aborta mutação em views ocultas
+            return { master, subWrapper, wrapperRectTop, originData };
+        }).filter(Boolean);
 
-            // Passe B: Mutações
-            let currentY = 0;
-            measurements.forEach(m => {
-                let desiredTop = m.sourceCenterY - (m.height / 2);
-                if (desiredTop < currentY) desiredTop = currentY;
-                
-                m.el.style.position = 'absolute';
-                m.el.style.top = desiredTop + 'px';
-                m.el.style.width = '100%';
-                
-                currentY = desiredTop + m.height + 16;
+        // FASE 2: BATCH WRITE
+        estadoDOM.forEach(({ master, subWrapper, wrapperRectTop, originData }) => {
+            let folgaFinal = 0;
+            let maxSubBottom = 0;
+
+            originData.forEach(({ wrapper, cardHeight, cardTop, subItems }) => {
+                if (subItems.length === 0 || cardHeight === 0) {
+                    wrapper.style.setProperty('--slot-extra', '0px');
+                    return;
+                }
+
+                const alturaTotalNos = subItems.reduce((acc, { height }) => acc + height + GAP_NOS, 0) - GAP_NOS;
+                const demand = Math.max(0, alturaTotalNos - cardHeight);
+
+                // Expansão do slot gravada no container pai
+                wrapper.style.setProperty('--slot-extra', `${demand}px`);
+
+                // Ancoragem e centralização do bloco de nós
+                const cardCenterY = (cardTop - wrapperRectTop) + (cardHeight / 2);
+                let currentY = cardCenterY - (alturaTotalNos / 2);
+
+                subItems.forEach(({ el, height }) => {
+                    el.style.top = `${currentY}px`;
+                    currentY += height + GAP_NOS;
+                });
+
+                if (currentY > maxSubBottom) maxSubBottom = currentY;
+                folgaFinal = Math.max(folgaFinal, demand);
             });
 
-            subWrapper.style.minHeight = currentY + 'px';
+            master.style.setProperty('--folga-final', `${folgaFinal}px`);
+            subWrapper.style.minHeight = `${maxSubBottom}px`;
         });
     }
 
@@ -1745,7 +1759,14 @@ window.TopicsManager = (function () {
         });
 
         tracejadasGeometria.forEach(coord => {
-            const ctrlX = (coord.startX + coord.endX) / 2;
+            const distanceY = Math.abs(coord.endY - coord.startY);
+            const run = Math.abs(coord.endX - coord.startX);
+            const dir = coord.endX >= coord.startX ? 1 : -1;
+            
+            // Tensão limitada a 0.5 garante integridade vetorial (sem cruzamento de pontos)
+            const tension = Math.min(0.5, 0.35 + (distanceY / 800));
+            const c = run * tension * dir;
+
             let strokeColor = "#777", strokeOpacity = "1", strokeWidth = "1.5", dashArray = "5 4";
             
             if (isZenActive) {
@@ -1753,7 +1774,8 @@ window.TopicsManager = (function () {
                     strokeColor = _activeTopicoCor; strokeWidth = "2.5"; dashArray = "none";
                 } else { strokeOpacity = "0.15"; }
             }
-            svgContent += `<path d="M ${coord.startX},${coord.startY} C ${ctrlX},${coord.startY} ${ctrlX},${coord.endY} ${coord.endX},${coord.endY}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="${dashArray}" opacity="${strokeOpacity}" fill="none" stroke-linecap="round"/>`;
+            
+            svgContent += `<path d="M ${coord.startX},${coord.startY} C ${coord.startX + c},${coord.startY} ${coord.endX - c},${coord.endY} ${coord.endX},${coord.endY}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="${dashArray}" opacity="${strokeOpacity}" fill="none" stroke-linecap="round"/>`;
         });
 
         svg.innerHTML = svgContent; // Reflow executado em lote, sem quebras

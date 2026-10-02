@@ -145,7 +145,11 @@
    ================================================ */
 .timeline-container { position: relative; padding: 24px 15px 10px; display: flex; flex-direction: column; }
 #connections-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; contain: strict; /* SVG isolado sem impacto no fluxo de caixas HTML */ }
-.timeline-item-master { position: relative; z-index: 2; display: flex; gap: 32px; width: 100%; margin-bottom: 112px; align-items: stretch; overflow: visible; }
+:root {
+    --mm-gap: 48px;
+}
+
+.timeline-item-master { position: relative; z-index: 2; display: flex; gap: var(--mm-gap); width: 100%; margin-bottom: max(64px, calc(112px - var(--folga-final, 0px))); align-items: stretch; overflow: visible; }
 .timeline-item-master.align-left { flex-direction: row; }
 .timeline-item-master.align-right { flex-direction: row-reverse; }
 
@@ -293,8 +297,8 @@
     pointer-events: none;
 }
 
-.correlated-item-wrapper { display: flex; flex-direction: column; align-items: center; width: 100%; position: relative; }
-.two-way-arrow-container { display: flex; justify-content: center; align-items: center; padding: 12px 0; color: #888; }
+.correlated-item-wrapper { display: flex; flex-direction: column; align-items: center; width: 100%; position: relative; margin-bottom: var(--slot-extra, 0px); }
+.two-way-arrow-container { display: flex; justify-content: center; align-items: center; padding: calc(12px + var(--slot-extra, 0px) * 0.4) 0; color: #888; }
 .two-way-arrow-container svg { width: 20px; height: 20px; transform: translateX(45%); }
 
 .annotation-card.correlated-card { border-radius: 8px; background-color: #fafafa; border-top: 3px solid #e0e0e0; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04); width: 100%; position: relative; padding-bottom: 14px; }
@@ -773,13 +777,16 @@
 /* ================================================
    9. MODO ZEN E TRANSIÇÕES BIDIRECIONAIS
    ================================================ */
-.sub-annotation-item,
+.sub-annotation-item {
+    position: absolute;
+    width: 100%;
+    transition: opacity 0.3s ease, transform 0.3s ease, filter 0.3s ease;
+}
+
 .main-card-wrapper,
 .thesis-summary-panel,
 .topic-preamble-panel {
-    transition: top 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), 
-                opacity 0.3s ease, 
-                filter 0.3s ease;
+    transition: opacity 0.3s ease, filter 0.3s ease;
 }
 
 #topics-tab-content.zen-mode-ativo .sub-annotation-item:not(.is-zen-focused),
