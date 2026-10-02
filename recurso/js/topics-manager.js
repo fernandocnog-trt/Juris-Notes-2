@@ -473,7 +473,7 @@ window.TopicsManager = (function () {
         const source = sub.viewSource || 'main';
 
         return `
-        <div class="sub-annotation-item sub-stack-wrapper" data-source="${source}">
+        <div class="sub-annotation-item sub-stack-wrapper" data-source="${escaparHTML(source)}">
             <div class="sub-annotation-card sub-annotation-stack tema-dossie">
                 <!-- A assinatura do onclick foi restaurada ao original para compatibilidade com o script do Modal -->
                 <!-- Adicionado data-grupo-id para tornar o HTML mais robusto para leituras futuras -->
@@ -970,7 +970,7 @@ window.TopicsManager = (function () {
                          ondragend="DnDManager.dragEnd(event)">
                          
                         <div class="two-way-arrow-container correlated-drag-handle" title="Arraste a pasta inteira para reordenar">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l-4-4m4 4l4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            <svg viewBox="0 0 24 24" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l-4-4m4 4l4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
                         </div>
                         
                         <div class="annotation-card correlated-card pilha-processual-card ${faseClass}">
@@ -1023,7 +1023,7 @@ window.TopicsManager = (function () {
                      ondragleave="DnDManager.dragLeave(event)"
                      ondragend="DnDManager.dragEnd(event)">
                     <div class="two-way-arrow-container correlated-drag-handle" title="Arraste para reordenar">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <svg viewBox="0 0 24 24" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M7 16V4m0 0L3 8m4-4l4 4m6 4v12m0 0l-4-4m4 4l4-4" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
                     </div>
@@ -1150,10 +1150,9 @@ window.TopicsManager = (function () {
         const corTituloTese = escurecerCor(corTema, 0.6);
         const corTextoTese = obterCorContraste(corTema);
 
-        // NÚCLEO DA CORREÇÃO: paridade dinâmica baseada nos blocos visuais renderizados
-        if (renderContext.blocosVisuais === undefined) renderContext.blocosVisuais = 0;
-        const isLeft = (renderContext.blocosVisuais % 2 === 0);
-        renderContext.blocosVisuais++;
+        // A Tese é renderizada imediatamente antes da sua primeira prova (numero = numeroVisual),
+        // portanto herda exatamente o lado dessa prova, igual à regra de criarCard.
+        const isLeft = ((renderContext.numeroVisual - 1) % 2 === 0);
         
         const alignClass = isLeft ? 'align-left' : 'align-right';
         const teseViewSource = `tese:${teseAtual}`;
@@ -1187,7 +1186,7 @@ window.TopicsManager = (function () {
                 const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : 'sub-annotation-item';
 
                 subCardsHTMLArray.push(`
-                <div class="${itemWrapperClass}" data-source="${teseViewSource}">
+                <div class="${itemWrapperClass}" data-source="${escaparHTML(teseViewSource)}">
                     <div class="sub-annotation-card" style="border-left: 5px solid ${corTema}; border-color: ${rgbaTeseBorda};">
                         <div class="sub-badge has-intent intencao-${intencao}" title="Opções" onclick="abrirMenuSubAnotacao('${tabId}', null, '${teseViewSource.replace(/'/g, "\\'")}', ${sIdx}, event)">
                              ${iconSVG} T.${sIdx + 1}
@@ -1438,8 +1437,7 @@ window.TopicsManager = (function () {
         const renderContext = {
             romanCounter: 0,
             romanMap: new Map(),
-            numeroVisual: 1,
-            blocosVisuais: 0
+            numeroVisual: 1
         };
 
         topicoAtivo.anotacoes.forEach((an, index) => {
@@ -1612,57 +1610,112 @@ window.TopicsManager = (function () {
     }
 
     /**
-     * Motor Geométrico: Mede a última linha e preenche o espaço restante com abas inativas.
-     * Evita Layout Thrashing através de leitura em massa (Passe A) seguida de mutação (Passe B)
+     * Motor de Slots Elásticos.
+     * Cada origem (cartão principal ou correlacionado) reserva a altura que seus nós exigem,
+     * metade acima e metade abaixo. Os nós são então centralizados na origem.
+     * Idempotente: a medição usa offsetHeight do cartão, que as folgas não alteram.
+     * Passes: A (lê) → B (escreve folgas) → C (lê posições) → D (escreve tops).
      */
     function posicionarNosDeIdeia(container) {
-        const masterItems = container.querySelectorAll('.timeline-item-master');
-        
-        masterItems.forEach(master => {
-            const mainCard = master.querySelector('.main-card-wrapper > .annotation-card');
-            const subWrapper = master.querySelector('.sub-annotations-wrapper');
-            const subItems = master.querySelectorAll('.sub-annotation-item');
+        const GAP_NOS = 20; // espaçamento vertical entre nós do mesmo grupo
 
-            if (!mainCard || subItems.length === 0 || !subWrapper) return;
+        // PASSE A: LEITURA
+        const planos = [];
+        container.querySelectorAll('.timeline-item-master').forEach(master => {
+            if (master.offsetParent === null) return; // aba oculta: não muta
 
-            const wrapperRect = subWrapper.getBoundingClientRect();
-            
-            // Passe A: Leituras (Evita Layout Thrashing)
-            const measurements = Array.from(subItems).map(subItem => {
-                const sourceRef = subItem.dataset.source;
-                let sourceCard = mainCard;
-                if (sourceRef !== 'main') {
-                    const correlatedWrapper = master.querySelector(`.correlated-item-wrapper[data-cidx="${sourceRef}"]`);
-                    if (correlatedWrapper) sourceCard = correlatedWrapper.querySelector('.annotation-card');
-                }
-                
-                // TRAVA DE SEGURANÇA: Previne o bug de sobreposição ao trocar abas no navegador
-                if (sourceCard.offsetHeight === 0) return null;
+            const mainWrapper = master.querySelector(':scope > .main-card-wrapper');
+            const subWrapper = master.querySelector(':scope > .sub-annotations-wrapper');
+            if (!mainWrapper || !subWrapper) return;
 
-                return {
-                    el: subItem,
-                    sourceCenterY: (sourceCard.getBoundingClientRect().top - wrapperRect.top) + (sourceCard.getBoundingClientRect().height / 2),
-                    height: subItem.offsetHeight
-                };
-            }).filter(m => m !== null); // Remove os itens inválidos da contagem
+            const wrappers = [mainWrapper, ...mainWrapper.querySelectorAll(':scope > .correlated-item-wrapper')];
+            const origens = wrappers.map((wrapper, i) => ({
+                wrapper,
+                key: i === 0 ? 'main' : wrapper.dataset.cidx,
+                card: wrapper.querySelector(':scope > .annotation-card'),
+                itens: [],
+                total: 0,
+                pad: 0
+            }));
 
-            if (measurements.length === 0) return; // Aborta mutação em views ocultas
+            // Trava de segurança: cartão sem altura = view oculta ou desmontada
+            if (origens.some(o => !o.card || o.card.offsetHeight === 0)) return;
 
-            // Passe B: Mutações
-            let currentY = 0;
-            measurements.forEach(m => {
-                let desiredTop = m.sourceCenterY - (m.height / 2);
-                if (desiredTop < currentY) desiredTop = currentY;
-                
-                m.el.style.position = 'absolute';
-                m.el.style.top = desiredTop + 'px';
-                m.el.style.width = '100%';
-                
-                currentY = desiredTop + m.height + 16;
+            const porChave = new Map(origens.map(o => [o.key, o]));
+            const principal = origens[0];
+
+            subWrapper.querySelectorAll(':scope > .sub-annotation-item').forEach(el => {
+                const alvo = porChave.get(el.dataset.source || 'main') || principal; // órfãos ancoram no principal
+                alvo.itens.push({ el, h: el.offsetHeight });
             });
 
-            subWrapper.style.minHeight = currentY + 'px';
+            origens.forEach(o => {
+                if (o.itens.length === 0) return;
+                o.total = o.itens.reduce((soma, it) => soma + it.h, 0) + GAP_NOS * (o.itens.length - 1);
+                o.pad = Math.ceil(Math.max(0, o.total - o.card.offsetHeight) / 2);
+            });
+
+            planos.push({ subWrapper, origens });
         });
+
+        // PASSE B: ESCRITA DAS FOLGAS (sempre grava, inclusive 0px, para limpar resíduos)
+        planos.forEach(({ origens }) => {
+            origens.forEach(o => {
+                const valor = `${o.pad}px`;
+                if (o.wrapper.style.getPropertyValue('--slot-pad') !== valor) {
+                    o.wrapper.style.setProperty('--slot-pad', valor);
+                }
+            });
+        });
+
+        // PASSE C: LEITURA (um único reflow)
+        const posicoes = [];
+        const alturas = [];
+        planos.forEach(({ subWrapper, origens }) => {
+            const topoBase = subWrapper.getBoundingClientRect().top;
+            let cursor = 0;
+
+            origens.forEach(o => {
+                if (o.itens.length === 0) return;
+                const centro = (o.card.getBoundingClientRect().top - topoBase) + (o.card.offsetHeight / 2);
+                // Defesa: nunca abaixo de 0 nem sobre o grupo anterior
+                let y = Math.max(cursor, centro - (o.total / 2));
+                o.itens.forEach(({ el, h }) => {
+                    posicoes.push({ el, y });
+                    y += h + GAP_NOS;
+                });
+                cursor = y;
+            });
+
+            alturas.push({ subWrapper, altura: Math.max(0, cursor - GAP_NOS) });
+        });
+
+        // PASSE D: ESCRITA
+        posicoes.forEach(({ el, y }) => {
+            el.style.position = 'absolute';
+            el.style.width = '100%';
+            el.style.top = `${y}px`;
+        });
+        alturas.forEach(({ subWrapper, altura }) => {
+            subWrapper.style.minHeight = altura > 0 ? `${altura}px` : '';
+        });
+    }
+
+    /**
+     * Resolve o cartão de origem de um nó pela chave data-source, sem montar seletor CSS
+     * com texto livre (títulos de Tese podem conter aspas).
+     * Chaves sem correspondência ('global', 'tese:…') ancoram no cartão principal.
+     */
+    function _obterCardOrigem(master, chave) {
+        const mainWrapper = master.querySelector(':scope > .main-card-wrapper');
+        if (!mainWrapper) return null;
+        const mainCard = mainWrapper.querySelector(':scope > .annotation-card');
+        if (!chave || chave === 'main') return mainCard;
+
+        for (const w of mainWrapper.querySelectorAll(':scope > .correlated-item-wrapper')) {
+            if (w.dataset.cidx === chave) return w.querySelector(':scope > .annotation-card') || mainCard;
+        }
+        return mainCard;
     }
 
     /**
@@ -1702,32 +1755,47 @@ window.TopicsManager = (function () {
             });
         }
 
-        const masterItems = container.querySelectorAll('.timeline-item-master');
-        masterItems.forEach(master => {
-            const mainCard = master.querySelector('.main-card-wrapper > .annotation-card');
-            const subItems = master.querySelectorAll('.sub-annotation-item');
-            if (!mainCard || subItems.length === 0) return;
+        const FAN_STEP = 14;    // distância máxima entre pontos de saída no lado do cartão
+        const FAN_MARGIN = 20;  // respiro mantido nas bordas superior/inferior do cartão
+
+        container.querySelectorAll('.timeline-item-master').forEach(master => {
+            const subWrapper = master.querySelector(':scope > .sub-annotations-wrapper');
+            if (!subWrapper) return;
+
+            const subItems = subWrapper.querySelectorAll(':scope > .sub-annotation-item');
+            if (subItems.length === 0) return;
 
             const isRightAligned = master.classList.contains('align-right');
-            
-            subItems.forEach(subItem => {
-                const subCard = subItem.querySelector('.sub-annotation-card');
-                const subRect = subCard.getBoundingClientRect();
-                const sourceRef = subItem.dataset.source;
-                
-                let sourceCard = mainCard;
-                if (sourceRef !== 'main') {
-                    const correlatedWrapper = master.querySelector(`.correlated-item-wrapper[data-cidx="${sourceRef}"]`);
-                    if (correlatedWrapper) sourceCard = correlatedWrapper.querySelector('.annotation-card');
-                }
-                const sourceRect = sourceCard.getBoundingClientRect();
 
-                tracejadasGeometria.push({
-                    startX: isRightAligned ? sourceRect.left - containerRect.left : sourceRect.right - containerRect.left,
-                    endX: isRightAligned ? subRect.right - containerRect.left : subRect.left - containerRect.left,
-                    startY: (sourceRect.top + sourceRect.height / 2) - containerRect.top,
-                    endY: (subRect.top + subRect.height / 2) - containerRect.top,
-                    isZenFocused: subItem.classList.contains('is-zen-focused')
+            // Agrupa os nós pelo cartão de origem
+            const porOrigem = new Map();
+            subItems.forEach(subItem => {
+                const sourceCard = _obterCardOrigem(master, subItem.dataset.source);
+                const subCard = subItem.querySelector('.sub-annotation-card');
+                if (!sourceCard || !subCard) return;
+                if (!porOrigem.has(sourceCard)) porOrigem.set(sourceCard, []);
+                porOrigem.get(sourceCard).push({ subItem, subRect: subCard.getBoundingClientRect() });
+            });
+
+            porOrigem.forEach((grupo, sourceCard) => {
+                // Ordem vertical dos nós = ordem dos pontos de saída (evita cruzamentos)
+                grupo.sort((a, b) => a.subRect.top - b.subRect.top);
+
+                const sourceRect = sourceCard.getBoundingClientRect();
+                const n = grupo.length;
+                const passo = n > 1
+                    ? Math.min(FAN_STEP, Math.max(0, sourceRect.height - 2 * FAN_MARGIN) / (n - 1))
+                    : 0;
+                const centroY = (sourceRect.top + sourceRect.height / 2) - containerRect.top;
+
+                grupo.forEach(({ subItem, subRect }, k) => {
+                    tracejadasGeometria.push({
+                        startX: isRightAligned ? sourceRect.left - containerRect.left : sourceRect.right - containerRect.left,
+                        endX: isRightAligned ? subRect.right - containerRect.left : subRect.left - containerRect.left,
+                        startY: centroY + (k - (n - 1) / 2) * passo,
+                        endY: (subRect.top + subRect.height / 2) - containerRect.top,
+                        isZenFocused: subItem.classList.contains('is-zen-focused')
+                    });
                 });
             });
         });
