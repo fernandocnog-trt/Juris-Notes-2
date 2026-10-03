@@ -1037,3 +1037,39 @@ body[data-active-tab="leitura"] #idea-markers-list {
 #btn-lembretes-tarefa.task-pulse-alert svg {
     stroke: #ffffff !important;
 }
+
+/* --- Grelha de Ícones e Espaçamento de Atalhos --- */
+.icon-picker-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 8px;
+}
+.icon-swatch {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    border: 2px solid var(--border-color);
+    background: #fdfdfd;
+    color: #64748b;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s, color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.icon-swatch svg { width: 18px; height: 18px; }
+
+.icon-swatch:has(input:focus-visible) {
+    outline: 2px solid var(--trt-blue);
+    outline-offset: 2px;
+}
+.icon-swatch:has(input:checked) {
+    transform: scale(1.15);
+    border-color: var(--trt-blue);
+    color: var(--trt-blue);
+    background: #e3f2fd;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.is-last-shortcut { margin-bottom: 8px; }
