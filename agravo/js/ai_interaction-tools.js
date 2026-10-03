@@ -1448,3 +1448,68 @@ document.addEventListener('mouseout', (e) => {
         _cachedTooltip.style.display = 'none'; 
     }, 200);
 });
+
+/* =========================================================
+   MÓDULO DE GERENCIAMENTO DO MODAL DE TEMAS
+   ========================================================= */
+
+window.abrirModalTemas = function() {
+    // 1. Oculta o menu suspenso de origem, se aberto
+    const jurisMenu = document.getElementById('juris-menu');
+    if (jurisMenu) jurisMenu.style.display = 'none';
+
+    // 2. State Sync: Lê a Fonte da Verdade Renderizada (DOM)
+    const bodyClasses = Array.from(document.body.classList);
+    
+    // Define fallbacks seguros caso a inicialização ainda não tenha ocorrido
+    let temaProcessoRenderizado = 'jasmine'; 
+    let temaAnotacoesRenderizado = 'white'; 
+
+    // Varre o body em busca das classes de contrato do tema
+    bodyClasses.forEach(cls => {
+        if (cls.startsWith('theme-processo-')) temaProcessoRenderizado = cls.replace('theme-processo-', '');
+        if (cls.startsWith('theme-anotacoes-')) temaAnotacoesRenderizado = cls.replace('theme-anotacoes-', '');
+    });
+
+    // 3. Pinta a UI de acordo com a realidade antes de exibir o modal
+    atualizarFeedbackVisualTemas('processo', temaProcessoRenderizado);
+    atualizarFeedbackVisualTemas('anotacoes', temaAnotacoesRenderizado);
+
+    // 4. Exibe o modal
+    document.getElementById('temas-modal-backdrop').style.display = 'block';
+    document.getElementById('modal-temas').style.display = 'flex';
+};
+
+window.fecharModalTemas = function() {
+    document.getElementById('temas-modal-backdrop').style.display = 'none';
+    document.getElementById('modal-temas').style.display = 'none';
+};
+
+window.selecionarTemaComFeedback = function(categoria, tema) {
+    // 1. Invoca a lógica principal de negócio
+    if (typeof aplicarTema === 'function') {
+        aplicarTema(categoria, tema); 
+    }
+    
+    // 2. Atualiza os componentes visuais do modal de forma atômica
+    atualizarFeedbackVisualTemas(categoria, tema);
+};
+
+// Utilitário de pintura e Acessibilidade (a11y)
+function atualizarFeedbackVisualTemas(categoria, temaAtivo) {
+    const botoes = document.querySelectorAll(`.btn-tema-opcao[data-categoria="${categoria}"]`);
+    
+    botoes.forEach(btn => {
+        const spanCheck = btn.querySelector('.tema-check');
+        
+        if (btn.dataset.tema === temaAtivo) {
+            btn.classList.add('is-active-theme');
+            btn.setAttribute('aria-pressed', 'true');
+            if (spanCheck) spanCheck.style.display = 'block';
+        } else {
+            btn.classList.remove('is-active-theme');
+            btn.setAttribute('aria-pressed', 'false');
+            if (spanCheck) spanCheck.style.display = 'none';
+        }
+    });
+}

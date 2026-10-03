@@ -219,22 +219,51 @@
     </div>
     <hr style="border: 0; border-top: 1px solid #eee; margin: 4px 0;">
     <button class="doc-btn" style="border:none; text-align:left; margin-bottom: 4px;" onclick="abrirModalGerenciarAbas()">📑 Gerenciar Abas</button>
-    <button class="doc-btn" style="border:none; text-align:left; margin-bottom: 4px;" onclick="toggleSubmenuTemas()">🎨 Temas ▾</button>
-    <div id="submenu-temas" style="display:none; padding-left: 12px; border-left: 2px solid #eee; margin-bottom: 4px; flex-direction: column; gap: 12px;">
-        <div style="display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 0.7rem; color: #888; font-weight: bold; text-transform: uppercase;">📄 Processo (PDF)</span><button class="doc-btn neutro" style="border:none; text-align:left; padding: 6px 12px;" onclick="aplicarTema('processo', 'jasmine')">🌕 Fundo Jasmine</button><button class="doc-btn neutro" style="border:none; text-align:left; padding: 6px 12px;" onclick="aplicarTema('processo', 'white')">⬜ Fundo Branco</button></div>
-        <div style="display: flex; flex-direction: column; gap: 4px;"><span style="font-size: 0.7rem; color: #888; font-weight: bold; text-transform: uppercase;">📝 Anotações</span><button class="doc-btn neutro" style="border:none; text-align:left; padding: 6px 12px;" onclick="aplicarTema('anotacoes', 'jasmine')">🌕 Fundo Jasmine</button><button class="doc-btn neutro" style="border:none; text-align:left; padding: 6px 12px;" onclick="aplicarTema('anotacoes', 'white')">⬜ Fundo Branco</button></div>
-    </div>
+    <button class="doc-btn" style="border:none; text-align:left; margin-bottom: 4px;" onclick="abrirModalTemas()">🎨 Gerenciar Temas</button>
     <hr style="border: 0; border-top: 1px solid #eee; margin: 4px 0;">
     <button class="doc-btn neutro" style="border:none; text-align:left;" onclick="abrirModalAjuda()">📖 Guia da IA</button>
 </div>
 
 <!-- ABAS E GERENCIAMENTO -->
-<div id="abas-modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.40); z-index: 4004;" onclick="fecharModalGerenciarAbas()"></div>
+<div id="abas-modal-backdrop" class="backdrop-seguro" style="display: none; z-index: var(--z-abas-modal-backdrop);" onclick="fecharModalGerenciarAbas()"></div>
 <div id="modal-gerenciar-abas" class="crop-wizard-popup" style="display:none; z-index: 4005;">
     <div class="wizard-header">📑 Gerenciar Abas (Tópicos)</div>
     <p class="popup-label">Selecione uma aba para editar ou excluir:</p>
     <div id="lista-abas-gerenciador" class="doc-list-container" style="max-height: 250px; margin-bottom: 12px;"></div>
     <div class="wizard-actions"><button class="chip-btn chip-cancelar" onclick="fecharModalGerenciarAbas()">✕ Fechar</button></div>
+</div>
+
+<div id="temas-modal-backdrop" class="backdrop-seguro" style="display: none; z-index: var(--z-temas-backdrop);" onclick="fecharModalTemas()"></div>
+<div id="modal-temas" class="crop-wizard-popup fechavel-por-esc" role="dialog" aria-modal="true" aria-labelledby="temas-modal-title" style="display:none; z-index: var(--z-temas-modal); min-width: 320px;">
+    <div class="wizard-header" id="temas-modal-title">🎨 Configuração de Temas</div>
+    
+    <div style="display: flex; flex-direction: column; gap: 12px; margin-top: 12px;">
+        <!-- Bloco Processo -->
+        <div style="display: flex; flex-direction: column; gap: 6px;">
+            <span style="font-size: 0.75rem; color: #64748b; font-weight: 800; text-transform: uppercase;">📄 Área do Processo (PDF)</span>
+            <button class="doc-btn neutro btn-tema-opcao" data-categoria="processo" data-tema="jasmine" aria-pressed="false" style="display:flex; justify-content:space-between; align-items:center;" onclick="selecionarTemaComFeedback('processo', 'jasmine')">
+                <span>🌕 Fundo Jasmine</span> <span class="tema-check" style="display:none; color:#2e7d32;" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:16px; height:16px;"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+            </button>
+            <button class="doc-btn neutro btn-tema-opcao" data-categoria="processo" data-tema="white" aria-pressed="false" style="display:flex; justify-content:space-between; align-items:center;" onclick="selecionarTemaComFeedback('processo', 'white')">
+                <span>⬜ Fundo Branco</span> <span class="tema-check" style="display:none; color:#2e7d32;" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:16px; height:16px;"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+            </button>
+        </div>
+
+        <!-- Bloco Anotações -->
+        <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 8px;">
+            <span style="font-size: 0.75rem; color: #64748b; font-weight: 800; text-transform: uppercase;">📝 Área de Anotações</span>
+            <button class="doc-btn neutro btn-tema-opcao" data-categoria="anotacoes" data-tema="jasmine" aria-pressed="false" style="display:flex; justify-content:space-between; align-items:center;" onclick="selecionarTemaComFeedback('anotacoes', 'jasmine')">
+                <span>🌕 Fundo Jasmine</span> <span class="tema-check" style="display:none; color:#2e7d32;" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:16px; height:16px;"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+            </button>
+            <button class="doc-btn neutro btn-tema-opcao" data-categoria="anotacoes" data-tema="white" aria-pressed="false" style="display:flex; justify-content:space-between; align-items:center;" onclick="selecionarTemaComFeedback('anotacoes', 'white')">
+                <span>⬜ Fundo Branco</span> <span class="tema-check" style="display:none; color:#2e7d32;" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" style="width:16px; height:16px;"><polyline points="20 6 9 17 4 12"></polyline></svg></span>
+            </button>
+        </div>
+    </div>
+
+    <div class="wizard-actions" style="margin-top: 20px;">
+        <button class="chip-btn chip-cancelar" onclick="fecharModalTemas()">✕ Fechar</button>
+    </div>
 </div>
 
 <div id="pilha-modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.40); z-index: 4004;" onclick="TopicsManager.fecharModalPilha()"></div>
@@ -281,7 +310,7 @@
 </div>
 
 <!-- GUIA METODOLÓGICO -->
-<div id="ajuda-modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.40); z-index: 4004;" onclick="fecharModalAjuda()"></div>
+<div id="ajuda-modal-backdrop" class="backdrop-seguro" style="display: none; z-index: var(--z-abas-modal-backdrop);" onclick="fecharModalAjuda()"></div>
 <div id="modal-ajuda-intencoes" class="crop-wizard-popup" style="display:none; z-index: 4005; max-width: 800px; width: 90vw; height: 85vh; padding: 0; overflow: hidden;">
     <div class="wizard-header" style="padding: 16px 20px 8px; margin: 0; background: white;">🧠 Guia Metodológico: Nós de Ideia<button style="float:right; background:none; border:none; cursor:pointer; font-size:1.2rem; color:#999;" onclick="fecharModalAjuda()">✕</button></div>
     <iframe src="ai_guia-ia.html" style="width: 100%; height: calc(100% - 60px); border: none; background: #fdfdfd;"></iframe>
