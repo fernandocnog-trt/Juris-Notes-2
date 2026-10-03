@@ -303,7 +303,7 @@
     <button id="fab-embargos-autora" class="fab-btn fab-shortcut is-empty" onclick="ShortcutManager.handleClick('embargosAutora', event)" title="Embargos (Autora)" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg></button>
     <button id="fab-embargos-reu" class="fab-btn fab-shortcut is-empty" onclick="ShortcutManager.handleClick('embargosReu', event)" title="Embargos (Ré 1)" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg></button>
     <button id="fab-embargos-reu2" class="fab-btn fab-shortcut is-empty" onclick="ShortcutManager.handleClick('embargosReu2', event)" title="Embargos (Ré 2)" style="display:none;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg></button>
-    <button id="fab-acordao" class="fab-btn fab-shortcut is-empty" style="margin-bottom: 8px; display:none;" onclick="ShortcutManager.handleClick('acordao', event)" title="Acórdão Embargado"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg></button>
+    <button id="fab-acordao" class="fab-btn fab-shortcut is-empty" style="display:none;" onclick="ShortcutManager.handleClick('acordao', event)" title="Acórdão Embargado"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"></path><path d="M7 21h10"></path><path d="M12 3v18"></path><path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"></path></svg></button>
     <button id="btn-scroll-top" class="fab-btn is-hidden" onclick="rolarParaTopo()" title="Voltar ao Topo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"></polyline></svg></button>
     <button id="btn-scroll-bottom" class="fab-btn is-hidden" onclick="rolarParaFinal()" title="Ir para o Final"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
 </div>
@@ -312,22 +312,35 @@
 
 <!-- MODAL SMART SHORTCUTS -->
 <div id="shortcut-modal-backdrop" style="display: none; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.40); z-index: 4004;" onclick="ShortcutManager.fecharModal()"></div>
-<div id="shortcut-modal" class="crop-wizard-popup" style="display:none; z-index: 4005;">
+<div id="shortcut-modal" class="crop-wizard-popup" style="display:none; z-index: 4005; width: min(92vw, 420px);">
     <div class="wizard-header" id="shortcut-modal-header">📍 Configurar Atalho</div>
     <p class="popup-label" id="shortcut-modal-title">Página do documento:</p>
     <input type="number" id="shortcut-page-input" class="topic-select" placeholder="Ex: 15" min="1">
+    
     <div id="shortcut-custom-fields" style="display: none; margin-top: 16px; border-top: 1px solid var(--border-color); padding-top: 16px;">
         <p class="popup-label">Resumo do Favorito (Tooltip):</p>
         <input type="text" id="shortcut-label-input" class="topic-select" placeholder="Ex: Laudo Pericial Médico..." maxlength="40">
-        <p class="popup-label" style="margin-top: 12px;">Cor do Ícone:</p>
-        <div class="color-picker-grid" id="shortcut-color-picker">
+        
+        <p class="popup-label" style="margin-top: 12px;">Cor de Destaque:</p>
+        <div class="color-picker-grid" id="shortcut-color-picker" role="radiogroup" aria-label="Cor do Atalho">
             <label class="color-swatch" style="background: #D500B5;"><input type="radio" name="shortcut_color" value="fuchsia" class="sr-only"></label>
             <label class="color-swatch" style="background: #6a1b9a;"><input type="radio" name="shortcut_color" value="purple" class="sr-only"></label>
             <label class="color-swatch" style="background: #00897B;"><input type="radio" name="shortcut_color" value="teal" class="sr-only"></label>
             <label class="color-swatch" style="background: #E65100;"><input type="radio" name="shortcut_color" value="orange" class="sr-only"></label>
             <label class="color-swatch" style="background: #0288D1;"><input type="radio" name="shortcut_color" value="cyan" class="sr-only"></label>
         </div>
+
+        <p class="popup-label" style="margin-top: 12px;">Ícone Visual:</p>
+        <div class="icon-picker-grid" id="shortcut-icon-picker" role="radiogroup" aria-label="Ícone do Atalho">
+            <label class="icon-swatch" aria-label="Estrela Genérica" title="Destaque Genérico"><input type="radio" name="shortcut_icon" value="star" class="sr-only"><svg viewBox="0 0 24 24"><use href="#icon-fab-star"></use></svg></label>
+            <label class="icon-swatch" aria-label="Lupa" title="Laudo / Prova (Lupa)"><input type="radio" name="shortcut_icon" value="search" class="sr-only"><svg viewBox="0 0 24 24"><use href="#icon-fab-search"></use></svg></label>
+            <label class="icon-swatch" aria-label="Cifrão" title="Cálculos / Valores (Cifrão)"><input type="radio" name="shortcut_icon" value="cash" class="sr-only"><svg viewBox="0 0 24 24"><use href="#icon-fab-cash"></use></svg></label>
+            <label class="icon-swatch" aria-label="Balão de Fala" title="Depoimento / Ata (Balão)"><input type="radio" name="shortcut_icon" value="chat" class="sr-only"><svg viewBox="0 0 24 24"><use href="#icon-fab-chat"></use></svg></label>
+            <label class="icon-swatch" aria-label="Relógio" title="Prazo / Prescrição (Relógio)"><input type="radio" name="shortcut_icon" value="clock" class="sr-only"><svg viewBox="0 0 24 24"><use href="#icon-fab-clock"></use></svg></label>
+            <label class="icon-swatch" aria-label="Sol" title="Alerta Crítico (Sol)"><input type="radio" name="shortcut_icon" value="sun" class="sr-only"><svg viewBox="0 0 24 24"><use href="#icon-fab-sun"></use></svg></label>
+        </div>
     </div>
+    
     <div class="wizard-actions" style="margin-top: 20px; display: flex; gap: 10px;">
         <button class="chip-btn chip-cancelar" onclick="ShortcutManager.fecharModal()">✕ Cancelar</button>
         <button class="chip-btn chip-autora" style="background: var(--trt-blue); color: white; border-color: var(--trt-blue);" onclick="ShortcutManager.salvarModal()">✔ Confirmar</button>
