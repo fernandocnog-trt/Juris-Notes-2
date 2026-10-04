@@ -564,7 +564,8 @@
             <button style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #64748b;" onclick="BalancaManager.fecharPainel()">✕</button>
         </div>
     </div>
-    <iframe id="balanca-iframe" style="flex: 1; border: none; width: 100%; display: block; background: var(--bg-page);" sandbox="allow-same-origin allow-scripts allow-forms allow-modals"></iframe>
+    <!-- ✅ Removido o allow-same-origin para manter a segurança e limpar o log -->
+<iframe id="balanca-iframe" style="flex: 1; border: none; width: 100%; display: block; background: var(--bg-page);" sandbox="allow-scripts allow-forms allow-modals"></iframe>
 </div>
 
 <!-- TIME TRACKER -->
