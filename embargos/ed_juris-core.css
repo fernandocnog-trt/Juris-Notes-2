@@ -999,3 +999,21 @@ body.theme-processo-jasmine {
     color: #2e7d32;
     font-weight: 700;
 }
+
+/* ================================================
+   CONFIGURAÇÃO IA (PROVEDORES) - ED
+   ================================================ */
+.btn-ia-opcao { transition: all 0.2s ease; }
+.btn-ia-opcao.is-active-provider {
+    background: #e8f5e9 !important; 
+    border-color: #81c784 !important; 
+    color: #2e7d32;
+}
+.api-status-success { color: #2e7d32; font-weight: bold; }
+.api-status-error { color: #c62828; font-weight: bold; }
+.api-status-loading { color: #f57c00; font-style: italic; }
+.login-input:focus {
+    border-color: var(--trt-blue-mid);
+    background: #ffffff;
+    box-shadow: 0 0 0 2px rgba(26, 58, 92, 0.1);
+}
