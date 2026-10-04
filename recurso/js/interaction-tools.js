@@ -1627,16 +1627,15 @@ window.AIManager = (function() {
     }
 
     function fecharModal() {
-        config.groqKey = document.getElementById('input-api-groq').value.trim();
-        config.geminiKey = document.getElementById('input-api-gemini').value.trim();
-        salvarConfig();
-        
+        // Apenas sincroniza a UI para remover digitações não salvas (sem testar) e fecha
+        syncUI(); 
         document.getElementById('ia-modal-backdrop').style.display = 'none';
         document.getElementById('modal-ia-config').style.display = 'none';
     }
 
     function selecionarProvedor(prov) {
         config.provedor = prov;
+        salvarConfig(); // Salva a preferência de provedor
         syncUI();
     }
 
@@ -1671,8 +1670,13 @@ window.AIManager = (function() {
             const response = await fetch(url, options);
             
             if (response.ok) {
-                statusEl.textContent = 'Conexão bem-sucedida! ✓';
+                statusEl.textContent = 'Conexão estabelecida! Chave guardada.';
                 statusEl.className = 'api-status-success';
+                
+                // Salva a chave apenas se a API a validar
+                if (prov === 'groq') config.groqKey = key;
+                if (prov === 'gemini') config.geminiKey = key;
+                salvarConfig();
             } else {
                 throw new Error();
             }

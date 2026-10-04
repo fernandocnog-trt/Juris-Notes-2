@@ -75,39 +75,50 @@ window.AIRecommendationManager = (function() {
         throw new Error("RATE_LIMIT_ERROR");
     }
 
-    // --- ORQUESTRADOR DE ESTADO E FALLBACK ---
+    // --- ORQUESTRADOR / DISPATCHER CORRIGIDO ---
 
     async function processarIA(promptCompleto) {
         if (!window.AIManager) throw new Error("AIManager não encontrado.");
-        
+
         const config = window.AIManager.getConfig();
         const primary = config.provedor;
         const secondary = primary === 'groq' ? 'gemini' : 'groq';
+        
+        // Identifica as chaves baseadas na escolha
+        const primaryKey = primary === 'groq' ? config.groqKey : config.geminiKey;
+        const secondaryKey = secondary === 'groq' ? config.groqKey : config.geminiKey;
 
+        // 1. BLOQUEIO IMEDIATO SE FALTAR A CHAVE PRINCIPAL
+        if (!primaryKey) {
+            window.AIManager.abrirModal();
+            throw new Error(`A chave do seu provedor selecionado (${primary.toUpperCase()}) não está configurada. Cole a chave e clique em "Testar".`);
+        }
+
+        // 2. TENTA PROVEDOR PRINCIPAL
         try {
-            if (primary === 'groq' && config.groqKey) return await executarGroq(promptCompleto, config.groqKey);
-            if (primary === 'gemini' && config.geminiKey) return await executarGemini(promptCompleto, config.geminiKey);
-            
-            throw new Error(`A chave do provedor selecionado (${primary.toUpperCase()}) não está configurada.`);
+            if (primary === 'groq') return await executarGroq(promptCompleto, primaryKey);
+            if (primary === 'gemini') return await executarGemini(promptCompleto, primaryKey);
         } catch (e) {
-            if (e.message === "AUTH_ERROR") throw new Error(`A chave do seu provedor principal (${primary.toUpperCase()}) é inválida.`);
-            if (e.message === "PROMPT_BLOCKED_ERROR") throw new Error("A IA recusou-se a processar o texto devido aos filtros de segurança. Modere a linguagem e tente novamente.");
+            // Se o erro for de validação da chave ou filtro de segurança, bloqueia aqui.
+            if (e.message === "AUTH_ERROR") throw new Error(`A chave do provedor ${primary.toUpperCase()} é inválida ou expirou.`);
+            if (e.message === "PROMPT_BLOCKED_ERROR") throw new Error("A IA recusou o texto (Filtro de Segurança). Reveja o conteúdo.");
             
-            // Verificação Pré-Fallback
-            const secKey = secondary === 'groq' ? config.groqKey : config.geminiKey;
-            if (!secKey) {
-                throw new Error(`O serviço principal (${primary.toUpperCase()}) está indisponível, e o alternativo (${secondary.toUpperCase()}) não tem chave configurada.`);
+            // 3. INICIA FALLBACK (Apenas se for erro de rede/queda do servidor 503 ou 429)
+            window.exibirToast?.(`Provedor ${primary.toUpperCase()} instável. A tentar usar o ${secondary.toUpperCase()}...`, 'aviso');
+            
+            // Verifica se tem a segunda chave configurada para fazer o fallback
+            if (!secondaryKey) {
+                throw new Error(`O serviço ${primary.toUpperCase()} falhou (erro de rede/sobrecarga), e não tem a chave do ${secondary.toUpperCase()} configurada para o sistema se auto-recuperar.`);
             }
 
-            window.exibirToast?.(`Provedor ${primary.toUpperCase()} instável. A redirecionar para ${secondary.toUpperCase()}...`, 'aviso');
-
             try {
-                if (secondary === 'groq') return await executarGroq(promptCompleto, config.groqKey);
-                if (secondary === 'gemini') return await executarGemini(promptCompleto, config.geminiKey);
+                // Executa a segunda opção
+                if (secondary === 'groq') return await executarGroq(promptCompleto, secondaryKey);
+                if (secondary === 'gemini') return await executarGemini(promptCompleto, secondaryKey);
             } catch (fallbackError) {
                 if (fallbackError.message === "AUTH_ERROR") throw new Error(`A chave do provedor alternativo (${secondary.toUpperCase()}) é inválida.`);
-                if (fallbackError.message === "PROMPT_BLOCKED_ERROR") throw new Error("A IA alternativa também bloqueou o texto nos filtros de segurança.");
-                throw new Error("Ambos os provedores de IA encontram-se indisponíveis por sobrecarga.");
+                if (fallbackError.message === "PROMPT_BLOCKED_ERROR") throw new Error("A IA alternativa também bloqueou o texto por filtros de segurança.");
+                throw new Error("Ambos os provedores de IA falharam por sobrecarga ou erro de rede.");
             }
         }
     }
