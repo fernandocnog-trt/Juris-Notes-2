@@ -1513,3 +1513,128 @@ function atualizarFeedbackVisualTemas(categoria, temaAtivo) {
         }
     });
 }
+
+// =========================================================
+// MÓDULO DE GESTÃO DA INTERFACE DE IA (AIManager)
+// =========================================================
+window.AIManager = (function() {
+    const STORAGE_CONFIG = 'juris_ia_config';
+    
+    let config = {
+        provedor: 'gemini',
+        groqKey: '',
+        geminiKey: ''
+    };
+
+    function carregarConfig() {
+        const salva = localStorage.getItem(STORAGE_CONFIG);
+        if (salva) config = { ...config, ...JSON.parse(salva) };
+        return config;
+    }
+
+    function salvarConfig() {
+        localStorage.setItem(STORAGE_CONFIG, JSON.stringify(config));
+    }
+
+    function syncUI() {
+        const groqInput = document.getElementById('input-api-groq');
+        const geminiInput = document.getElementById('input-api-gemini');
+        
+        if (groqInput) groqInput.value = config.groqKey || '';
+        if (geminiInput) geminiInput.value = config.geminiKey || '';
+        
+        document.querySelectorAll('.btn-ia-opcao').forEach(btn => {
+            const check = btn.querySelector('.ia-check');
+            if (btn.dataset.provedor === config.provedor) {
+                btn.classList.add('is-active-provider');
+                if (check) check.style.display = 'block';
+            } else {
+                btn.classList.remove('is-active-provider');
+                if (check) check.style.display = 'none';
+            }
+        });
+    }
+
+    function abrirModal() {
+        carregarConfig();
+        syncUI();
+        
+        const jurisMenu = document.getElementById('juris-menu');
+        if (jurisMenu) jurisMenu.style.display = 'none';
+
+        document.getElementById('ia-modal-backdrop').style.display = 'block';
+        document.getElementById('modal-ia-config').style.display = 'flex';
+    }
+
+    function fecharModal() {
+        // Apenas sincroniza a UI para remover digitações não salvas (sem testar) e fecha
+        syncUI(); 
+        document.getElementById('ia-modal-backdrop').style.display = 'none';
+        document.getElementById('modal-ia-config').style.display = 'none';
+    }
+
+    function selecionarProvedor(prov) {
+        config.provedor = prov;
+        salvarConfig(); 
+        syncUI();
+    }
+
+    async function testarChave(prov) {
+        const inputId = prov === 'groq' ? 'input-api-groq' : 'input-api-gemini';
+        const statusId = prov === 'groq' ? 'status-groq' : 'status-gemini';
+        
+        const key = document.getElementById(inputId).value.trim();
+        const statusEl = document.getElementById(statusId);
+        
+        if (!key) {
+            statusEl.textContent = 'Insira uma chave antes de testar.';
+            statusEl.className = 'api-status-error';
+            statusEl.style.display = 'block';
+            return;
+        }
+
+        statusEl.textContent = 'A testar conexão...';
+        statusEl.className = 'api-status-loading';
+        statusEl.style.display = 'block';
+
+        try {
+            let url, options;
+            if (prov === 'groq') {
+                url = 'https://api.groq.com/openai/v1/models';
+                options = { headers: { 'Authorization': `Bearer ${key}` } };
+            } else {
+                url = `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`;
+                options = {};
+            }
+
+            const response = await fetch(url, options);
+            
+            if (response.ok) {
+                statusEl.textContent = 'Conexão estabelecida! Chave guardada.';
+                statusEl.className = 'api-status-success';
+                
+                // Salva a chave apenas se a API a validar
+                if (prov === 'groq') config.groqKey = key;
+                if (prov === 'gemini') config.geminiKey = key;
+                salvarConfig();
+            } else {
+                throw new Error();
+            }
+        } catch (e) {
+            statusEl.textContent = 'Falha na conexão. Verifique a chave.';
+            statusEl.className = 'api-status-error';
+        }
+    }
+
+    // Escuta eventos de erro do serviço de IA para purgar chaves invalidadas na cloud
+    window.addEventListener('aiAuthError', (e) => {
+        const p = e.detail?.provider;
+        if (p === 'groq') config.groqKey = '';
+        if (p === 'gemini') config.geminiKey = '';
+        salvarConfig();
+    });
+
+    carregarConfig();
+
+    return { abrirModal, fecharModal, selecionarProvedor, testarChave, getConfig: () => config };
+})();
