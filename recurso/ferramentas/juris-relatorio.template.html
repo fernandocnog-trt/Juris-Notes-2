@@ -1,12 +1,154 @@
+<style>
+    /* Estilos escopados para o Juris Relatório não quebrarem o sistema principal */
+    .jr-container { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e293b; }
+    .jr-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.25rem; }
+    @media (max-width: 650px) { .jr-form-grid { grid-template-columns: 1fr; gap: 1rem; } }
+    .jr-form-group { margin-bottom: 1.25rem; }
+    .jr-form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.85rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
+    .jr-form-control { width: 100%; padding: 0.75rem 1rem; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1rem; color: #1e293b; transition: all 0.3s ease; font-family: inherit; }
+    select.jr-form-control { cursor: pointer; appearance: auto; }
+    .jr-form-control:focus { outline: none; border-color: #ffc107; box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.2); }
+    .jr-sub-section { background-color: #ffffff; border: 1px solid #e2e8f0; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.25rem; }
+    .jr-conditional { display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed #e2e8f0; }
+    .jr-btn { background-color: #ffc107; color: #000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 1rem 2rem; border-radius: 8px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; text-transform: uppercase; }
+    .jr-btn:hover { background-color: #e0a800; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+    .jr-locked { background-color: #f8fafc; color: #64748b; border-style: dashed; cursor: not-allowed; line-height: 1.6; min-height: 250px; font-family: monospace; font-size: 0.95rem; resize: vertical; }
+</style>
+
 <div class="modal-backdrop-modern" id="backdrop-juris-relatorio"></div>
-<div class="doc-modal" id="modal-juris-relatorio" style="display: none; z-index: var(--z-outline-modal, 1000);">
+<div class="doc-modal" id="modal-juris-relatorio" style="display: none; z-index: var(--z-outline-modal, 1000); max-width: 900px; width: 95%;">
     <div class="doc-modal__header">
-        <h3 class="doc-modal__title"><svg viewBox="0 0 24 24"><use href="#icon-quick-report"></use></svg> Juris Relatório</h3>
+        <h3 class="doc-modal__title">
+            <svg viewBox="0 0 24 24" style="width:20px; height:20px; margin-right:8px; stroke: #ffc107;"><use href="#icon-quick-report"></use></svg> 
+            Dados do Relatório
+        </h3>
         <button class="doc-modal__close-btn" onclick="JurisRelatorioManager.fecharModal()">✕</button>
     </div>
-    <div class="doc-modal__content" style="background-color: var(--theme-bg-jasmine); padding: 20px;">
-        <!-- Formulário de Estruturação -->
-        <textarea id="preview-text-relatorio" class="form-control locked" style="min-height: 250px;" readonly></textarea>
-        <button onclick="JurisRelatorioManager.copiarTexto()" class="btn-primary mt-3">Copiar Relatório</button>
+    
+    <div class="doc-modal__content jr-container" style="background-color: #f1f5f9; padding: 20px; overflow-y: auto; max-height: calc(100vh - 120px);">
+        
+        <form id="jr-relatorio-form">
+            <!-- A e B -->
+            <div class="jr-form-grid">
+                <div class="jr-form-group" style="margin: 0;">
+                    <label>[A] Nome do(a) Magistrado(a)</label>
+                    <input type="text" id="jr-magistrado" class="jr-form-control" placeholder="Ex: João da Silva">
+                </div>
+                <div class="jr-form-group" style="margin: 0;">
+                    <label>[B] Titularidade</label>
+                    <select id="jr-titularidade" class="jr-form-control">
+                        <option value="" disabled selected>Selecione...</option>
+                        <option value="Juiz(a) do Trabalho Titular">Juiz(a) do Trabalho Titular</option>
+                        <option value="Juiz(a) do Trabalho Substituto(a)">Juiz(a) do Trabalho Substituto(a)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- C e D -->
+            <div class="jr-form-grid">
+                <div class="jr-form-group" style="margin: 0;">
+                    <label>[C] Vara de Origem</label>
+                    <input type="text" id="jr-vara" class="jr-form-control" placeholder="Ex: 3ª VARA DE VÁRZEA GRANDE">
+                </div>
+                <div class="jr-form-group" style="margin: 0;">
+                    <label>[D] Sentença Principal (Fls. e ID)</label>
+                    <input type="text" id="jr-sentenca" class="jr-form-control" placeholder="Ex: 224/232 - Id. 39e6404">
+                </div>
+            </div>
+
+            <div class="jr-form-group">
+                <label>[E] Resultado da Sentença</label>
+                <select id="jr-resultado" class="jr-form-control">
+                    <option value="" disabled selected>Selecione...</option>
+                    <option value="PROCEDENTES">Procedentes</option>
+                    <option value="IMPROCEDENTES">Improcedentes</option>
+                    <option value="PROCEDENTES EM PARTE">Procedentes em parte</option>
+                </select>
+            </div>
+
+            <!-- BLOCO F -->
+            <div class="jr-sub-section">
+                <div class="jr-form-group" style="margin: 0;">
+                    <label>[F] Recurso Ordinário</label>
+                    <select id="jr-recurso" class="jr-form-control">
+                        <option value="" disabled selected>Selecione...</option>
+                        <option value="Parte autora">Parte autora</option>
+                        <option value="Parte ré">Parte ré</option>
+                        <option value="Ambas as partes">Ambas as partes</option>
+                    </select>
+                </div>
+                <div class="jr-form-group" style="margin-top: 1rem; margin-bottom: 0;">
+                    <label>[F.1] Fls. e Id do(s) Recurso(s)</label>
+                    <input type="text" id="jr-recurso-fls" class="jr-form-control" placeholder="Fls. / Id">
+                </div>
+            </div>
+
+            <!-- BLOCO G -->
+            <div class="jr-sub-section">
+                <div class="jr-form-group" style="margin: 0;">
+                    <label>[G] Embargos de Declaração</label>
+                    <select id="jr-embargos" class="jr-form-control" onchange="JurisRelatorioManager.toggleCondicionais()">
+                        <option value="Não houve" selected>Não houve (0)</option>
+                        <option value="Opostos pela autora">Opostos pela autora (1)</option>
+                        <option value="Opostos pela ré">Opostos pela ré (2)</option>
+                        <option value="Opostos por ambas">Opostos por ambas (3)</option>
+                    </select>
+                </div>
+                
+                <div id="jr-embargos-detalhes" class="jr-conditional">
+                    <div class="jr-form-grid">
+                        <div class="jr-form-group" style="margin: 0;">
+                            <label>[G.1] Fls. de oposição</label>
+                            <input type="text" id="jr-embargos-fls" class="jr-form-control" placeholder="Fls. / Id">
+                        </div>
+                        <div class="jr-form-group" style="margin: 0;">
+                            <label>[G.2] Resultado</label>
+                            <select id="jr-embargos-resultado" class="jr-form-control">
+                                <option value="" disabled selected>Selecione...</option>
+                                <option value="Acolhidos">Acolhidos</option>
+                                <option value="Rejeitados">Rejeitados</option>
+                                <option value="Acolhidos em parte">Acolhidos em parte</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="jr-form-group" style="margin-bottom: 0; margin-top: 1rem;">
+                        <label>[G.3] Sentença dos Embargos (Fls. e ID)</label>
+                        <input type="text" id="jr-embargos-sentenca" class="jr-form-control" placeholder="Fls. / Id">
+                    </div>
+                </div>
+            </div>
+
+            <!-- BLOCO H -->
+            <div class="jr-sub-section" style="margin-bottom: 2rem;">
+                <div class="jr-form-group" style="margin: 0;">
+                    <label>[H] Contrarrazões</label>
+                    <select id="jr-contrarrazoes" class="jr-form-control" onchange="JurisRelatorioManager.toggleCondicionais()">
+                        <option value="Não ofertadas" selected>Não ofertadas (0)</option>
+                        <option value="Ofertadas pela autora">Ofertadas pela autora (1)</option>
+                        <option value="Ofertadas pela ré">Ofertadas pela ré (2)</option>
+                        <option value="Ofertadas por ambas">Ofertadas por ambas (3)</option>
+                    </select>
+                </div>
+                
+                <div id="jr-contrarrazoes-detalhes" class="jr-conditional">
+                    <div class="jr-form-group" style="margin: 0;">
+                        <label>[H.1] Fls. e Id das Contrarrazões</label>
+                        <input type="text" id="jr-contrarrazoes-fls" class="jr-form-control" placeholder="Fls. / Id">
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <!-- PRÉ-VISUALIZAÇÃO -->
+        <div style="background-color: #fff; padding: 1.5rem; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 1rem;">
+            <h4 style="margin-bottom: 1rem; color: #1e293b;">Pré-visualização do Documento</h4>
+            <textarea id="jr-preview-text" class="jr-form-control jr-locked" readonly></textarea>
+        </div>
+
+        <button onclick="JurisRelatorioManager.copiarTexto()" class="jr-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            Copiar Relatório
+        </button>
+
     </div>
 </div>

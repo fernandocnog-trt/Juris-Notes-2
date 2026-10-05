@@ -1,14 +1,98 @@
+<style>
+    /* Estilos escopados para o Juris Prompts */
+    .jp-search { width: 100%; padding: 1rem 1rem 1rem 3rem; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 1rem; margin-bottom: 1.5rem; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 24 24" fill="none" stroke="%2364748b"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>') no-repeat 1rem center; background-size: 20px;}
+    .jp-search:focus { outline: none; border-color: #ffc107; box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.2); }
+    .jp-card { background-color: #ffffff; color: #1e293b; border-radius: 8px; padding: 1.25rem; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+    .jp-card-info { display: flex; flex-direction: column; gap: 4px; overflow: hidden; width: 70%; }
+    .jp-title { font-weight: 600; font-size: 1.1rem; }
+    .jp-preview { font-size: 0.85rem; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .jp-actions { display: flex; gap: 5px; }
+    .jp-icon-btn { background: none; border: 1px solid transparent; cursor: pointer; padding: 8px; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
+    .jp-icon-btn svg { width: 18px; height: 18px; stroke: #64748b; stroke-width: 2; fill: none; }
+    .jp-icon-btn:hover { background-color: #f1f5f9; }
+    .jp-play:hover svg { stroke: #000; fill: #ffc107; }
+    .jp-edit:hover svg { stroke: #0284c7; }
+    .jp-del:hover svg { stroke: #ef4444; }
+    
+    .jp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
+    @media (max-width: 768px) { .jp-grid { grid-template-columns: 1fr; } }
+    .jp-form-group { margin-bottom: 1.25rem; }
+    .jp-form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.85rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
+    .jp-input { width: 100%; padding: 0.75rem; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1rem; font-family: inherit; }
+    .jp-builder-area { background-color: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px dashed #e2e8f0; }
+    .jp-field-card { background: #ffffff; border: 1px solid #e2e8f0; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+    .jp-btn-add { background-color: #ffc107; color: #000; padding: 0.5rem 1rem; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+</style>
+
+<!-- MODAL 1: LISTAGEM PRINCIPAL -->
 <div class="modal-backdrop-modern" id="backdrop-juris-prompts"></div>
-<div class="doc-modal" id="modal-juris-prompts" style="display: none; z-index: var(--z-outline-modal, 1000); max-width: 900px;">
-    <div class="doc-modal__header">
-        <h3 class="doc-modal__title"><svg viewBox="0 0 24 24"><use href="#icon-robot"></use></svg> Juris Prompts</h3>
-        <div>
-            <button class="icon-btn" onclick="PromptUIController.abrirModalNovo()" title="Novo Prompt"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
-            <button class="doc-modal__close-btn" onclick="PromptUIController.fecharModalPrincipal()" style="margin-left: 10px;">✕</button>
+<div class="doc-modal" id="modal-juris-prompts" style="display: none; z-index: var(--z-outline-modal, 1000); max-width: 800px; width: 95%;">
+    <div class="doc-modal__header" style="align-items: center;">
+        <h3 class="doc-modal__title"><svg viewBox="0 0 24 24" style="width:20px; stroke:#ffc107; margin-right:8px;"><use href="#icon-robot"></use></svg> Juris Prompts</h3>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button class="jp-btn-add" onclick="PromptUIController.openAddModal()">+ Novo Modelo</button>
+            <button class="doc-modal__close-btn" onclick="PromptUIController.fecharModalPrincipal()">✕</button>
         </div>
     </div>
-    <div class="doc-modal__content" style="padding: 20px;">
-        <input type="text" id="searchInputPrompts" class="search-input" placeholder="Buscar modelo..." style="margin-bottom: 15px; width: 100%;">
-        <div id="promptListContainer"></div>
+    <div class="doc-modal__content" style="background-color: #f1f5f9; padding: 20px; overflow-y: auto; max-height: 70vh;">
+        <input type="text" id="jp-search" class="jp-search" placeholder="Buscar por nome ou conteúdo..." oninput="PromptUIController.filter()">
+        <div id="jp-list"></div>
+    </div>
+</div>
+
+<!-- MODAL 2: CRIAR/EDITAR -->
+<div class="modal-backdrop-modern" id="backdrop-jp-form" style="z-index: 1010;"></div>
+<div class="doc-modal" id="modal-jp-form" style="display: none; z-index: 1011; max-width: 900px; width: 95%;">
+    <div class="doc-modal__header">
+        <h3 class="doc-modal__title" id="jp-form-title">Novo Modelo</h3>
+        <button class="doc-modal__close-btn" onclick="PromptUIController.closeAddModal()">✕</button>
+    </div>
+    <div class="doc-modal__content" style="padding: 20px; overflow-y: auto; max-height: 80vh;">
+        <input type="hidden" id="jp-id">
+        <div class="jp-grid">
+            <div>
+                <div class="jp-form-group">
+                    <label>Nome do Modelo</label>
+                    <input type="text" id="jp-title-input" class="jp-input" required>
+                </div>
+                <div class="jp-form-group">
+                    <label>Teor do Prompt Base (Obrigatório)</label>
+                    <textarea id="jp-content-input" class="jp-input" style="min-height: 250px;" required></textarea>
+                </div>
+            </div>
+            <div class="jp-builder-area">
+                <label style="color: #1e293b; font-weight:bold;"><span style="color:#ffc107;">✦</span> Inteligência: Campos Extras</label>
+                <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">Crie campos específicos para preencher ao gerar o texto.</p>
+                <div id="jp-builder-container"></div>
+                <button type="button" class="jp-btn-add" style="background:#fff; border: 1px dashed #cbd5e0; color:#1e293b;" onclick="PromptUIController.addField('text')">+ Texto</button>
+                <button type="button" class="jp-btn-add" style="background:#fff; border: 1px dashed #cbd5e0; color:#1e293b; margin-top:5px;" onclick="PromptUIController.addField('checkbox')">+ Múltipla Escolha</button>
+            </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
+            <button class="jp-btn-add" style="background: transparent; border: 1px solid #e2e8f0; color: #64748b;" onclick="PromptUIController.closeAddModal()">Cancelar</button>
+            <button class="jp-btn-add" onclick="PromptUIController.savePrompt()">Salvar Modelo</button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL 3: GERAR E COPIAR -->
+<div class="modal-backdrop-modern" id="backdrop-jp-gen" style="z-index: 1010;"></div>
+<div class="doc-modal" id="modal-jp-gen" style="display: none; z-index: 1011; max-width: 700px; width: 95%;">
+    <div class="doc-modal__header">
+        <h3 class="doc-modal__title">Gerar e Copiar para IA</h3>
+        <button class="doc-modal__close-btn" onclick="PromptUIController.closeGenModal()">✕</button>
+    </div>
+    <div class="doc-modal__content" style="padding: 20px; overflow-y: auto; max-height: 80vh;">
+        <div class="jp-form-group">
+            <label>Instrução Base (Bloqueada)</label>
+            <textarea id="jp-gen-base" class="jp-input" style="background: #f8fafc; color: #64748b; border-style: dashed; min-height: 80px;" readonly></textarea>
+        </div>
+        <div id="jp-gen-dynamic" style="padding: 1.5rem; background: #fffcf0; border: 1px solid #fde08b; border-radius: 8px; display: none;">
+            <!-- Campos extras aqui -->
+        </div>
+        <button class="jp-btn-add" style="width: 100%; justify-content: center; margin-top: 15px;" onclick="PromptUIController.copyToClipboard()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            Copiar Definitivo
+        </button>
     </div>
 </div>
