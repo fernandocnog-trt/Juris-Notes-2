@@ -1,0 +1,14 @@
+<div class="modal-backdrop-modern" id="backdrop-juris-prompts"></div>
+<div class="doc-modal" id="modal-juris-prompts" style="display: none; z-index: var(--z-outline-modal, 1000); max-width: 900px;">
+    <div class="doc-modal__header">
+        <h3 class="doc-modal__title"><svg viewBox="0 0 24 24"><use href="#icon-robot"></use></svg> Juris Prompts</h3>
+        <div>
+            <button class="icon-btn" onclick="PromptUIController.abrirModalNovo()" title="Novo Prompt"><svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
+            <button class="doc-modal__close-btn" onclick="PromptUIController.fecharModalPrincipal()" style="margin-left: 10px;">✕</button>
+        </div>
+    </div>
+    <div class="doc-modal__content" style="padding: 20px;">
+        <input type="text" id="searchInputPrompts" class="search-input" placeholder="Buscar modelo..." style="margin-bottom: 15px; width: 100%;">
+        <div id="promptListContainer"></div>
+    </div>
+</div>

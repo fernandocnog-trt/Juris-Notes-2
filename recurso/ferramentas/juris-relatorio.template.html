@@ -1,0 +1,12 @@
+<div class="modal-backdrop-modern" id="backdrop-juris-relatorio"></div>
+<div class="doc-modal" id="modal-juris-relatorio" style="display: none; z-index: var(--z-outline-modal, 1000);">
+    <div class="doc-modal__header">
+        <h3 class="doc-modal__title"><svg viewBox="0 0 24 24"><use href="#icon-quick-report"></use></svg> Juris Relatório</h3>
+        <button class="doc-modal__close-btn" onclick="JurisRelatorioManager.fecharModal()">✕</button>
+    </div>
+    <div class="doc-modal__content" style="background-color: var(--theme-bg-jasmine); padding: 20px;">
+        <!-- Formulário de Estruturação -->
+        <textarea id="preview-text-relatorio" class="form-control locked" style="min-height: 250px;" readonly></textarea>
+        <button onclick="JurisRelatorioManager.copiarTexto()" class="btn-primary mt-3">Copiar Relatório</button>
+    </div>
+</div>
