@@ -1107,3 +1107,27 @@ body[data-active-tab="leitura"] #idea-markers-list {
     background: #ffffff;
     box-shadow: 0 0 0 2px rgba(26, 58, 92, 0.1);
 }
+
+/* ================================================
+   MODAIS DOCUMENTAIS: EFEITO TRANSLÚCIDO (BACKDROP)
+   ================================================ */
+.modal-backdrop-modern {
+    position: fixed;
+    inset: 0;
+    /* Mesma cor escura e transparência do Criar Tópico Recursal */
+    background: rgba(15, 23, 42, 0.6); 
+    /* Efeito de desfoque (Blur translúcido) */
+    backdrop-filter: blur(3px);        
+    -webkit-backdrop-filter: blur(3px);
+    
+    z-index: 990; /* Fica logo atrás da janela do modal */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+/* Quando o JavaScript ativa a tela, o efeito acende suavemente */
+.modal-backdrop-modern.active {
+    opacity: 1;
+    visibility: visible;
+}
