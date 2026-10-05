@@ -93,10 +93,22 @@ window.JurisRelatorioManager = (function() {
 
     async function copiarTexto() {
         const text = document.getElementById("jr-preview-text").value;
+        const toast = document.getElementById("jr-toast"); // Pega o Toast original
+        
         try {
             await navigator.clipboard.writeText(text);
-            if(window.exibirToast) exibirToast('Relatório copiado!', 'sucesso');
-        } catch (err) { alert('Erro ao copiar.'); }
+            
+            // Dispara a animação deslizando a notificação para cima
+            toast.classList.add('show');
+            
+            // Remove a classe após 3 segundos para ele deslizar para baixo
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+            
+        } catch (err) { 
+            alert('Erro ao copiar.'); 
+        }
     }
 
     return { abrirModal, fecharModal, toggleCondicionais, copiarTexto };

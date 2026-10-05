@@ -1,5 +1,5 @@
 <style>
-    /* Estilos escopados para o Juris Relatório não quebrarem o sistema principal */
+    /* Estilos escopados para o Juris Relatório */
     .jr-container { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #1e293b; }
     .jr-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.25rem; }
     @media (max-width: 650px) { .jr-form-grid { grid-template-columns: 1fr; gap: 1rem; } }
@@ -9,10 +9,18 @@
     select.jr-form-control { cursor: pointer; appearance: auto; }
     .jr-form-control:focus { outline: none; border-color: #ffc107; box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.2); }
     .jr-sub-section { background-color: #ffffff; border: 1px solid #e2e8f0; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.25rem; }
-    .jr-conditional { display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed #e2e8f0; }
+    
+    /* 1. RESTAURAÇÃO: Animação suave dos painéis condicionais */
+    @keyframes jrFadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+    .jr-conditional { display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed #e2e8f0; animation: jrFadeIn 0.3s ease; }
+    
     .jr-btn { background-color: #ffc107; color: #000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 1rem 2rem; border-radius: 8px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; text-transform: uppercase; }
     .jr-btn:hover { background-color: #e0a800; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
     .jr-locked { background-color: #f8fafc; color: #64748b; border-style: dashed; cursor: not-allowed; line-height: 1.6; min-height: 250px; font-family: monospace; font-size: 0.95rem; resize: vertical; }
+
+    /* 2. RESTAURAÇÃO: Efeito de Transição da Mensagem Flutuante (Toast Original) */
+    .jr-toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(100px); background-color: #1e293b; color: #fff; padding: 12px 24px; border-radius: 30px; font-weight: bold; box-shadow: 0 4px 15px rgba(0,0,0,0.3); transition: all 0.3s ease; z-index: 2000; opacity: 0; display: flex; align-items: center; gap: 10px; pointer-events: none; }
+    .jr-toast.show { transform: translateX(-50%) translateY(0); opacity: 1; }
 </style>
 
 <div class="modal-backdrop-modern" id="backdrop-juris-relatorio"></div>
@@ -151,4 +159,10 @@
         </button>
 
     </div>
+</div>
+
+<!-- 3. RESTAURAÇÃO: A div original do Toast injetada no final -->
+<div id="jr-toast" class="jr-toast">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#ffc107" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width: 20px; height: 20px;"><polyline points="20 6 9 17 4 12"></polyline></svg>
+    <span>Texto copiado com sucesso!</span>
 </div>
