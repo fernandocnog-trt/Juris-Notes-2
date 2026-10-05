@@ -67,6 +67,7 @@ window.PromptUIController = (function() {
 
     // Abertura Form
     function openAddModal() {
+        fecharModalPrincipal();
         getEl('jp-id').value = '';
         getEl('jp-title-input').value = '';
         getEl('jp-content-input').value = '';
@@ -77,6 +78,7 @@ window.PromptUIController = (function() {
         getEl('modal-jp-form').style.display = 'block';
     }
     function openEditModal(id) {
+        fecharModalPrincipal();
         const p = prompts.find(x => x.id === id);
         if(!p) return;
         getEl('jp-id').value = p.id;
@@ -91,10 +93,12 @@ window.PromptUIController = (function() {
     function closeAddModal() {
         getEl('backdrop-jp-form').classList.remove('active');
         getEl('modal-jp-form').style.display = 'none';
+        abrirModal();
     }
 
     // Abertura Gerador
     function openGenModal(id) {
+        fecharModalPrincipal();
         currentActivePrompt = prompts.find(x => x.id === id);
         if(!currentActivePrompt) return;
         getEl('jp-gen-base').value = currentActivePrompt.content;
@@ -126,6 +130,7 @@ window.PromptUIController = (function() {
     function closeGenModal() {
         getEl('backdrop-jp-gen').classList.remove('active');
         getEl('modal-jp-gen').style.display = 'none';
+        abrirModal();
     }
 
     // Ações e Persistência

@@ -93,21 +93,23 @@ window.JurisRelatorioManager = (function() {
 
     async function copiarTexto() {
         const text = document.getElementById("jr-preview-text").value;
-        const toast = document.getElementById("jr-toast"); // Pega o Toast original
         
         try {
             await navigator.clipboard.writeText(text);
             
-            // Dispara a animação deslizando a notificação para cima
-            toast.classList.add('show');
-            
-            // Remove a classe após 3 segundos para ele deslizar para baixo
-            setTimeout(() => {
-                toast.classList.remove('show');
-            }, 3000);
-            
+            // Dispara a API global de forma segura
+            if (typeof window.exibirToast === 'function') {
+                window.exibirToast('Relatório copiado com sucesso!', 'sucesso');
+            } else {
+                alert('Relatório copiado com sucesso!');
+            }
         } catch (err) { 
-            alert('Erro ao copiar.'); 
+            console.error("Erro na Clipboard API: ", err);
+            if (typeof window.exibirToast === 'function') {
+                window.exibirToast('Erro ao acessar a área de transferência.', 'erro');
+            } else {
+                alert('Erro ao copiar relatório.');
+            }
         }
     }
 

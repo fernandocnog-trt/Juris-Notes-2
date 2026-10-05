@@ -25,7 +25,7 @@
 </style>
 
 <!-- MODAL 1: LISTAGEM PRINCIPAL -->
-<div class="modal-backdrop-modern" id="backdrop-juris-prompts"></div>
+<div class="modal-backdrop-modern" id="backdrop-juris-prompts" onclick="PromptUIController.fecharModalPrincipal()"></div>
 <div class="doc-modal" id="modal-juris-prompts" style="display: none; z-index: var(--z-outline-modal, 1000); max-width: 800px; width: 95%;">
     <div class="doc-modal__header" style="align-items: center;">
         <h3 class="doc-modal__title"><svg viewBox="0 0 24 24" style="width:20px; stroke:#ffc107; margin-right:8px;"><use href="#icon-robot"></use></svg> Juris Prompts</h3>
@@ -41,7 +41,7 @@
 </div>
 
 <!-- MODAL 2: CRIAR/EDITAR -->
-<div class="modal-backdrop-modern" id="backdrop-jp-form" style="z-index: 1010;"></div>
+<div class="modal-backdrop-modern" id="backdrop-jp-form" style="z-index: 1010;" onclick="PromptUIController.closeAddModal()"></div>
 <div class="doc-modal" id="modal-jp-form" style="display: none; z-index: 1011; max-width: 900px; width: 95%;">
     <div class="doc-modal__header">
         <h3 class="doc-modal__title" id="jp-form-title">Novo Modelo</h3>
@@ -69,14 +69,14 @@
             </div>
         </div>
         <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
-            <button class="jp-btn-add" style="background: transparent; border: 1px solid #e2e8f0; color: #64748b;" onclick="PromptUIController.closeAddModal()">Cancelar</button>
+            <button class="jp-btn-add" style="background: transparent; border: 1px solid #e2e8f0; color: #64748b;" onclick="PromptUIController.closeAddModal()">← Voltar</button>
             <button class="jp-btn-add" onclick="PromptUIController.savePrompt()">Salvar Modelo</button>
         </div>
     </div>
 </div>
 
 <!-- MODAL 3: GERAR E COPIAR -->
-<div class="modal-backdrop-modern" id="backdrop-jp-gen" style="z-index: 1010;"></div>
+<div class="modal-backdrop-modern" id="backdrop-jp-gen" style="z-index: 1010;" onclick="PromptUIController.closeGenModal()"></div>
 <div class="doc-modal" id="modal-jp-gen" style="display: none; z-index: 1011; max-width: 700px; width: 95%;">
     <div class="doc-modal__header">
         <h3 class="doc-modal__title">Gerar e Copiar para IA</h3>
