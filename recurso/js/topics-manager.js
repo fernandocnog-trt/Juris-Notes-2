@@ -1459,7 +1459,11 @@ window.TopicsManager = (function () {
             sumarioHtml += '</div>';
         }
         
+        // 1. Criamos três "baldes" distintos para ancoragem magnética
+        let checkpointTopoHTML = '';
         let cardsHTML = '';
+        let checkpointRodapeHTML = '';
+        
         let temCheckpoint = false;
         let ultimaTeseRenderizada = null;
 
@@ -1477,7 +1481,8 @@ window.TopicsManager = (function () {
             
             const isTesePreenchida = (an.tese && an.tese.trim() !== '');
 
-            if (chaveTeseCrua !== ultimaTeseRenderizada) {
+            // Header de Teses (Ignorado para checkpoints)
+            if (!_ehCheckpoint(an) && chaveTeseCrua !== ultimaTeseRenderizada) {
                 if (isTesePreenchida || diretrizes.length > 0) {
                     const tituloExibicao = isTesePreenchida ? an.tese : "Tese Não Nomeada";
                     cardsHTML += _gerarHtmlTeseGroup(tituloExibicao, diretrizes, activeTabId, _activeTopicoCor, index, renderContext);
@@ -1486,10 +1491,18 @@ window.TopicsManager = (function () {
             }
             
             const htmlGerado = criarCard(an, index, topicoAtivo.anotacoes, renderContext);
+            
+            // 2. Roteamento Inteligente: Envia o HTML gerado para a extremidade correta
             if (_ehCheckpoint(an)) {
                 temCheckpoint = true;
+                if (an.tipo === 'checkpoint_entrada') {
+                    checkpointTopoHTML += htmlGerado; // Força ancoragem no topo absoluto
+                } else {
+                    checkpointRodapeHTML += htmlGerado; // Força ancoragem no rodapé absoluto
+                }
+            } else {
+                cardsHTML += htmlGerado; // Cartões de prova comuns ficam no meio
             }
-            cardsHTML += htmlGerado; // Acumulador único garantindo invariante de ordem do DOM
         });
 
         let htmlDiretrizesGlobais = '';
@@ -1566,11 +1579,14 @@ window.TopicsManager = (function () {
             </button>`;
         }
 
+        // 3. Montagem Final (Sanduíche Arquitetural)
         conteudoCentralHtml = sumarioHtml + `
             <div class="timeline-container" id="timeline-container">
                 <svg id="connections-canvas"></svg>
                 ${htmlDiretrizesGlobais}
+                ${checkpointTopoHTML}
                 ${cardsHTML}
+                ${checkpointRodapeHTML}
                 ${fabHtml}
             </div>`;
 
