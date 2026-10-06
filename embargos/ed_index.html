@@ -430,8 +430,9 @@
                 // PASSO 1: Injeção Idempotente de Templates e Módulos (Assets de ED e Globais)
                 const assets = [
                     { html: 'ed_modais.html', js: null, id: 'modal-gerador-contexto' },
-                    { html: 'ferramentas/juris-relatorio.template.html', js: './ferramentas/juris-relatorio.js', id: 'modal-juris-relatorio' },
-                    { html: 'ferramentas/juris-prompts.template.html', js: './ferramentas/juris-prompts.js', id: 'modal-juris-prompts' }
+                    // ATENÇÃO: Uso de '../' para voltar à raiz a partir da pasta do módulo ED
+                    { html: '../ferramentas/juris-relatorio.template.html', js: '../ferramentas/juris-relatorio.js', id: 'modal-juris-relatorio' },
+                    { html: '../ferramentas/juris-prompts.template.html', js: '../ferramentas/juris-prompts.js', id: 'modal-juris-prompts' }
                 ];
 
                 for (const asset of assets) {
