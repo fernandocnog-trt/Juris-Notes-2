@@ -469,7 +469,10 @@
     <!-- 2. Bootstrapper de Inicialização Diferida -->
     <script>
         (async function AppBootstrapper() {
-                      try {
+            // 1. NOVO: Marcamos o tempo exato em que o carregamento começou
+            const bootStartTime = Date.now(); 
+            
+            try {
                 // PASSO 1: Injeção Idempotente de Templates e Módulos (Assets Dinâmicos)
                 const assets = [
                     { html: 'modais.html', js: null, id: 'modal-gerador-contexto' },
@@ -521,36 +524,37 @@
                     });
                 }
 
-                // PASSO 3: Disparo de Gatilho de Inicialização (Vital para reviver o Menu)
-                // Como o carregamento foi diferido, simulamos o evento de conclusão da página
-                // para que o seu JS original ative os listeners de localStorage e temas.
+                // PASSO 3: Disparo de Gatilho de Inicialização
                 window.document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true, cancelable: true }));
                 window.dispatchEvent(new Event('load', { bubbles: true, cancelable: true }));
 
-                // PASSO 4: Tudo carregado e inicializado. Transição e remoção segura do Splash.
-                const splash = document.getElementById('juris-splash');
-                if (splash) {
-                    // Função para limpar o DOM apenas quando a transição acabar
-                    const finalizeSplash = (e) => {
-                        if (e && e.propertyName !== 'opacity' && e.propertyName !== 'visibility') return;
-                        splash.style.display = 'none';
-                        splash.remove(); // Limpeza efetiva da memória
-                    };
+                // PASSO 4: Coreografia do Splash Screen garantida
+                const MIN_SPLASH_TIME = 2200; // Tempo mínimo de tela (2.2 segundos) para as animações CSS terminarem
+                const elapsedTime = Date.now() - bootStartTime;
+                // Calcula quanto tempo ainda precisamos esperar (se o carregamento foi muito rápido)
+                const timeToWait = Math.max(0, MIN_SPLASH_TIME - elapsedTime);
 
-                    // Acopla o listener e inicia a transição CSS
-                    splash.addEventListener('transitionend', finalizeSplash, { once: true });
-                    splash.classList.add('is-hidden');
+                setTimeout(() => {
+                    const splash = document.getElementById('juris-splash');
+                    if (splash) {
+                        const finalizeSplash = (e) => {
+                            if (e && e.propertyName !== 'opacity' && e.propertyName !== 'visibility') return;
+                            splash.style.display = 'none';
+                            splash.remove(); 
+                        };
 
-                    // Failsafe: se a aba estiver inativa e o transitionend não disparar
-                    setTimeout(() => {
-                        if (document.body.contains(splash)) finalizeSplash();
-                    }, 600);
-                }
+                        splash.addEventListener('transitionend', finalizeSplash, { once: true });
+                        splash.classList.add('is-hidden');
 
-                console.log('🚀 Juris Notes inicializado com sucesso via Bootstrapper.');
+                        // Failsafe: se a aba estiver em segundo plano e a animação não rodar
+                        setTimeout(() => {
+                            if (document.body.contains(splash)) finalizeSplash();
+                        }, 600);
+                    }
+                    console.log('🚀 Juris Notes inicializado com sucesso via Bootstrapper.');
+                }, timeToWait);
 
             } catch (error) {
-                // NOVO: Imprime o erro detalhado no console (vermelho)
                 console.error('🚨 Erro Crítico na Inicialização:', error.message || error);
                 const splashText = document.getElementById('splash-dynamic-text');
                 if(splashText) splashText.innerText = "Erro ao carregar o sistema: " + (error.message || "Verifique o Console (F12).");
