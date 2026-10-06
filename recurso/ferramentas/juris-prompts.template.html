@@ -1,7 +1,58 @@
 <style>
     /* Estilos escopados para o Juris Prompts */
-    .jp-search { width: 100%; padding: 1rem 1rem 1rem 3rem; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 1rem; margin-bottom: 1.5rem; background: url('data:image/svg+xml;utf8,<svg viewBox="0 0 24 24" fill="none" stroke="%2364748b"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>') no-repeat 1rem center; background-size: 20px;}
-    .jp-search:focus { outline: none; border-color: #ffc107; box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.2); }
+    /* 1. Wrapper da Barra de Pesquisa */
+    .jp-search-wrapper {
+        position: relative;
+        width: 100%;
+        margin-bottom: 1.5rem;
+    }
+    .jp-search-icon {
+        position: absolute;
+        left: 1rem;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 18px;
+        height: 18px;
+        color: #64748b;
+        pointer-events: none; /* Impede que a lupa intercepte cliques do input */
+    }
+
+    /* 2. Barra de pesquisa sem background image e ajustada */
+    .jp-search { 
+        width: 100%; 
+        padding: 1rem 1rem 1rem 2.8rem; /* Espaçamento da esquerda alocado para o SVG */
+        border-radius: 8px; 
+        border: 1px solid #e2e8f0; 
+        font-size: 1rem; 
+        background-color: #ffffff;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease;
+        font-family: inherit;
+    }
+    .jp-search:focus { 
+        outline: none; 
+        border-color: #ffc107; 
+        box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.2); 
+    }
+
+    /* 3. Scrollbar estritamente escopada ao Modal Juris Prompts */
+    #modal-juris-prompts .doc-modal__content {
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e0 transparent;
+    }
+    #modal-juris-prompts .doc-modal__content::-webkit-scrollbar {
+        width: 6px;
+    }
+    #modal-juris-prompts .doc-modal__content::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    #modal-juris-prompts .doc-modal__content::-webkit-scrollbar-thumb {
+        background-color: #cbd5e0;
+        border-radius: 10px;
+    }
+    #modal-juris-prompts .doc-modal__content::-webkit-scrollbar-thumb:hover {
+        background-color: #94a3b8;
+    }
+
     .jp-card { background-color: #ffffff; color: #1e293b; border-radius: 8px; padding: 1.25rem; border: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
     .jp-card-info { display: flex; flex-direction: column; gap: 4px; overflow: hidden; width: 70%; }
     .jp-title { font-weight: 600; font-size: 1.1rem; }
@@ -35,7 +86,14 @@
         </div>
     </div>
     <div class="doc-modal__content" style="background-color: #f1f5f9; padding: 20px; overflow-y: auto; max-height: 70vh;">
-        <input type="text" id="jp-search" class="jp-search" placeholder="Buscar por nome ou conteúdo..." oninput="PromptUIController.filter()">
+        <!-- NOVO WRAPPER COM SVG ACESSÍVEL E INPUT SEM ONINPUT -->
+        <div class="jp-search-wrapper">
+            <svg class="jp-search-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="jp-search" class="jp-search" placeholder="Buscar por nome ou conteúdo...">
+        </div>
         <div id="jp-list"></div>
     </div>
 </div>

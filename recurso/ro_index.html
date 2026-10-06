@@ -527,9 +527,25 @@
                 window.document.dispatchEvent(new Event('DOMContentLoaded', { bubbles: true, cancelable: true }));
                 window.dispatchEvent(new Event('load', { bubbles: true, cancelable: true }));
 
-                // PASSO 4: Tudo carregado e inicializado. Removemos o Splash Screen.
+                // PASSO 4: Tudo carregado e inicializado. Transição e remoção segura do Splash.
                 const splash = document.getElementById('juris-splash');
-                if(splash) splash.style.display = 'none';
+                if (splash) {
+                    // Função para limpar o DOM apenas quando a transição acabar
+                    const finalizeSplash = (e) => {
+                        if (e && e.propertyName !== 'opacity' && e.propertyName !== 'visibility') return;
+                        splash.style.display = 'none';
+                        splash.remove(); // Limpeza efetiva da memória
+                    };
+
+                    // Acopla o listener e inicia a transição CSS
+                    splash.addEventListener('transitionend', finalizeSplash, { once: true });
+                    splash.classList.add('is-hidden');
+
+                    // Failsafe: se a aba estiver inativa e o transitionend não disparar
+                    setTimeout(() => {
+                        if (document.body.contains(splash)) finalizeSplash();
+                    }, 600);
+                }
 
                 console.log('🚀 Juris Notes inicializado com sucesso via Bootstrapper.');
 

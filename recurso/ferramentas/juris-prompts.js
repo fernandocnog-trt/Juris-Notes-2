@@ -220,6 +220,16 @@ window.PromptUIController = (function() {
         }
     }
 
+    // --- NOVO: Delegação de Eventos Global ---
+    // Garante que o filtro funcione mesmo com o HTML sendo injetado dinamicamente
+    document.addEventListener('input', (e) => {
+        if (e.target && e.target.id === 'jp-search') {
+            // Debounce não implementado agora para manter compatibilidade retroativa, 
+            // mas o gatilho está isolado.
+            PromptUIController.filter();
+        }
+    });
+
     return {
         abrirModal, fecharModalPrincipal, filter: () => {
             const term = getEl('jp-search').value.toLowerCase();
