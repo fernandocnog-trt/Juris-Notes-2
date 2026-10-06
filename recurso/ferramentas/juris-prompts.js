@@ -163,61 +163,25 @@ window.PromptUIController = (function() {
     }
 
     async function copyToClipboard() {
-        // 1. Injeção do Teor Base do Prompt (sempre garantido)
-        let final = currentActivePrompt.content.trim() + "\n\n";
-        
-        // 2. Avaliação de Contexto Dinâmico Baseada em Schema (Data-Driven)
-        if (currentActivePrompt.customFields && currentActivePrompt.customFields.length > 0) {
-            let extrasText = "--- INSTRUÇÕES ADICIONAIS / CONTEXTO DA PEÇA ---\n\n";
-            
-            // Iteração rigorosa sobre os campos planejados no modelo
-            currentActivePrompt.customFields.forEach(f => {
-                extrasText += `### ${f.label} ###\n`;
-                
-                if (f.type === 'text') {
-                    const inp = document.querySelector(`.jp-dyn-txt[data-label="${f.label}"]`);
-                    const valor = inp ? inp.value.trim() : '';
-                    
-                    if (valor !== '') {
-                        extrasText += `${valor}\n\n`;
-                    } else {
-                        // Prevenção de Alucinação (Negative Prompt)
-                        extrasText += `[Atenção IA: Nenhuma informação foi fornecida pelo usuário para este tópico. Não presuma dados.]\n\n`;
-                    }
-                } 
-                else if (f.type === 'checkbox') {
-                    const grp = document.querySelector(`.jp-dyn-chk-grp[data-label="${f.label}"]`);
-                    if (grp) {
-                        const checks = grp.querySelectorAll('input:checked');
-                        if (checks.length > 0) {
-                            checks.forEach(c => extrasText += `- ${c.value}\n`);
-                            extrasText += `\n`;
-                        } else {
-                            // Prevenção de Alucinação para Arrays/Múltipla Escolha
-                            extrasText += `[Atenção IA: Nenhuma das opções predefinidas foi selecionada.]\n\n`;
-                        }
-                    }
+        let final = currentActivePrompt.content + "\n\n";
+        if(getEl('jp-gen-dynamic').style.display === 'block') {
+            document.querySelectorAll('.jp-dyn-txt').forEach(inp => {
+                if(inp.value.trim() !== '') final += `[${inp.getAttribute('data-label')}]:\n${inp.value.trim()}\n\n`;
+            });
+            document.querySelectorAll('.jp-dyn-chk-grp').forEach(grp => {
+                const checks = grp.querySelectorAll('input:checked');
+                if(checks.length > 0) {
+                    final += `[${grp.getAttribute('data-label')}]:\n`;
+                    checks.forEach(c => final += `- ${c.value}\n`);
+                    final += `\n`;
                 }
             });
-            
-            // Acoplamento do contexto dinâmico ao payload final
-            final += extrasText;
         }
-        
-        // 3. Execução Segura via API Assíncrona
         try {
             await navigator.clipboard.writeText(final.trim());
-            // Interface com sistema de Toast global do Juris Core
-            if (typeof window.exibirToast === 'function') {
-                window.exibirToast('Prompt estruturado e copiado com sucesso!', 'sucesso');
-            } else {
-                alert('Modelo estruturado copiado para a área de transferência!');
-            }
+            if(window.exibirToast) exibirToast('Copiado!', 'sucesso');
             closeGenModal();
-        } catch(e) { 
-            console.error("Juris Prompts [Clipboard Error]:", e);
-            alert('Falha ao acessar a área de transferência. Verifique as permissões de segurança do navegador.'); 
-        }
+        } catch(e) { alert('Erro ao copiar.'); }
     }
 
     return {
