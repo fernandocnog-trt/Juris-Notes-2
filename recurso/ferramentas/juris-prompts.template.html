@@ -41,8 +41,8 @@
 </div>
 
 <!-- MODAL 2: CRIAR/EDITAR -->
-<div class="modal-backdrop-modern" id="backdrop-jp-form" style="z-index: 1010;" onclick="PromptUIController.closeAddModal()"></div>
-<div class="doc-modal" id="modal-jp-form" style="display: none; z-index: 1011; max-width: 900px; width: 95%;">
+<div class="modal-backdrop-modern jp-elevated-backdrop" id="backdrop-jp-form" onclick="PromptUIController.closeAddModal()"></div>
+<div class="doc-modal jp-elevated-modal" id="modal-jp-form" role="dialog" aria-modal="true" style="display: none; max-width: 900px; width: 95%;">
     <div class="doc-modal__header">
         <h3 class="doc-modal__title" id="jp-form-title">Novo Modelo</h3>
         <button class="doc-modal__close-btn" onclick="PromptUIController.closeAddModal()">✕</button>
@@ -76,8 +76,8 @@
 </div>
 
 <!-- MODAL 3: GERAR E COPIAR -->
-<div class="modal-backdrop-modern" id="backdrop-jp-gen" style="z-index: 1010;" onclick="PromptUIController.closeGenModal()"></div>
-<div class="doc-modal" id="modal-jp-gen" style="display: none; z-index: 1011; max-width: 700px; width: 95%;">
+<div class="modal-backdrop-modern jp-elevated-backdrop" id="backdrop-jp-gen" onclick="PromptUIController.closeGenModal()"></div>
+<div class="doc-modal jp-elevated-modal" id="modal-jp-gen" role="dialog" aria-modal="true" style="display: none; max-width: 700px; width: 95%;">
     <div class="doc-modal__header">
         <h3 class="doc-modal__title">Gerar e Copiar para IA</h3>
         <button class="doc-modal__close-btn" onclick="PromptUIController.closeGenModal()">✕</button>

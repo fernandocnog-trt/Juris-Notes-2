@@ -1131,3 +1131,16 @@ body[data-active-tab="leitura"] #idea-markers-list {
     opacity: 1;
     visibility: visible;
 }
+
+/* ================================================
+   MODIFICADORES DE ELEVAÇÃO: JURIS PROMPTS
+   ================================================ */
+/* Eleva a película escura de desfoque */
+.modal-backdrop-modern.jp-elevated-backdrop {
+    z-index: var(--z-juris-prompt, 5000);
+}
+
+/* Eleva a janela do modal acima da película */
+.doc-modal.jp-elevated-modal {
+    z-index: calc(var(--z-juris-prompt, 5000) + 1);
+}
