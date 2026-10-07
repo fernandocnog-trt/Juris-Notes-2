@@ -27,7 +27,7 @@ window.PromptUIController = (function() {
 
         data.forEach(p => {
             const hasExtras = p.customFields && p.customFields.length > 0;
-            const badge = hasExtras ? `<span style="background:#e0f2fe; color:#0369a1; padding: 2px 6px; border-radius:4px; font-size:0.7rem; margin-left:8px;">+${p.customFields.length} extras</span>` : '';
+            const badge = hasExtras ? `<span style="background: var(--semantic-info-bg, #e0f2fe); color: var(--semantic-info-text, #0369a1); padding: 2px 6px; border-radius:4px; font-size:0.7rem; margin-left:8px;">+${p.customFields.length} extras</span>` : '';
             
             const card = document.createElement('div');
             card.className = 'jp-card';
@@ -39,7 +39,7 @@ window.PromptUIController = (function() {
                 <div class="jp-actions">
                     <button class="jp-icon-btn jp-play" onclick="PromptUIController.openGenModal('${p.id}')" title="Gerar"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg></button>
                     <button class="jp-icon-btn jp-edit" onclick="PromptUIController.openEditModal('${p.id}')" title="Editar"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                    <button class="jp-icon-btn jp-del" onclick="PromptUIController.deletePrompt('${p.id}')" title="Excluir"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                    <button class="jp-icon-btn jp-del" onclick="PromptUIController.deletePrompt('${p.id}')" title="Excluir"><svg viewBox="0 0 24 24" style="stroke: var(--semantic-danger, #ef4444);"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
                 </div>
             `;
             list.appendChild(card);
@@ -134,7 +134,7 @@ window.PromptUIController = (function() {
 
         if (currentActivePrompt.customFields && currentActivePrompt.customFields.length > 0) {
             genDiv.style.display = 'block';
-            let html = '<div style="font-size:0.85rem; font-weight:bold; color:#b48500; margin-bottom:10px;">Preencha:</div>';
+            let html = `<div style="font-size:0.85rem; font-weight:bold; color: var(--theme-primary, #b48500); margin-bottom:10px;">Preencha:</div>`;
             currentActivePrompt.customFields.forEach(f => {
                 html += `<div class="jp-form-group"><label>${f.label}</label>`;
                 if(f.type === 'text') {

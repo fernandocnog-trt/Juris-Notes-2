@@ -1,5 +1,11 @@
 window.JurisRelatorioManager = (function() {
     
+    // Gerador dinâmico de namespace para evitar colisão de estado
+    function getNamespaceKey() {
+        const moduloAtivo = document.body.dataset.module || 'geral';
+        return `juris_relatorio_draft_${moduloAtivo}`;
+    }
+
     function initEvents() {
         const form = document.getElementById('jr-relatorio-form');
         if(!form) return;
@@ -73,17 +79,17 @@ window.JurisRelatorioManager = (function() {
             const formInputs = document.querySelectorAll('#jr-relatorio-form input, #jr-relatorio-form select');
             const data = {};
             formInputs.forEach(el => {
-                if (el.id) data[el.id] = el.value;
-            });
-            localStorage.setItem('juris_relatorio_draft', JSON.stringify(data));
-        } catch (e) {
+            if (el.id) data[el.id] = el.value;
+        });
+        localStorage.setItem(getNamespaceKey(), JSON.stringify(data));
+    } catch (e) {
             console.warn("Erro ao salvar rascunho do relatório localmente.", e);
         }
     }
 
     function carregarDados() {
         try {
-            const draft = JSON.parse(localStorage.getItem('juris_relatorio_draft'));
+            const draft = JSON.parse(localStorage.getItem(getNamespaceKey()));
             if (!draft) return;
 
             Object.keys(draft).forEach(id => {

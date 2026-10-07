@@ -7,6 +7,11 @@
    1. VARIÁVEIS, Z-INDEX CENTRALIZADO E RESET
    ================================================ */
 :root {
+    /* DEFINIÇÃO GLOBAL SEMÂNTICA (Imutável) */
+    --semantic-danger: #ef4444;      /* Botões de excluir/alerta */
+    --semantic-info-bg: #e0f2fe;     /* Fundo de badges informativos */
+    --semantic-info-text: #0369a1;   /* Texto de badges informativos */
+
     /* Design Tokens Bases */
     --theme-bg-jasmine: #FFD580;
     --theme-border-jasmine: #fbc02d;
@@ -67,18 +72,39 @@
 body[data-module="ro"] {
     --module-primary: #fbc02d;
     --module-border: #f57f17;
+    
+    /* Alias Theming (Shared Modals) */
+    --theme-primary: var(--module-primary);
+    --theme-hover: var(--module-border);
+    --theme-light-bg: rgba(251, 192, 45, 0.1);
+    --theme-light-border: rgba(251, 192, 45, 0.4);
+    --theme-text-on-primary: #000000;
 }
 
 /* Identidade: Embargos de Declaração (Fúcsia) */
 body[data-module="ed"] {
     --module-primary: #D500B5;
     --module-border: #A3008A;
+    
+    /* Alias Theming (Shared Modals) */
+    --theme-primary: var(--module-primary);
+    --theme-hover: var(--module-border);
+    --theme-light-bg: rgba(213, 0, 181, 0.06);
+    --theme-light-border: rgba(213, 0, 181, 0.35);
+    --theme-text-on-primary: #ffffff;
 }
 
 /* Identidade: Agravo de Instrumento (Verde Lima) */
 body[data-module="ai"] {
     --module-primary: #aeea00;
     --module-border: #7cb342;
+    
+    /* Alias Theming (Shared Modals) */
+    --theme-primary: var(--module-primary);
+    --theme-hover: var(--module-border);
+    --theme-light-bg: rgba(174, 234, 0, 0.08);
+    --theme-light-border: rgba(174, 234, 0, 0.4);
+    --theme-text-on-primary: #000000;
 }
 
 *, *::before, *::after {

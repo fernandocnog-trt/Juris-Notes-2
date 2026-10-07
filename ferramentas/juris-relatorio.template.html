@@ -7,15 +7,15 @@
     .jr-form-group label { display: block; margin-bottom: 0.5rem; font-size: 0.85rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
     .jr-form-control { width: 100%; padding: 0.75rem 1rem; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1rem; color: #1e293b; transition: all 0.3s ease; font-family: inherit; }
     select.jr-form-control { cursor: pointer; appearance: auto; }
-    .jr-form-control:focus { outline: none; border-color: #ffc107; box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.2); }
+    .jr-form-control:focus { outline: none; border-color: var(--theme-primary, #ffc107); box-shadow: 0 0 0 3px var(--theme-light-border, rgba(255, 193, 7, 0.2)); }
     .jr-sub-section { background-color: #ffffff; border: 1px solid #e2e8f0; padding: 1.5rem; border-radius: 8px; margin-bottom: 1.25rem; }
     
     /* 1. RESTAURAÇÃO: Animação suave dos painéis condicionais */
     @keyframes jrFadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
     .jr-conditional { display: none; margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed #e2e8f0; animation: jrFadeIn 0.3s ease; }
     
-    .jr-btn { background-color: #ffc107; color: #000; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 1rem 2rem; border-radius: 8px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; text-transform: uppercase; }
-    .jr-btn:hover { background-color: #e0a800; transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
+    .jr-btn { background-color: var(--theme-primary, #ffc107); color: var(--theme-text-on-primary, #000); box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 1rem 2rem; border-radius: 8px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease; display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; text-transform: uppercase; }
+    .jr-btn:hover { background-color: var(--theme-hover, #e0a800); transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
     .jr-locked { background-color: #f8fafc; color: #64748b; border-style: dashed; cursor: not-allowed; line-height: 1.6; min-height: 250px; font-family: monospace; font-size: 0.95rem; resize: vertical; }
 </style>
 
@@ -23,7 +23,7 @@
 <div class="doc-modal" id="modal-juris-relatorio" style="display: none; z-index: var(--z-outline-modal, 1000); max-width: 900px; width: 95%;">
     <div class="doc-modal__header">
         <h3 class="doc-modal__title">
-            <svg viewBox="0 0 24 24" style="width:20px; height:20px; margin-right:8px; stroke: #ffc107;"><use href="#icon-quick-report"></use></svg> 
+            <svg viewBox="0 0 24 24" style="width:20px; height:20px; margin-right:8px; stroke: var(--theme-primary, #ffc107);"><use href="#icon-quick-report"></use></svg> 
             Dados do Relatório
         </h3>
         <button class="doc-modal__close-btn" onclick="JurisRelatorioManager.fecharModal()">✕</button>

@@ -30,8 +30,8 @@
     }
     .jp-search:focus { 
         outline: none; 
-        border-color: #ffc107; 
-        box-shadow: 0 0 0 3px rgba(255, 193, 7, 0.2); 
+        border-color: var(--theme-primary, #ffc107); 
+        box-shadow: 0 0 0 3px var(--theme-light-border, rgba(255, 193, 7, 0.2)); 
     }
 
     /* 3. Scrollbar estritamente escopada ao Modal Juris Prompts */
@@ -61,9 +61,9 @@
     .jp-icon-btn { background: none; border: 1px solid transparent; cursor: pointer; padding: 8px; border-radius: 6px; display: flex; align-items: center; justify-content: center; }
     .jp-icon-btn svg { width: 18px; height: 18px; stroke: #64748b; stroke-width: 2; fill: none; }
     .jp-icon-btn:hover { background-color: #f1f5f9; }
-    .jp-play:hover svg { stroke: #000; fill: #ffc107; }
+    .jp-play:hover svg { stroke: var(--theme-text-on-primary, #000); fill: var(--theme-primary, #ffc107); }
     .jp-edit:hover svg { stroke: #0284c7; }
-    .jp-del:hover svg { stroke: #ef4444; }
+    .jp-del:hover svg { stroke: var(--semantic-danger, #ef4444); }
     
     .jp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
     @media (max-width: 768px) { .jp-grid { grid-template-columns: 1fr; } }
@@ -72,14 +72,14 @@
     .jp-input { width: 100%; padding: 0.75rem; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 1rem; font-family: inherit; }
     .jp-builder-area { background-color: #f8fafc; padding: 1.5rem; border-radius: 8px; border: 1px dashed #e2e8f0; }
     .jp-field-card { background: #ffffff; border: 1px solid #e2e8f0; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
-    .jp-btn-add { background-color: #ffc107; color: #000; padding: 0.5rem 1rem; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+    .jp-btn-add { background-color: var(--theme-primary, #ffc107); color: var(--theme-text-on-primary, #000); padding: 0.5rem 1rem; border-radius: 6px; border: none; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease; }
 </style>
 
 <!-- MODAL 1: LISTAGEM PRINCIPAL -->
 <div class="modal-backdrop-modern" id="backdrop-juris-prompts" onclick="PromptUIController.fecharModalPrincipal()"></div>
 <div class="doc-modal" id="modal-juris-prompts" style="display: none; z-index: var(--z-outline-modal, 1000); max-width: 800px; width: 95%;">
-    <div class="doc-modal__header" style="align-items: center;">
-        <h3 class="doc-modal__title"><svg viewBox="0 0 24 24" style="width:20px; stroke:#ffc107; margin-right:8px;"><use href="#icon-robot"></use></svg> Juris Prompts</h3>
+    <div class="jp-builder-area">
+                <label style="color: #1e293b; font-weight:bold;"><span style="color:var(--theme-primary, #ffc107);">✦</span> Inteligência: Campos Extras</label>
         <div style="display: flex; gap: 10px; align-items: center;">
             <button class="jp-btn-add" onclick="PromptUIController.openAddModal()">+ Novo Modelo</button>
             <button class="doc-modal__close-btn" onclick="PromptUIController.fecharModalPrincipal()">✕</button>
