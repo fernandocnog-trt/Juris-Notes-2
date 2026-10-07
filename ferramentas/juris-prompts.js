@@ -1,9 +1,21 @@
 window.PromptUIController = (function() {
-    let prompts = JSON.parse(localStorage.getItem('juris_prompts_v2')) || [];
+    let prompts = [];
     let currentActivePrompt = null;
     let editingCustomFields = [];
+    let isSyncing = false; // Semáforo de concorrência
 
     const getEl = (id) => document.getElementById(id);
+
+    // Verificador de Autenticação (Auth Guard)
+    function verificarSessao() {
+        const btnLogin = document.getElementById('btn-login-user');
+        if (btnLogin && !btnLogin.classList.contains('is-logged-in')) {
+            if (window.exibirToast) window.exibirToast('Você precisa estar conectado à nuvem.', 'aviso');
+            if (typeof toggleLoginMenu === 'function') toggleLoginMenu();
+            return false;
+        }
+        return true;
+    }
 
     function renderList(data = prompts) {
         const list = getEl('jp-list');
@@ -54,11 +66,24 @@ window.PromptUIController = (function() {
         });
     }
 
-    // Abertura Modal Principal
-    function abrirModal() {
+    // Abertura Modal Principal com Auth Guard e Caching
+    async function abrirModal() {
+        if (!verificarSessao()) return;
+
         getEl('backdrop-juris-prompts').classList.add('active');
         getEl('modal-juris-prompts').style.display = 'block';
-        renderList();
+        
+        getEl('jp-list').innerHTML = `<div style="text-align: center; padding: 2rem; color: #64748b;">⏳ Sincronizando com a nuvem...</div>`;
+        
+        try {
+            if (!window.FirebasePrompts) throw new Error("Módulo de nuvem não carregado.");
+            // Fetch limpo. Só ocorre na abertura.
+            prompts = await window.FirebasePrompts.carregar();
+            renderList();
+        } catch (error) {
+            console.error("Juris Prompts [Firebase Error]:", error);
+            getEl('jp-list').innerHTML = `<div style="text-align: center; color: #ef4444; padding: 2rem;">Falha ao sincronizar. Verifique sua conexão.</div>`;
+        }
     }
     function fecharModalPrincipal() {
         getEl('backdrop-juris-prompts').classList.remove('active');
@@ -134,31 +159,65 @@ window.PromptUIController = (function() {
     }
 
     // Ações e Persistência
-    function savePrompt() {
+    async function savePrompt() {
+        if (isSyncing) return;
+        if (!verificarSessao()) return;
+
         const id = getEl('jp-id').value;
         const title = getEl('jp-title-input').value.trim();
         const content = getEl('jp-content-input').value.trim();
         if(!title || !content) { alert('Preencha nome e teor.'); return; }
         
         const validFields = editingCustomFields.filter(f => f.label.trim() !== '');
-        
-        if(id) {
-            const idx = prompts.findIndex(x => x.id === id);
-            prompts[idx] = { id, title, content, customFields: validFields };
-        } else {
-            prompts.push({ id: 'p_'+Date.now().toString(36), title, content, customFields: validFields });
+        const promptObj = { title, content, customFields: validFields };
+        if (id) promptObj.id = id;
+
+        try {
+            isSyncing = true;
+            document.body.style.cursor = 'wait';
+            
+            // Grava na nuvem
+            const idGerado = await window.FirebasePrompts.salvar(promptObj);
+            
+            // OPTIMISTIC CACHE UPDATE: Modifica apenas o array local (O(1))
+            if (id) {
+                const idx = prompts.findIndex(p => p.id === id);
+                if (idx !== -1) prompts[idx] = { ...promptObj, id };
+            } else {
+                prompts.push({ ...promptObj, id: idGerado });
+            }
+
+            closeAddModal();
+            renderList();
+            if (window.exibirToast) window.exibirToast('Salvo na nuvem com sucesso!', 'sucesso');
+            
+        } catch (error) {
+            console.error("Erro ao salvar:", error);
+            if (window.exibirToast) window.exibirToast('Erro crítico ao salvar. Tente novamente.', 'erro');
+        } finally {
+            isSyncing = false;
+            document.body.style.cursor = 'default';
         }
-        localStorage.setItem('juris_prompts_v2', JSON.stringify(prompts));
-        closeAddModal();
-        renderList();
-        if(window.exibirToast) exibirToast('Salvo com sucesso!', 'sucesso');
     }
 
-    function deletePrompt(id) {
-        if(confirm('Excluir este modelo?')) {
-            prompts = prompts.filter(x => x.id !== id);
-            localStorage.setItem('juris_prompts_v2', JSON.stringify(prompts));
-            renderList();
+    async function deletePrompt(id) {
+        if (isSyncing || !verificarSessao()) return;
+
+        if(confirm('Excluir este modelo da nuvem definitivamente?')) {
+            try {
+                isSyncing = true;
+                await window.FirebasePrompts.excluir(id);
+                
+                // OPTIMISTIC UPDATE: Filtra da memória, sem ler o DB de novo
+                prompts = prompts.filter(p => p.id !== id);
+                renderList();
+                
+                if (window.exibirToast) window.exibirToast('Modelo excluído!', 'sucesso');
+            } catch (error) {
+                if (window.exibirToast) window.exibirToast('Falha ao excluir.', 'erro');
+            } finally {
+                isSyncing = false;
+            }
         }
     }
 

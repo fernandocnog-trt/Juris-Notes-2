@@ -70,25 +70,29 @@ window.JurisRelatorioManager = (function() {
 
     function salvarDados() {
         try {
-            const data = {
-                magistrado: document.getElementById('jr-magistrado').value,
-                titularidade: document.getElementById('jr-titularidade').value,
-                vara: document.getElementById('jr-vara').value
-                // Salva apenas os básicos para reabertura rápida
-            };
+            const formInputs = document.querySelectorAll('#jr-relatorio-form input, #jr-relatorio-form select');
+            const data = {};
+            formInputs.forEach(el => {
+                if (el.id) data[el.id] = el.value;
+            });
             localStorage.setItem('juris_relatorio_draft', JSON.stringify(data));
-        } catch (e) { }
+        } catch (e) {
+            console.warn("Erro ao salvar rascunho do relatório localmente.", e);
+        }
     }
 
     function carregarDados() {
         try {
             const draft = JSON.parse(localStorage.getItem('juris_relatorio_draft'));
-            if(draft) {
-                if(draft.magistrado) document.getElementById('jr-magistrado').value = draft.magistrado;
-                if(draft.titularidade) document.getElementById('jr-titularidade').value = draft.titularidade;
-                if(draft.vara) document.getElementById('jr-vara').value = draft.vara;
-            }
-        } catch (e) {}
+            if (!draft) return;
+
+            Object.keys(draft).forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = draft[id];
+            });
+        } catch (e) {
+            console.warn("Erro ao carregar rascunho do relatório.", e);
+        }
     }
 
     async function copiarTexto() {
