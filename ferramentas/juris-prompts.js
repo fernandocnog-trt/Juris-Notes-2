@@ -52,7 +52,16 @@ window.PromptUIController = (function() {
         editingCustomFields.forEach((field, index) => {
             const card = document.createElement('div');
             card.className = 'jp-field-card';
-            let spec = field.type === 'checkbox' ? `<label style="font-size:0.8rem; margin-top:8px; display:block;">Opções (uma por linha):</label><textarea class="jp-input" style="min-height:60px; padding:0.5rem;" onchange="PromptUIController.updField(${index}, 'options', this.value)">${field.options || ''}</textarea>` : '';
+            let spec = '';
+            if (field.type === 'checkbox') {
+                spec = `
+                    <label style="font-size:0.8rem; margin-top:8px; display:block; color: #475569;">Opções (uma por linha):</label>
+                    <textarea class="jp-input" style="min-height:60px; padding:0.5rem;" onchange="PromptUIController.updField(${index}, 'options', this.value)" required>${field.options || ''}</textarea>
+                    
+                    <label style="font-size:0.8rem; margin-top:8px; display:block; color: #475569;">Diretrizes Específicas p/ IA (Opcional):</label>
+                    <textarea class="jp-input" style="min-height:45px; padding:0.5rem; background-color: #f8fafc;" placeholder="Ex: Liste as escolhas em formato de bullet points curtos..." onchange="PromptUIController.updField(${index}, 'guidelines', this.value)">${field.guidelines || ''}</textarea>
+                `;
+            }
             
             card.innerHTML = `
                 <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
@@ -249,6 +258,12 @@ window.PromptUIController = (function() {
                     if (grp) {
                         const checks = grp.querySelectorAll('input:checked');
                         if (checks.length > 0) {
+                            // [NOVO] Injeção Condicional de Diretrizes Específicas
+                            if (f.guidelines && f.guidelines.trim() !== '') {
+                                extrasText += `[Diretriz Específica]: ${f.guidelines.trim()}\n\n`;
+                            }
+                            
+                            // Lista as opções que o usuário marcou
                             checks.forEach(c => extrasText += `- ${c.value}\n`);
                             extrasText += `\n`;
                         } else {
@@ -295,7 +310,7 @@ window.PromptUIController = (function() {
             renderList(prompts.filter(p => p.title.toLowerCase().includes(term) || p.content.toLowerCase().includes(term)));
         },
         openAddModal, closeAddModal, openEditModal, openGenModal, closeGenModal,
-        addField: (t) => { editingCustomFields.push({type: t, label: '', options: ''}); renderBuilder(); },
+        addField: (t) => { editingCustomFields.push({type: t, label: '', options: '', guidelines: ''}); renderBuilder(); },
         updField: (idx, k, v) => { editingCustomFields[idx][k] = v; },
         rmField: (idx) => { editingCustomFields.splice(idx,1); renderBuilder(); },
         savePrompt, deletePrompt, copyToClipboard
