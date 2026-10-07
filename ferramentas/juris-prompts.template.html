@@ -78,8 +78,8 @@
 <!-- MODAL 1: LISTAGEM PRINCIPAL -->
 <div class="modal-backdrop-modern" id="backdrop-juris-prompts" onclick="PromptUIController.fecharModalPrincipal()"></div>
 <div class="doc-modal" id="modal-juris-prompts" style="display: none; z-index: var(--z-outline-modal, 1000); max-width: 800px; width: 95%;">
-    <div class="jp-builder-area">
-                <label style="color: #1e293b; font-weight:bold;"><span style="color:var(--theme-primary, #ffc107);">✦</span> Inteligência: Campos Extras</label>
+    <div class="jp-builder-area" style="display: flex; justify-content: space-between; align-items: center;">
+        <label style="color: #1e293b; font-weight:bold; margin: 0;"><span style="color:var(--theme-primary, #ffc107);">✦</span> Inteligência: Campos Extras</label>
         <div style="display: flex; gap: 10px; align-items: center;">
             <button class="jp-btn-add" onclick="PromptUIController.openAddModal()">+ Novo Modelo</button>
             <button class="doc-modal__close-btn" onclick="PromptUIController.fecharModalPrincipal()">✕</button>
