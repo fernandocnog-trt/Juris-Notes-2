@@ -17,6 +17,15 @@
     .jr-btn { background-color: var(--theme-primary, #ffc107); color: var(--theme-text-on-primary, #000); box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 1rem 2rem; border-radius: 8px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease; display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; text-transform: uppercase; }
     .jr-btn:hover { background-color: var(--theme-hover, #e0a800); transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.15); }
     .jr-locked { background-color: #f8fafc; color: #64748b; border-style: dashed; cursor: not-allowed; line-height: 1.6; min-height: 250px; font-family: monospace; font-size: 0.95rem; resize: vertical; }
+    
+    /* Estilos do State-Machine do Formulário */
+    .jr-type-selector { display: flex; gap: 1.5rem; background: #fff; padding: 12px 15px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 1.5rem; }
+    .jr-radio-label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; color: #64748b; transition: color 0.2s ease; margin: 0 !important; }
+    .jr-radio-label:has(input:checked) { color: var(--theme-primary, #d97706); }
+    .jr-radio-label input { accent-color: var(--theme-primary, #ffc107); transform: scale(1.1); }
+    form[data-active-mode="RO"] .field-ap-only { display: none !important; }
+    form[data-active-mode="AP"] .field-ro-only { display: none !important; }
+    form[data-active-mode="AP"] .field-ap-only { display: block !important; }
 </style>
 
 <div class="modal-backdrop-modern" id="backdrop-juris-relatorio" onclick="JurisRelatorioManager.fecharModal()"></div>
@@ -31,7 +40,18 @@
     
     <div class="doc-modal__content jr-container" style="background-color: #f1f5f9; padding: 20px; overflow-y: auto; max-height: calc(100vh - 120px);">
         
-        <form id="jr-relatorio-form">
+        <form id="jr-relatorio-form" data-active-mode="RO">
+            <div class="jr-type-selector">
+                <label class="jr-radio-label">
+                    <input type="radio" name="jr_tipo" id="jr-is-ro" value="RO" checked onchange="JurisRelatorioManager.mudarModo()"> 
+                    Recurso Ordinário / RO
+                </label>
+                <label class="jr-radio-label">
+                    <input type="radio" name="jr_tipo" id="jr-is-ap" value="AP" onchange="JurisRelatorioManager.mudarModo()"> 
+                    Agravo de Petição / AP
+                </label>
+            </div>
+            
             <!-- A e B -->
             <div class="jr-form-grid">
                 <div class="jr-form-group" style="margin: 0;">
@@ -55,34 +75,35 @@
                     <input type="text" id="jr-vara" class="jr-form-control" placeholder="Ex: 3ª VARA DE VÁRZEA GRANDE">
                 </div>
                 <div class="jr-form-group" style="margin: 0;">
-                    <label>[D] Sentença Principal (Fls. e ID)</label>
+                    <label id="lbl-d" class="dyn-label" data-text-ro="[D] Sentença Principal (Fls. e ID)" data-text-ap="[D] Decisão Agravada (Fls. e ID)">[D] Sentença Principal (Fls. e ID)</label>
                     <input type="text" id="jr-sentenca" class="jr-form-control" placeholder="Ex: 224/232 - Id. 39e6404">
                 </div>
             </div>
 
             <div class="jr-form-group">
-                <label>[E] Resultado da Sentença</label>
-                <select id="jr-resultado" class="jr-form-control">
+                <label id="lbl-e" class="dyn-label" data-text-ro="[E] Resultado da Sentença" data-text-ap="[E] Síntese do Julgado">[E] Resultado da Sentença</label>
+                <select id="jr-resultado" class="jr-form-control field-ro-only">
                     <option value="" disabled selected>Selecione...</option>
                     <option value="PROCEDENTES">Procedentes</option>
                     <option value="IMPROCEDENTES">Improcedentes</option>
                     <option value="PROCEDENTES EM PARTE">Procedentes em parte</option>
                 </select>
+                <input type="text" id="jr-resultado-ap" class="jr-form-control field-ap-only" placeholder="Ex: julgou improcedentes os embargos..." style="display: none;">
             </div>
 
             <!-- BLOCO F -->
             <div class="jr-sub-section">
                 <div class="jr-form-group" style="margin: 0;">
-                    <label>[F] Recurso Ordinário</label>
+                    <label id="lbl-f" class="dyn-label" data-text-ro="[F] Recurso Ordinário" data-text-ap="[F] Agravo de Petição">[F] Recurso Ordinário</label>
                     <select id="jr-recurso" class="jr-form-control">
                         <option value="" disabled selected>Selecione...</option>
-                        <option value="Parte autora">Parte autora</option>
-                        <option value="Parte ré">Parte ré</option>
-                        <option value="Ambas as partes">Ambas as partes</option>
+                        <option value="1" class="dyn-opt" data-text-ro="Parte autora" data-text-ap="Parte exequente">Parte autora</option>
+                        <option value="2" class="dyn-opt" data-text-ro="Parte ré" data-text-ap="Parte executada">Parte ré</option>
+                        <option value="3" class="dyn-opt" data-text-ro="Ambas as partes" data-text-ap="Ambas as partes">Ambas as partes</option>
                     </select>
                 </div>
                 <div class="jr-form-group" style="margin-top: 1rem; margin-bottom: 0;">
-                    <label>[F.1] Fls. e Id do(s) Recurso(s)</label>
+                    <label id="lbl-f1" class="dyn-label" data-text-ro="[F.1] Fls. e Id do(s) Recurso(s)" data-text-ap="[F.1] Fls. e Id do(s) Agravo(s)">[F.1] Fls. e Id do(s) Recurso(s)</label>
                     <input type="text" id="jr-recurso-fls" class="jr-form-control" placeholder="Fls. / Id">
                 </div>
             </div>
@@ -92,10 +113,10 @@
                 <div class="jr-form-group" style="margin: 0;">
                     <label>[G] Embargos de Declaração</label>
                     <select id="jr-embargos" class="jr-form-control" onchange="JurisRelatorioManager.toggleCondicionais()">
-                        <option value="Não houve" selected>Não houve (0)</option>
-                        <option value="Opostos pela autora">Opostos pela autora (1)</option>
-                        <option value="Opostos pela ré">Opostos pela ré (2)</option>
-                        <option value="Opostos por ambas">Opostos por ambas (3)</option>
+                        <option value="0" class="dyn-opt" data-text-ro="Não houve (0)" data-text-ap="Não houve (0)" selected>Não houve (0)</option>
+                        <option value="1" class="dyn-opt" data-text-ro="Opostos pela autora (1)" data-text-ap="Opostos pela exequente (1)">Opostos pela autora (1)</option>
+                        <option value="2" class="dyn-opt" data-text-ro="Opostos pela ré (2)" data-text-ap="Opostos pela executada (2)">Opostos pela ré (2)</option>
+                        <option value="3" class="dyn-opt" data-text-ro="Opostos por ambas (3)" data-text-ap="Opostos por ambas (3)">Opostos por ambas (3)</option>
                     </select>
                 </div>
                 
@@ -116,7 +137,7 @@
                         </div>
                     </div>
                     <div class="jr-form-group" style="margin-bottom: 0; margin-top: 1rem;">
-                        <label>[G.3] Sentença dos Embargos (Fls. e ID)</label>
+                        <label id="lbl-g3" class="dyn-label" data-text-ro="[G.3] Sentença dos Embargos (Fls. e ID)" data-text-ap="[G.3] Decisão dos Embargos (Fls. e ID)">[G.3] Sentença dos Embargos (Fls. e ID)</label>
                         <input type="text" id="jr-embargos-sentenca" class="jr-form-control" placeholder="Fls. / Id">
                     </div>
                 </div>
@@ -125,18 +146,18 @@
             <!-- BLOCO H -->
             <div class="jr-sub-section" style="margin-bottom: 2rem;">
                 <div class="jr-form-group" style="margin: 0;">
-                    <label>[H] Contrarrazões</label>
+                    <label id="lbl-h" class="dyn-label" data-text-ro="[H] Contrarrazões" data-text-ap="[H] Contraminuta">[H] Contrarrazões</label>
                     <select id="jr-contrarrazoes" class="jr-form-control" onchange="JurisRelatorioManager.toggleCondicionais()">
-                        <option value="Não ofertadas" selected>Não ofertadas (0)</option>
-                        <option value="Ofertadas pela autora">Ofertadas pela autora (1)</option>
-                        <option value="Ofertadas pela ré">Ofertadas pela ré (2)</option>
-                        <option value="Ofertadas por ambas">Ofertadas por ambas (3)</option>
+                        <option value="0" class="dyn-opt" data-text-ro="Não ofertadas (0)" data-text-ap="Não ofertada (0)" selected>Não ofertadas (0)</option>
+                        <option value="1" class="dyn-opt" data-text-ro="Ofertadas pela autora (1)" data-text-ap="Ofertadas pela exequente (1)">Ofertadas pela autora (1)</option>
+                        <option value="2" class="dyn-opt" data-text-ro="Ofertadas pela ré (2)" data-text-ap="Ofertadas pela executada (2)">Ofertadas pela ré (2)</option>
+                        <option value="3" class="dyn-opt" data-text-ro="Ofertadas por ambas (3)" data-text-ap="Ofertadas por ambas (3)">Ofertadas por ambas (3)</option>
                     </select>
                 </div>
                 
                 <div id="jr-contrarrazoes-detalhes" class="jr-conditional">
                     <div class="jr-form-group" style="margin: 0;">
-                        <label>[H.1] Fls. e Id das Contrarrazões</label>
+                        <label class="dyn-label" data-text-ro="[H.1] Fls. e Id das Contrarrazões" data-text-ap="[H.1] Fls. e Id da(s) Contraminuta(s)">[H.1] Fls. e Id das Contrarrazões</label>
                         <input type="text" id="jr-contrarrazoes-fls" class="jr-form-control" placeholder="Fls. / Id">
                     </div>
                 </div>
