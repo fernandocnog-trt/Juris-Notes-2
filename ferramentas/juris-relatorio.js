@@ -1,6 +1,16 @@
 window.JurisRelatorioManager = (function() {
     let isInitialized = false;
 
+    // Novo Helper: Lê de forma confiável em qual painel estamos (via meta tag)
+    function getCurrentModule() {
+        const meta = document.querySelector('meta[name="juris-module"]');
+        if (meta && meta.content) return meta.content.toLowerCase();
+        
+        if (document.body.dataset.module) return document.body.dataset.module.toLowerCase();
+        
+        return 'ro'; // Fallback de segurança
+    }
+
     // Utilitários de acesso ao DOM
     const DOM = {
         v: (id) => document.getElementById(id)?.value.trim() || '____________________',
@@ -51,7 +61,6 @@ ${DOM.lbl('lbl-f1')}: ${DOM.v('jr-recurso-fls')}
 [G] EMBARGOS DE DECLARAÇÃO: ${DOM.sel('jr-embargos')}`;
 
                     if (DOM.val('jr-embargos') !== '0') {
-                        // Respeito estrito ao contrato de formatação original (Sem leading spaces)
                         out += `
 [G.1] Fls. de oposição: ${DOM.v('jr-embargos-fls')}
 [G.2] Resultado: ${DOM.v('jr-embargos-resultado')}
@@ -60,7 +69,6 @@ ${DOM.lbl('lbl-g3')}: ${DOM.v('jr-embargos-sentenca')}`;
 
                     out += `\n${DOM.lbl('lbl-h')}: ${DOM.sel('jr-contrarrazoes')}`;
                     if (DOM.val('jr-contrarrazoes') !== '0') {
-                        // Preserva a indentação de 3 espaços histórica em H.1
                         out += `\n   ${DOM.lbl('lbl-h1')}: ${DOM.v('jr-contrarrazoes-fls')}`;
                     }
                     return out;
@@ -120,7 +128,7 @@ ${DOM.lbl('lbl-g3')}: ${DOM.v('jr-embargos-sentenca')}`;
     };
 
     function getNamespaceKey() {
-        const moduloAtivo = document.body.dataset.module || 'geral';
+        const moduloAtivo = getCurrentModule();
         return `juris_relatorio_draft_${moduloAtivo}`;
     }
 
@@ -130,7 +138,7 @@ ${DOM.lbl('lbl-g3')}: ${DOM.v('jr-embargos-sentenca')}`;
         const form = document.getElementById('jr-relatorio-form');
         if (!form) return;
 
-        // Delegação de Eventos (Otimização de Performance e Memória)
+        // Delegação de Eventos
         form.addEventListener('change', (e) => {
             if (e.target.name === 'jr_tipo') mudarModo();
             if (e.target.classList.contains('trigger-conditional')) processarCondicionais();
@@ -146,7 +154,7 @@ ${DOM.lbl('lbl-g3')}: ${DOM.v('jr-embargos-sentenca')}`;
     }
 
     function blindarOpcoesPorModulo() {
-        const moduloDOM = document.body.dataset.module; 
+        const moduloDOM = getCurrentModule(); 
         const moduloAtivo = CONFIG.modulosPermitidos[moduloDOM] ? moduloDOM : 'ro';
         const permitidos = CONFIG.modulosPermitidos[moduloAtivo];
 
@@ -216,14 +224,13 @@ ${DOM.lbl('lbl-g3')}: ${DOM.v('jr-embargos-sentenca')}`;
 
     function carregarDados() {
         const defaultModo = blindarOpcoesPorModulo();
-        const moduloAtivo = document.body.dataset.module;
+        const moduloAtivo = getCurrentModule();
         
         try {
             const draft = JSON.parse(localStorage.getItem(getNamespaceKey()));
             let tipoDesejado = defaultModo;
             
             if (draft) {
-                // Mapa para retrocompatibilidade com rascunhos salvos antes da refatoração
                 const legacyMap = { 'jr-is-ro': 'RO', 'jr-is-ap': 'AP' };
                 const savedType = legacyMap[draft['jr_tipo']] || draft['jr_tipo'];
 
@@ -245,7 +252,7 @@ ${DOM.lbl('lbl-g3')}: ${DOM.v('jr-embargos-sentenca')}`;
                 });
             }
             
-            // Reavalia a UI após a injeção dos dados para abrir/fechar seções corretamente
+            // Reavalia a UI após a injeção dos dados
             processarCondicionais();
 
         } catch (e) {
