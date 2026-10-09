@@ -2,9 +2,11 @@
     /* Estilos escopados para o Juris Prompts */
     /* 1. Wrapper da Barra de Pesquisa */
     .jp-search-wrapper {
-        position: relative;
+        position: relative; 
         width: 100%;
         margin-bottom: 1.5rem;
+        display: flex;
+        align-items: center;
     }
     .jp-search-icon {
         position: absolute;
@@ -20,13 +22,38 @@
     /* 2. Barra de pesquisa sem background image e ajustada */
     .jp-search { 
         width: 100%; 
-        padding: 1rem 1rem 1rem 2.8rem; /* Espaçamento da esquerda alocado para o SVG */
+        padding: 1rem 2.8rem 1rem 2.8rem; 
         border-radius: 8px; 
         border: 1px solid #e2e8f0; 
         font-size: 1rem; 
         background-color: #ffffff;
         transition: box-shadow 0.2s ease, border-color 0.2s ease;
         font-family: inherit;
+    }
+    
+    .jp-search-clear {
+        position: absolute;
+        right: 0.8rem;
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px;
+        border-radius: 50%;
+        transition: color 0.2s, background-color 0.2s;
+    }
+
+    .jp-search-clear:hover {
+        color: var(--semantic-danger, #ef4444);
+        background-color: #f1f5f9;
+    }
+
+    .jp-search-clear svg {
+        width: 16px;
+        height: 16px;
     }
     .jp-search:focus { 
         outline: none; 
@@ -79,7 +106,7 @@
 <div class="modal-backdrop-modern" id="backdrop-juris-prompts" onclick="PromptUIController.fecharModalPrincipal()"></div>
 <div class="doc-modal" id="modal-juris-prompts" style="display: none; z-index: var(--z-outline-modal, 1000); max-width: 800px; width: 95%;">
     <div class="jp-builder-area" style="display: flex; justify-content: space-between; align-items: center;">
-        <label style="color: #1e293b; font-weight:bold; margin: 0;"><span style="color:var(--theme-primary, #ffc107);">✦</span> Inteligência: Campos Extras</label>
+        <label style="color: #1e293b; font-weight:bold; margin: 0;"><span style="color:var(--theme-primary, #ffc107);">✦</span> Acervo de Prompts Especiais</label>
         <div style="display: flex; gap: 10px; align-items: center;">
             <button class="jp-btn-add" onclick="PromptUIController.openAddModal()">+ Novo Modelo</button>
             <button class="doc-modal__close-btn" onclick="PromptUIController.fecharModalPrincipal()">✕</button>
@@ -93,6 +120,11 @@
                 <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
             </svg>
             <input type="text" id="jp-search" class="jp-search" placeholder="Buscar por nome ou conteúdo...">
+            <button id="jp-btn-clear-search" class="jp-search-clear" aria-label="Limpar termo de busca" onclick="PromptUIController.clearSearch()" style="display: none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
         </div>
         <div id="jp-list"></div>
     </div>
@@ -119,7 +151,7 @@
                 </div>
             </div>
             <div class="jp-builder-area">
-                <label style="color: #1e293b; font-weight:bold;"><span style="color:#ffc107;">✦</span> Inteligência: Campos Extras</label>
+                <label style="color: #1e293b; font-weight:bold;"><span style="color:#ffc107;">✦</span> Acervo de Prompts Especiais</label>
                 <p style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">Crie campos específicos para preencher ao gerar o texto.</p>
                 <div id="jp-builder-container"></div>
                 <button type="button" class="jp-btn-add" style="background:#fff; border: 1px dashed #cbd5e0; color:#1e293b;" onclick="PromptUIController.addField('text')">+ Texto</button>

@@ -56,7 +56,16 @@
             <svg viewBox="0 0 24 24" style="width:20px; height:20px; margin-right:8px; stroke: var(--theme-primary, #ffc107);"><use href="#icon-quick-report"></use></svg> 
             Dados do Relatório
         </h3>
-        <button class="doc-modal__close-btn" id="jr-btn-fechar">✕</button>
+        <div style="display: flex; gap: 12px; align-items: center;">
+            <!-- Ícone semântico de Reset (Rotate CCW) com ARIA Label -->
+            <button id="jr-btn-limpar" aria-label="Limpar formulário e iniciar novo rascunho" title="Limpar formulário" style="background: none; border: none; cursor: pointer; color: #94a3b8; display: flex; align-items: center; justify-content: center; transition: color 0.2s;">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="1 4 1 10 7 10"></polyline>
+                    <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                </svg>
+            </button>
+            <button class="doc-modal__close-btn" id="jr-btn-fechar">✕</button>
+        </div>
     </div>
     
     <div class="doc-modal__content jr-container" style="background-color: #f1f5f9; padding: 20px; overflow-y: auto; max-height: calc(100vh - 120px);">

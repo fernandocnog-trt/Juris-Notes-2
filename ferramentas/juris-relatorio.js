@@ -148,6 +148,7 @@ ${DOM.lbl('lbl-g3')}: ${DOM.v('jr-embargos-sentenca')}`;
         
         document.getElementById('backdrop-juris-relatorio').addEventListener('click', fecharModal);
         document.getElementById('jr-btn-fechar').addEventListener('click', fecharModal);
+        document.getElementById('jr-btn-limpar')?.addEventListener('click', limparFormulario);
         document.getElementById('jr-btn-copiar').addEventListener('click', copiarTexto);
 
         isInitialized = true;
@@ -272,6 +273,29 @@ ${DOM.lbl('lbl-g3')}: ${DOM.v('jr-embargos-sentenca')}`;
         salvarDados();
         document.getElementById('backdrop-juris-relatorio').classList.remove('active');
         document.getElementById('modal-juris-relatorio').style.display = 'none';
+    }
+
+    function limparFormulario() {
+        if(!confirm('Deseja descartar o rascunho atual e limpar todos os campos?')) return;
+        
+        const form = document.getElementById('jr-relatorio-form');
+        if (!form) return;
+        
+        // Purga os dados salvos em memória
+        localStorage.removeItem(getNamespaceKey());
+        
+        // Reset nativo e performático (limpa inputs, selects, textareas)
+        form.reset();
+        
+        // Reidratação de Estado: Força o rádio correto baseado no módulo atual da página
+        const defaultModo = blindarOpcoesPorModulo();
+        const radio = document.querySelector(`input[name="jr_tipo"][value="${defaultModo}"]`);
+        if (radio) radio.checked = true;
+        
+        // Sincroniza a interface (condicionais e preview) com o novo DOM vazio
+        mudarModo(); 
+        
+        if (typeof window.exibirToast === 'function') window.exibirToast('Formulário limpo e reiniciado!', 'sucesso');
     }
 
     async function copiarTexto() {

@@ -298,9 +298,30 @@ window.PromptUIController = (function() {
     // Garante que o filtro funcione mesmo com o HTML sendo injetado dinamicamente
     document.addEventListener('input', (e) => {
         if (e.target && e.target.id === 'jp-search') {
-            // Debounce não implementado agora para manter compatibilidade retroativa, 
-            // mas o gatilho está isolado.
+            const btnClear = document.getElementById('jp-btn-clear-search');
+            if (btnClear) {
+                // Reatividade leve baseada no tamanho da string
+                btnClear.style.display = e.target.value.length > 0 ? 'flex' : 'none';
+            }
             PromptUIController.filter();
+        }
+    });
+
+    // Controle de UX avançada (Tecla ESC)
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            const modalAtivo = document.getElementById('modal-juris-prompts');
+            const isModalOpen = modalAtivo && modalAtivo.style.display === 'block';
+            
+            if (isModalOpen) {
+                const searchInput = getEl('jp-search');
+                // Se o foco está no input e tem texto, apenas limpa. 
+                // Do contrário, deixa fluir (poderá fechar o modal).
+                if (document.activeElement === searchInput && searchInput.value !== '') {
+                    e.preventDefault();
+                    PromptUIController.clearSearch();
+                }
+            }
         }
     });
 
@@ -308,6 +329,18 @@ window.PromptUIController = (function() {
         abrirModal, fecharModalPrincipal, filter: () => {
             const term = getEl('jp-search').value.toLowerCase();
             renderList(prompts.filter(p => p.title.toLowerCase().includes(term) || p.content.toLowerCase().includes(term)));
+        },
+        clearSearch: () => {
+            const searchInput = getEl('jp-search');
+            const btnClear = document.getElementById('jp-btn-clear-search');
+            
+            if (searchInput) {
+                searchInput.value = '';
+                searchInput.focus(); // Mantém contexto para o usuário continuar navegando
+            }
+            if (btnClear) btnClear.style.display = 'none';
+            
+            PromptUIController.filter(); // Recarrega a lista original
         },
         openAddModal, closeAddModal, openEditModal, openGenModal, closeGenModal,
         addField: (t) => { editingCustomFields.push({type: t, label: '', options: '', guidelines: ''}); renderBuilder(); },
