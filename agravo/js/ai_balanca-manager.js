@@ -8,6 +8,29 @@ window.BalancaManager = (function() {
     let htmlState = null;
     let pendingTasksCount = 0;
 
+    function obterTemaModulo() {
+        const metaModulo = document.querySelector('meta[name="juris-module"]');
+        const module = metaModulo ? metaModulo.content : 'ai';
+        return ['ro', 'ed', 'ai'].includes(module) ? module : 'ai';
+    }
+
+    function urlDoGerador() {
+        return `../dossie/index.html?theme=${obterTemaModulo()}`;
+    }
+
+    function garantirTemaNoHtml(rawHtml) {
+        if (!rawHtml || typeof rawHtml !== 'string') return rawHtml;
+        try {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(rawHtml, 'text/html');
+            doc.documentElement.setAttribute('data-theme', obterTemaModulo());
+            return '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
+        } catch (e) {
+            console.warn('[Juris Notes AI] Fallback em garantirTemaNoHtml:', e);
+            return rawHtml;
+        }
+    }
+
     // ATUALIZAÇÃO: Atalho Alt + B protegido e inteligente
     document.addEventListener('keydown', function(e) {
         if (e.altKey && (e.key === 'b' || e.key === 'B')) {
@@ -27,12 +50,11 @@ window.BalancaManager = (function() {
         if (!allowedOrigins.some(origin => event.origin.startsWith(origin))) return;
 
         if (event.data && event.data.type === 'DOSSIE_GENERATED') {
-            htmlState = event.data.html;
+            htmlState = garantirTemaNoHtml(event.data.html);
             
             const iframe = document.getElementById('balanca-iframe');
             iframe.removeAttribute('src'); 
-            iframe.srcdoc = htmlState;     
-
+            iframe.srcdoc = htmlState;
             atualizarInterface();
             
             if (typeof window.salvarBackupAutomatico === 'function') {
@@ -73,7 +95,7 @@ window.BalancaManager = (function() {
             iframe.srcdoc = htmlState;
         } else {
             iframe.removeAttribute('srcdoc');
-            iframe.src = '../dossie/index.html'; // Puxa o gerador da raiz
+            iframe.src = urlDoGerador(); // Puxa o gerador da raiz
         }
     }
 
@@ -134,7 +156,11 @@ window.BalancaManager = (function() {
                 nome: t.nome,
                 cor: t.cor
             }));
-            iframe.contentWindow.postMessage({ type: 'SYNC_TOPICS', topicos: topicosAtivos }, '*');
+            iframe.contentWindow.postMessage({ 
+                type: 'SYNC_TOPICS', 
+                theme: obterTemaModulo(),
+                topicos: topicosAtivos 
+            }, '*');
         }
     }
 
@@ -221,7 +247,11 @@ window.BalancaManager = (function() {
 
     function renderizarIframe(conteudoHTML) {
         const iframe = document.getElementById('balanca-iframe');
-        if (iframe) iframe.srcdoc = conteudoHTML;
+        if (iframe) {
+            htmlState = garantirTemaNoHtml(conteudoHTML);
+            iframe.removeAttribute('src');
+            iframe.srcdoc = htmlState;
+        }
     }
 
     function sincronizarEstadoInterno() {
@@ -247,7 +277,8 @@ window.BalancaManager = (function() {
                 });
             });
 
-            htmlState = doc.documentElement.outerHTML;
+            doc.documentElement.setAttribute('data-theme', obterTemaModulo());
+            htmlState = '<!DOCTYPE html>\n' + doc.documentElement.outerHTML;
 
         } catch (e) {
             console.error("[Juris Notes AI] Sincronização do painel falhou.", e);
