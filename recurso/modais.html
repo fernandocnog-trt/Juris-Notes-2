@@ -789,6 +789,32 @@
         <button style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #64748b;" onclick="fecharModalGeradorContexto()">✕</button>
     </div>
     <div class="gerador-contexto-body">
+        <!-- PAINEL DE OCULTAÇÃO RÁPIDA + RADAR DE SUGESTÕES (LGPD) -->
+        <div class="quick-redact-panel" role="region" aria-label="Filtro rápido de dados sensíveis LGPD">
+            <div class="quick-redact-header">
+                <span>🛡️ Ocultador Rápido LGPD (Telefones, CPFs, Códigos e Termos Curtos)</span>
+                <span style="font-weight: 400; font-size: 0.74rem; color: #795548;">Substitui em todos os campos e restaura se removido</span>
+            </div>
+            <div class="quick-redact-controls">
+                <input type="text" id="input-termo-curto-lgpd" class="quick-redact-input" 
+                       placeholder="Digite qualquer termo (mín. 2 caracteres) ou clique nas sugestões abaixo..."
+                       autocomplete="off"
+                       onkeydown="if(event.key === 'Enter'){ event.preventDefault(); QuickRedactManager.adicionarTermoInput(); }">
+                <button type="button" class="quick-redact-btn" onclick="QuickRedactManager.adicionarTermoInput()">
+                    Ocultar Termo
+                </button>
+            </div>
+            
+            <!-- Radar Inteligente de Sugestões (Human-in-the-Loop) -->
+            <div id="box-sugestoes-lgpd" class="quick-redact-suggestions-box">
+                <span class="suggestions-label">🔍 Sugestões detectadas (clique para ocultar):</span>
+                <div id="lista-sugestoes-lgpd" style="display: flex; flex-wrap: wrap; gap: 6px;"></div>
+            </div>
+
+            <!-- Lista de Termos Ativos no Processo -->
+            <div id="lista-chips-lgpd" class="quick-redact-chips" aria-live="polite"></div>
+        </div>
+
         <div>
             <p class="popup-label">1. Histórico da Minuta (Opcional):</p>
             <p style="font-size: 0.75rem; color: #666; margin-bottom: 4px;">Texto já redigido. (Salvo automaticamente na sessão)</p>
