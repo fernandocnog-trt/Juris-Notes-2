@@ -183,25 +183,80 @@ function editarItemCorrelacionado() {
     }, item.conteudo);
 }
 
-function abrirModalEdicao(contexto, textoAtual) {
+let _editTriggerElement = null;
+
+function abrirModalEdicao(contexto, textoAtual, tituloModal = null, placeholderText = null) {
+    _editTriggerElement = document.activeElement;
     _editContext = contexto;
+
+    const modal = document.getElementById('text-edit-modal');
     const editor = document.getElementById('edit-text-input');
-    
+    const title = document.getElementById('edit-modal-title');
+    const backdrop = document.getElementById('text-edit-backdrop');
+
+    // Limpa qualquer altura inline residual deixada por resize manual anterior
+    editor.style.height = '';
+
+    // Aplica modificador dimensional específico quando for edição de Preâmbulo
+    if (modal) {
+        modal.classList.toggle('is-preambulo', contexto.tipo === 'preambulo');
+    }
+
     // Converte o Markdown salvo em formatação visual real
     editor.innerHTML = window.JurisEditor.markdownParaHtml(textoAtual || '');
-    editor.dataset.placeholder = 'Selecione um trecho e aplique formatação...';
-    
+    editor.dataset.placeholder = placeholderText || 'Selecione um trecho e aplique formatação...';
+    if (title) title.innerHTML = tituloModal || '✏️ Editar Texto';
+
     editor.dispatchEvent(new Event('input')); // reavalia o estado vazio/placeholder
 
-    document.getElementById('text-edit-backdrop').style.display = 'block';
-    document.getElementById('text-edit-modal').style.display = 'flex';
-    setTimeout(() => editor.focus(), 50);
+    if (backdrop) backdrop.style.display = 'block';
+    if (modal) modal.style.display = 'flex';
+
+    setTimeout(() => {
+        editor.focus();
+        if (typeof editor.scrollTop === 'number') editor.scrollTop = 0;
+    }, 50);
 }
+
+window.toggleExpandirModalEdicao = function() {
+    const modal = document.getElementById('text-edit-modal');
+    const editor = document.getElementById('edit-text-input');
+    const btn = document.getElementById('btn-expand-editor');
+    const label = document.getElementById('btn-expand-editor-label');
+    if (!modal || !editor) return;
+
+    // Remove altura inline do resize manual para não conflitar com o Flexbox
+    editor.style.height = '';
+
+    const expandido = modal.classList.toggle('is-expanded');
+    if (btn) btn.setAttribute('aria-pressed', expandido ? 'true' : 'false');
+    if (label) label.textContent = expandido ? 'Restaurar' : 'Expandir';
+
+    editor.focus();
+};
 
 function fecharModalEdicao() {
     _editContext = null;
-    document.getElementById('text-edit-backdrop').style.display = 'none';
-    document.getElementById('text-edit-modal').style.display = 'none';
+    const backdrop = document.getElementById('text-edit-backdrop');
+    const modal = document.getElementById('text-edit-modal');
+    const editor = document.getElementById('edit-text-input');
+    const btn = document.getElementById('btn-expand-editor');
+    const label = document.getElementById('btn-expand-editor-label');
+
+    if (backdrop) backdrop.style.display = 'none';
+    if (editor) editor.style.height = '';
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('is-preambulo', 'is-expanded');
+    }
+    if (btn) btn.setAttribute('aria-pressed', 'false');
+    if (label) label.textContent = 'Expandir';
+
+    // Restaura o foco ao elemento original sem provocar salto de scroll na tela
+    if (_editTriggerElement && typeof _editTriggerElement.focus === 'function') {
+        try { _editTriggerElement.focus({ preventScroll: true }); } catch (e) {}
+    }
+    _editTriggerElement = null;
 }
 
 function aplicarNegritoTextarea() {
@@ -258,8 +313,31 @@ function salvarEdicaoTexto() {
 
 window.abrirEdicaoPreambulo = function(topicoId, campo) {
     const topico = topicos.find(t => t.id === topicoId);
+    if (!topico) return;
     const textoAtual = topico[campo] || '';
-    abrirModalEdicao({ tipo: 'preambulo', topicoId: topicoId, campo: campo }, textoAtual);
+
+    const configCampos = {
+        alegacoes: {
+            titulo: '🗣️ Editar Fundamentos do Agravo',
+            placeholder: 'Sintetize em 1 ou 2 parágrafos os fundamentos pelos quais a parte sustenta o destrancamento do recurso...'
+        },
+        fundamentos: {
+            titulo: '🏛️ Editar Despacho Denegatório',
+            placeholder: 'Sintetize ou cole os fundamentos adotados pela decisão que trancou o seguimento do recurso...'
+        },
+        veredito: {
+            titulo: '⭐ Editar Veredito de Admissibilidade',
+            placeholder: 'Defina o veredito de admissibilidade para orientar a minuta (ex: negar provimento, destrancar recurso)...'
+        }
+    };
+
+    const cfg = configCampos[campo] || { titulo: '✏️ Editar Preâmbulo', placeholder: 'Digite o conteúdo...' };
+    abrirModalEdicao(
+        { tipo: 'preambulo', topicoId: topicoId, campo: campo },
+        textoAtual,
+        cfg.titulo,
+        cfg.placeholder
+    );
 };
 
 
