@@ -360,17 +360,29 @@ function editarItemCorrelacionado() {
     abrirModalEdicao({ tipo: 'correlated', topicoId: _menuAnotacaoCtx.topicoId, parentIndex: _menuAnotacaoCtx.index, cIdx: _menuAnotacaoCtx.cIdx, tipoAnotacao: item.tipo }, textoContexto, item.comentario);
 }
 
+let _editTriggerElement = null;
+
 function abrirModalEdicao(contexto, textoAtual, comentarioAtual = '', tituloModal = null, placeholderText = null) {
+    _editTriggerElement = document.activeElement;
     _editContext = contexto;
     _editContext.textoOriginal = textoAtual || '';
     _editContext.isDirty = false;
 
+    const modal = document.getElementById('text-edit-modal');
     const editor = document.getElementById('edit-text-input');
     const commentArea = document.getElementById('edit-comentario-input');
     const toolbar = document.getElementById('edit-toolbar');
     const title = document.getElementById('edit-modal-title');
     const backdrop = document.getElementById('text-edit-backdrop');
     const isAudio = contexto.tipoAnotacao === 'audio';
+
+    // Limpa qualquer altura inline residual deixada por resize manual anterior
+    editor.style.height = '';
+
+    // Aplica modificador dimensional específico quando for edição de Preâmbulo
+    if (modal) {
+        modal.classList.toggle('is-preambulo', contexto.tipo === 'preambulo');
+    }
 
     editor.oninput = () => { _editContext.isDirty = true; };
     if (commentArea) commentArea.oninput = () => { _editContext.isDirty = true; };
@@ -397,13 +409,30 @@ function abrirModalEdicao(contexto, textoAtual, comentarioAtual = '', tituloModa
 
     editor.dispatchEvent(new Event('input')); 
     backdrop.classList.add('is-visible');
-    document.getElementById('text-edit-modal').style.display = 'flex';
+    modal.style.display = 'flex';
 
     setTimeout(() => {
         editor.focus();
         if (typeof editor.scrollTop === 'number') editor.scrollTop = 0;
     }, 50);
 }
+
+window.toggleExpandirModalEdicao = function() {
+    const modal = document.getElementById('text-edit-modal');
+    const editor = document.getElementById('edit-text-input');
+    const btn = document.getElementById('btn-expand-editor');
+    const label = document.getElementById('btn-expand-editor-label');
+    if (!modal || !editor) return;
+
+    // Remove altura inline do resize manual para não conflitar com o Flexbox
+    editor.style.height = '';
+
+    const expandido = modal.classList.toggle('is-expanded');
+    if (btn) btn.setAttribute('aria-pressed', expandido ? 'true' : 'false');
+    if (label) label.textContent = expandido ? 'Restaurar' : 'Expandir';
+
+    editor.focus();
+};
 
 // Guard de Perda de Dados
 window.fecharModalEdicaoSeguro = function() {
@@ -419,8 +448,25 @@ window.fecharModalEdicaoSeguro = function() {
 function fecharModalEdicao() {
     _editContext = null;
     const backdrop = document.getElementById('text-edit-backdrop');
+    const modal = document.getElementById('text-edit-modal');
+    const editor = document.getElementById('edit-text-input');
+    const btn = document.getElementById('btn-expand-editor');
+    const label = document.getElementById('btn-expand-editor-label');
+
     backdrop.classList.remove('is-visible');
-    document.getElementById('text-edit-modal').style.display = 'none';
+    if (editor) editor.style.height = '';
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('is-preambulo', 'is-expanded');
+    }
+    if (btn) btn.setAttribute('aria-pressed', 'false');
+    if (label) label.textContent = 'Expandir';
+
+    // Restaura o foco ao elemento original sem provocar salto de scroll na tela
+    if (_editTriggerElement && typeof _editTriggerElement.focus === 'function') {
+        try { _editTriggerElement.focus({ preventScroll: true }); } catch (e) {}
+    }
+    _editTriggerElement = null;
 }
 
 // Atalhos de Teclado
@@ -531,8 +577,32 @@ function salvarEdicaoTexto() {
 
 window.abrirEdicaoPreambulo = function(topicoId, campo) {
     const topico = topicos.find(t => t.id === topicoId);
+    if (!topico) return;
     const textoAtual = topico[campo] || '';
-    abrirModalEdicao({ tipo: 'preambulo', topicoId: topicoId, campo: campo }, textoAtual);
+
+    const configCampos = {
+        alegacoes: {
+            titulo: '🔍 Editar Vício Alegado (Escopo)',
+            placeholder: 'Delimite em 1 ou 2 parágrafos qual a omissão, contradição, obscuridade ou erro material apontado...'
+        },
+        fundamentos: {
+            titulo: '🏛️ Editar Decisão Embargada (Alvo)',
+            placeholder: 'Sintetize ou cole o trecho da decisão embargada que está sob ataque...'
+        },
+        veredito: {
+            titulo: '⭐ Editar Veredito / Conclusão',
+            placeholder: 'Defina se há o vício alegado e se haverá efeito modificativo ou apenas esclarecimento...'
+        }
+    };
+
+    const cfg = configCampos[campo] || { titulo: '✏️ Editar Preâmbulo', placeholder: 'Digite o conteúdo...' };
+    abrirModalEdicao(
+        { tipo: 'preambulo', topicoId: topicoId, campo: campo },
+        textoAtual,
+        '',
+        cfg.titulo,
+        cfg.placeholder
+    );
 };
 
 function aplicarAumentoFonte(nivel) {
