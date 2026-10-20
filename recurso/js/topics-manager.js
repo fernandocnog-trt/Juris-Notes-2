@@ -10,29 +10,24 @@ window.TopicsManager = (function () {
 
     let _activeTopicoCor = '#ffffff';
     const _topicosComGlobaisAbertas = new Set();
-    const _topicosComPreambuloRecolhido = new Set();
+    let _preambuloLadoALado = false;
 
     function togglePreambuloTopico(event) {
         if (event) event.stopPropagation();
         if (!activeTabId) return;
 
+        _preambuloLadoALado = !_preambuloLadoALado;
+
         const panel = document.querySelector('.topic-preamble-panel');
         const btn = document.getElementById('btn-toggle-preambulo');
-        const recolhendo = !_topicosComPreambuloRecolhido.has(activeTabId);
 
-        if (recolhendo) {
-            _topicosComPreambuloRecolhido.add(activeTabId);
-        } else {
-            _topicosComPreambuloRecolhido.delete(activeTabId);
-        }
-
-        if (panel) panel.classList.toggle('is-collapsed', recolhendo);
+        if (panel) panel.classList.toggle('is-side-by-side', _preambuloLadoALado);
         if (btn) {
-            btn.setAttribute('aria-expanded', recolhendo ? 'false' : 'true');
-            btn.innerHTML = recolhendo ? '▼ Expandir Síntese' : '▲ Recolher Síntese';
+            btn.setAttribute('aria-pressed', _preambuloLadoALado ? 'true' : 'false');
+            btn.innerHTML = _preambuloLadoALado ? '☰ Um Abaixo do Outro' : '◫ Lado a Lado';
         }
 
-        // Recalcula as conexões SVG do mapa mental após o ajuste de altura do topo
+        // Recalcula as conexões SVG do mapa mental após a mudança de disposição
         requestAnimationFrame(() => {
             const container = document.getElementById('timeline-container');
             if (container && container.offsetParent !== null) {
@@ -1419,16 +1414,15 @@ window.TopicsManager = (function () {
 
         const corTextoTese = obterCorContraste(_activeTopicoCor);
 
-        const isPreambuloCollapsed = _topicosComPreambuloRecolhido.has(activeTabId);
         const preambleHtml = `
-            <div class="topic-preamble-panel ${isPreambuloCollapsed ? 'is-collapsed' : ''}" lang="pt-BR">
+            <div class="topic-preamble-panel ${_preambuloLadoALado ? 'is-side-by-side' : ''}" lang="pt-BR">
                 <div class="preamble-panel-toolbar">
                     <span class="preamble-panel-heading">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px; height:14px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="9" y1="21" x2="9" y2="9"></line></svg>
                         Quadro Sinótico do Tópico (Síntese Recursal)
                     </span>
-                    <button type="button" id="btn-toggle-preambulo" class="btn-toggle-preambulo" aria-expanded="${!isPreambuloCollapsed}" onclick="TopicsManager.togglePreambuloTopico(event)" title="Recolher ou expandir os cartões de síntese para ampliar a área do mapa mental">
-                        ${isPreambuloCollapsed ? '▼ Expandir Síntese' : '▲ Recolher Síntese'}
+                    <button type="button" id="btn-toggle-preambulo" class="btn-toggle-preambulo" aria-pressed="${_preambuloLadoALado}" onclick="TopicsManager.togglePreambuloTopico(event)" title="Alternar disposição dos cartões entre empilhados (vertical) e lado a lado (horizontal)">
+                        ${_preambuloLadoALado ? '☰ Um Abaixo do Outro' : '◫ Lado a Lado'}
                     </button>
                 </div>
                 <div class="preamble-cards-grid">

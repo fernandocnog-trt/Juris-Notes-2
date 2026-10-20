@@ -711,22 +711,26 @@
     border-color: var(--trt-blue-mid);
 }
 
-/* Grid Responsivo: 1 coluna em telas menores, 3 colunas lado a lado em telas largas */
+.btn-toggle-preambulo[aria-pressed="true"] {
+    background: var(--trt-blue);
+    color: #ffffff;
+    border-color: var(--trt-blue);
+}
+
+/* Padrão: 1 coluna (um abaixo do outro) para leitura confortável de parágrafos */
 .preamble-cards-grid {
     display: grid;
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 10px;
 }
 
-@media (min-width: 1180px) {
-    .preamble-cards-grid {
+/* Modo Alternativo (acionado pelo botão): 3 colunas lado a lado */
+@media (min-width: 960px) {
+    .topic-preamble-panel.is-side-by-side .preamble-cards-grid {
         grid-template-columns: repeat(3, minmax(0, 1fr));
         align-items: stretch;
+        gap: 12px;
     }
-}
-
-.topic-preamble-panel.is-collapsed .preamble-cards-grid {
-    display: none;
 }
 
 .preamble-card {
