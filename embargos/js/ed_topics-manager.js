@@ -290,7 +290,7 @@ window.TopicsManager = (function () {
      * @returns {string} String segura para inserção em innerHTML.
      */
     function escaparHTML(str) {
-        if (!str) return '';
+        if (str == null) return '';
         return String(str)
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -462,7 +462,7 @@ window.TopicsManager = (function () {
         
         const tituloPilha = sub.grupoTitulo || "📚 Grupo de Ideias";
         const descPilha = sub.grupoDescricao || (teorAutomatico !== "" ? teorAutomatico : "Nós vazios.");
-        const source = sub.viewSource || 'main';
+        const source = String(sub.viewSource ?? '') || 'main';
 
         return `
         <div class="sub-annotation-item sub-stack-wrapper" data-source="${escaparHTML(source)}">
@@ -645,16 +645,20 @@ window.TopicsManager = (function () {
         const isRevisada = sub.revisada === true;
         const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : 'sub-annotation-item';
         
+        // Normaliza para String não-vazia e escapa aspas simples para uso seguro em handlers inline
+        const viewSourceNorm = String(ctx.viewSource ?? '') || 'main';
+        const safeViewSourceJS = viewSourceNorm.replace(/'/g, "\\'");
+
         const clickSubMenu = ctx.parentIndex === null 
-            ? `abrirMenuSubAnotacao('${ctx.topicoId}', null, '${ctx.viewSource.replace(/'/g, "\\'")}', ${sub.localIndex}, event)`
-            : `abrirMenuSubAnotacao('${ctx.topicoId}', ${ctx.parentIndex}, '${ctx.viewSource}', ${sub.localIndex}, event)`;
+            ? `abrirMenuSubAnotacao('${ctx.topicoId}', null, '${safeViewSourceJS}', ${sub.localIndex}, event)`
+            : `abrirMenuSubAnotacao('${ctx.topicoId}', ${ctx.parentIndex}, '${safeViewSourceJS}', ${sub.localIndex}, event)`;
 
         const classBorda = ctx.bordaClass ? ` ${ctx.bordaClass}` : '';
         const classFase = ctx.bordaFaseClass ? ` ${ctx.bordaFaseClass}` : '';
         const styleAttr = ctx.bordaStyle ? ` style="${ctx.bordaStyle}"` : '';
 
         return `
-            <div class="${itemWrapperClass}" data-source="${escaparHTML(ctx.viewSource)}">
+            <div class="${itemWrapperClass}" data-source="${escaparHTML(viewSourceNorm)}">
                 <div class="sub-annotation-card${classFase}${classBorda}"${styleAttr}>
                     <div class="${badgeClass}"
                          title="Opções deste nó/diretriz"
@@ -675,7 +679,7 @@ window.TopicsManager = (function () {
                         Copiar Trecho
                     </button>
                     
-                    ${_gerarBtnRevisaoHtml(ctx.topicoId, ctx.parentIndex, ctx.viewSource, sub.localIndex, intencao, isRevisada)}
+                    ${_gerarBtnRevisaoHtml(ctx.topicoId, ctx.parentIndex, viewSourceNorm, sub.localIndex, intencao, isRevisada)}
                 </div>
             </div>`;
     }
@@ -852,8 +856,12 @@ window.TopicsManager = (function () {
 
             anotacao.itensCorrelacionados.forEach((item, fIdx) => {
                 if (item.subAnotacoes) {
-                    let anchorCidx = item.pilhaProcId ? pilhaAnchorMapSub.get(item.pilhaProcId) : fIdx;
-                    flatSubAnotacoes.push(...item.subAnotacoes.map((s, idx) => ({ ...s, viewSource: anchorCidx, localIndex: idx })));
+                    const anchorCidx = item.pilhaProcId ? pilhaAnchorMapSub.get(item.pilhaProcId) : fIdx;
+                    flatSubAnotacoes.push(...item.subAnotacoes.map((s, idx) => ({
+                        ...s,
+                        viewSource: String(anchorCidx),
+                        localIndex: idx
+                    })));
                 }
             });
         }

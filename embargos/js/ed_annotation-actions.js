@@ -21,16 +21,16 @@ function abrirMenuAnotacao(topicoId, index, event) {
 
 // HELPER PRIVADO (Resolução de Referência - COM SUPORTE À HIERARQUIA DE DIRETRIZES)
 function _resolverSubAlvo(topico, parentIndex, viewSource) {
+    const sourceStr = String(viewSource ?? '') || 'main';
+
     // 1. ROTA PARA DIRETRIZES SUPERIORES (Index === null)
     if (parentIndex === null) {
-        if (viewSource === 'global') {
+        if (sourceStr === 'global') {
             if (!topico.diretrizesGlobais) topico.diretrizesGlobais = [];
-            // Retornamos um "card falso" com a propriedade subAnotacoes apontando 
-            // para o array real. Isso faz todas as funções do sistema funcionarem magicamente.
             return { subAnotacoes: topico.diretrizesGlobais }; 
             
-        } else if (viewSource.startsWith('vicio:')) {
-            const nomeVicio = viewSource.split(':')[1];
+        } else if (sourceStr.startsWith('vicio:')) {
+            const nomeVicio = sourceStr.split(':')[1];
             if (!topico.diretrizesPorVicio) topico.diretrizesPorVicio = {};
             if (!topico.diretrizesPorVicio[nomeVicio]) topico.diretrizesPorVicio[nomeVicio] = [];
             
@@ -40,12 +40,12 @@ function _resolverSubAlvo(topico, parentIndex, viewSource) {
 
     // 2. ROTA PADRÃO (Cards de Prova Normais)
     const cardMestre = topico.anotacoes[parentIndex];
-    if (viewSource === 'main') {
+    if (sourceStr === 'main') {
         return cardMestre;
     }
     
-    // 3. ROTA PARA CARDS AGRUPADOS (Filhos)
-    const cIdx = parseInt(viewSource, 10);
+    // 3. ROTA PARA CARDS AGRUPADOS (Filhos - ex: "0", "1", "2"...)
+    const cIdx = parseInt(sourceStr, 10);
     return cardMestre.itensCorrelacionados[cIdx];
 }
 
@@ -975,7 +975,7 @@ function excluirItemCorrelacionado(topicoId, parentIndex, correlacionadoIndex) {
 }
 
 function adicionarSubAnotacao(topicoId, anotacaoIndex, cIdx = null) {
-    const viewSource = cIdx !== null ? cIdx : 'main';
+    const viewSource = cIdx != null ? String(cIdx) : 'main';
     _editContext = { 
         acao: 'adicionar', 
         tipoAdicao: 'sub', 
