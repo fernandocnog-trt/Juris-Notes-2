@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Juris Notes - Hub de Sistemas</title>
 
-    <!-- Fontes Google -->
+    <!-- Fontes Google (Playfair Display para Branding + Inter para UI e Splash) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,600;0,700&family=Segoe+UI:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Playfair+Display:ital,wght@0,600;0,700&display=swap" rel="stylesheet">
 
     <!-- Ícones / Favicon -->
     <link rel="icon" href="imagens/favicon.ico">
@@ -36,7 +36,9 @@
             padding: 0;
             height: 100vh;
             background-color: var(--trt-blue); /* Fundo Escuro Oficial */
-            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -55,7 +57,8 @@
         .juris-splash.is-hidden { opacity: 0; visibility: hidden; pointer-events: none; }
         .splash-content { text-align: center; color: #ffffff; display: flex; flex-direction: column; align-items: center; }
         .splash-logo { width: 140px; height: auto; animation: fade-in 1s forwards; }
-        .splash-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; margin-top: 12px; letter-spacing: 1.5px; }
+        .splash-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 700; margin-top: 12px; letter-spacing: 1.5px; }
+        .splash-content p { font-family: 'Inter', system-ui, sans-serif; font-size: 0.92rem; color: #cbd5e1; margin-top: 4px; }
         
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
