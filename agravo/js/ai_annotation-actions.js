@@ -17,19 +17,21 @@ function abrirMenuAnotacao(topicoId, index, event) {
 // HELPER PRIVADO (Resolução de Referência)
 // Atualizado para resolver corretamente strings de Óbices ignorando defaults ('main')
 function _resolverSubAlvo(topico, parentIndex, viewSource) {
+    const sourceStr = String(viewSource ?? '') || 'main';
+
     // 1. Tratamento para Global
-    if (viewSource === 'global' || parentIndex === 'global') {
+    if (sourceStr === 'global' || parentIndex === 'global') {
         if (!topico.diretrizesGlobais) topico.diretrizesGlobais = [];
         return { subAnotacoes: topico.diretrizesGlobais }; 
     }
     
     // 2. Tratamento para Óbices (CORRIGIDO AQUI)
     // Verifica se a intenção de Óbice está no parentIndex OU no viewSource
-    const isObice = String(parentIndex).startsWith('obice:') || String(viewSource).startsWith('obice:');
+    const isObice = String(parentIndex).startsWith('obice:') || sourceStr.startsWith('obice:');
     
     if (isObice) {
         // Pega a string que efetivamente contém o nome do óbice
-        const fonteReal = String(parentIndex).startsWith('obice:') ? parentIndex : viewSource;
+        const fonteReal = String(parentIndex).startsWith('obice:') ? parentIndex : sourceStr;
         const nomeObice = String(fonteReal).split('obice:')[1];
         
         if (!topico.diretrizesPorObice) topico.diretrizesPorObice = {};
@@ -40,9 +42,9 @@ function _resolverSubAlvo(topico, parentIndex, viewSource) {
 
     // 3. Comportamento Original (Provas Fáticas normais numeradas)
     const cardMestre = topico.anotacoes[parentIndex];
-    if (viewSource === 'main') return cardMestre;
+    if (sourceStr === 'main') return cardMestre;
     
-    const cIdx = parseInt(viewSource, 10);
+    const cIdx = parseInt(sourceStr, 10);
     return cardMestre.itensCorrelacionados[cIdx];
 }
 
@@ -893,7 +895,7 @@ function confirmarSubAnotacao(topicoId, anotacaoIndex, cIdx = null) {
     if (!texto) return exibirToast('Digite uma observação.', 'aviso');
     
     const topico = topicos.find(t => t.id === topicoId);
-    const viewSource = cIdx !== null ? cIdx : 'main';
+    const viewSource = cIdx != null ? String(cIdx) : 'main';
     const alvo = _resolverSubAlvo(topico, anotacaoIndex, viewSource);
     
     if (!alvo.subAnotacoes) alvo.subAnotacoes = [];
