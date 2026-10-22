@@ -1086,14 +1086,35 @@ body.fab-layout-vertical .scroll-fab-container {
    MODAL DE TAREFAS (EXPANDIDO E ERGONÔMICO)
    ========================================================= */
 
-/* Garantia de Backdrop isolado */
+/* Garantia de Backdrop isolado (Padrão visual unificado com blur 4px) */
 .backdrop-seguro {
     position: fixed;
     inset: 0;
-    background: rgba(15, 23, 42, 0.6);
-    backdrop-filter: blur(2px);
-    -webkit-backdrop-filter: blur(2px);
+    background: rgba(15, 37, 61, 0.85);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     z-index: var(--z-abas-modal-backdrop, 4004);
+}
+
+@supports not ((backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px))) {
+    .backdrop-seguro {
+        background: rgba(15, 37, 61, 0.93);
+    }
+}
+
+/* Backdrop translúcido dedicado ao Juris Relatório e Juris Prompts (Camada 4060) */
+#shared-tools-backdrop {
+    z-index: var(--z-shared-tools-backdrop, 4060) !important;
+}
+
+/* Elevação forçada dos painéis acima do backdrop (4061) para vencer estilos inline dos templates */
+#modal-juris-relatorio,
+#modal-juris-prompts,
+#modais-dinamicos-container > #modal-juris-relatorio,
+#modais-dinamicos-container > #modal-juris-prompts,
+#modal-juris-relatorio .crop-wizard-popup,
+#modal-juris-prompts .crop-wizard-popup {
+    z-index: var(--z-shared-tools-modal, 4061) !important;
 }
 
 /* Modificador Estrutural do Modal (1. BLINDAGEM DO MODAL PAI) */
