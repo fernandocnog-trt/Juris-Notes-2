@@ -2259,3 +2259,32 @@ MINI PLAYER DE ÁUDIO — MODAL FOCADO
 #hidden-notes-tracker.lamp-pulse-alert {
     animation: lamp-pulse-warning 0.7s ease-in-out 4;
 }
+
+/* Corrige o conflito de duplo tooltip nos círculos de Notas Ocultas */
+.hidden-note-topic-chip.juris-tooltip::before {
+    /* Permite que nomes de tópicos grandes quebrem linha sem escapar da janela */
+    white-space: normal;
+    width: max-content;
+    max-width: 260px;
+    text-align: center;
+    line-height: 1.4;
+    z-index: 10001;
+}
+
+.hidden-note-topic-chip.juris-tooltip::after {
+    /* Anula a caixa azul-marinho herdada do juris-core.css e mantém apenas a setinha */
+    content: '' !important;
+    width: 0 !important;
+    height: 0 !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    border-width: 6px !important;
+    border-style: solid !important;
+    border-color: #2c3e50 transparent transparent transparent !important;
+    bottom: calc(100% + 2px) !important;
+    top: auto !important;
+    left: 50% !important;
+}
