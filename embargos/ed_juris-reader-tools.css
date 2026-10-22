@@ -1292,15 +1292,19 @@ body.fab-layout-vertical .scroll-fab-container {
     }
 }
 
-/* Backdrop translúcido dedicado ao Juris Relatório e Juris Prompts */
+/* Backdrop translúcido dedicado ao Juris Relatório e Juris Prompts (Camada 4060) */
 #shared-tools-backdrop {
-    z-index: var(--z-shared-tools-backdrop, 4060);
+    z-index: var(--z-shared-tools-backdrop, 4060) !important;
 }
 
-/* Elevação coordenada dos painéis compartilhados acima do backdrop (4060) e abaixo do JurisPrompt (5000) */
+/* Elevação forçada dos painéis acima do backdrop (4061) para vencer estilos inline dos templates */
+#modal-juris-relatorio,
+#modal-juris-prompts,
 #modais-dinamicos-container > #modal-juris-relatorio,
-#modais-dinamicos-container > #modal-juris-prompts {
-    z-index: var(--z-shared-tools-modal, 4061);
+#modais-dinamicos-container > #modal-juris-prompts,
+#modal-juris-relatorio .crop-wizard-popup,
+#modal-juris-prompts .crop-wizard-popup {
+    z-index: var(--z-shared-tools-modal, 4061) !important;
 }
 
 /* Modificador Estrutural do Modal (1. BLINDAGEM DO MODAL PAI) */

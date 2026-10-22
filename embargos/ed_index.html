@@ -36,10 +36,10 @@
 </script>
     
     <!-- 1. Estilos Base, Variáveis Globais e Estrutura Principal (Core) -->
-<link rel="stylesheet" href="ed_juris-core.css?v=2.0.0">
+<link rel="stylesheet" href="ed_juris-core.css?v=2.0.2">
 
 <!-- 2. Ferramentas Globais, PDF, Áudio e Modais (Ferramentas de Entrada) -->
-<link rel="stylesheet" href="ed_juris-reader-tools.css?v=3.0.1">
+<link rel="stylesheet" href="ed_juris-reader-tools.css?v=3.0.3">
 
 <!-- 3. Fichário, Timeline, Fases Metodológicas e Acervo (Síntese e Saída) -->
 <link rel="stylesheet" href="ed_juris-timeline-cards.css?v=3.1.1">
@@ -519,16 +519,43 @@
                     };
 
                     /**
+                     * Garante que a hierarquia de camadas (z-index) prevaleça sobre estilos inline:
+                     * Backdrop (4060) < Painel da Ferramenta (4061) < JurisPrompt (5000) < Toast (9000)
+                     */
+                    const enforceLayerHierarchy = (modalEl) => {
+                        backdrop.style.setProperty('z-index', '4060', 'important');
+
+                        if (modalEl) {
+                            modalEl.style.setProperty('z-index', '4061', 'important');
+                            const innerPopup = modalEl.querySelector('.crop-wizard-popup, .doc-modal, [role="dialog"]');
+                            if (innerPopup) {
+                                innerPopup.style.setProperty('z-index', '4061', 'important');
+                            }
+                        }
+
+                        const toastEl = document.getElementById('toast-feedback');
+                        if (toastEl) {
+                            toastEl.style.setProperty('z-index', '9000', 'important');
+                        }
+                    };
+
+                    /**
                      * Sincroniza a visibilidade do backdrop agrupando leituras de layout no próximo frame.
                      */
                     const syncBackdropState = () => {
                         if (rafId !== null) cancelAnimationFrame(rafId);
                         rafId = requestAnimationFrame(() => {
                             rafId = null;
-                            const hasOpenTool = TOOL_MODAL_CONFIGS.some(({ id }) => {
+                            let hasOpenTool = false;
+
+                            TOOL_MODAL_CONFIGS.forEach(({ id }) => {
                                 const el = document.getElementById(id);
-                                return isModalOpen(el);
+                                if (isModalOpen(el)) {
+                                    hasOpenTool = true;
+                                    enforceLayerHierarchy(el);
+                                }
                             });
+
                             backdrop.style.display = hasOpenTool ? 'block' : 'none';
                         });
                     };

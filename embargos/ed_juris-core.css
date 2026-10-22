@@ -475,8 +475,8 @@ body.theme-anotacoes-jasmine {
     font-weight: 500;
     box-shadow: 0 4px 16px rgba(0,0,0,0.15);
     border: 1px solid #546e7a;
-    /* Usa token exclusivo para nunca ser encoberto por backdrops translúcidos */
-    z-index: var(--z-toast-feedback, 9000);
+    /* Usa token exclusivo com !important para nunca ser encoberto por nenhum modal ou backdrop */
+    z-index: var(--z-toast-feedback, 9000) !important;
     opacity: 0;
     transform: translateY(12px);
     transition: opacity 0.25s ease, transform 0.25s ease;
