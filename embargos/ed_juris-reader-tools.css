@@ -1286,6 +1286,23 @@ body.fab-layout-vertical .scroll-fab-container {
     z-index: var(--z-abas-modal-backdrop, 4004);
 }
 
+@supports not ((backdrop-filter: blur(4px)) or (-webkit-backdrop-filter: blur(4px))) {
+    .backdrop-seguro {
+        background: rgba(15, 37, 61, 0.93);
+    }
+}
+
+/* Backdrop translúcido dedicado ao Juris Relatório e Juris Prompts */
+#shared-tools-backdrop {
+    z-index: var(--z-shared-tools-backdrop, 4060);
+}
+
+/* Elevação coordenada dos painéis compartilhados acima do backdrop (4060) e abaixo do JurisPrompt (5000) */
+#modais-dinamicos-container > #modal-juris-relatorio,
+#modais-dinamicos-container > #modal-juris-prompts {
+    z-index: var(--z-shared-tools-modal, 4061);
+}
+
 /* Modificador Estrutural do Modal (1. BLINDAGEM DO MODAL PAI) */
 .modal-tarefas-amplo {
     z-index: var(--z-abas-modal, 4005);
