@@ -1118,14 +1118,24 @@ Crie um sumário hierárquico enxuto com as Grandes Categorias e Subcategorias q
                 <button type="button" class="btn-safecut-link" data-safecut-action="select-all" title="Selecionar todos os grupos">Marcar todos</button>
                 <span aria-hidden="true" style="color:#cbd5e1;">|</span>
                 <button type="button" class="btn-safecut-link" data-safecut-action="clear-all" title="Desmarcar todos os grupos">Limpar</button>
+                <span aria-hidden="true" style="color:#cbd5e1;">|</span>
+                <button type="button" id="btn-safecut-expand-list" class="btn-safecut-expand" data-safecut-action="toggle-expand" aria-pressed="false" title="Aumentar ou restaurar a área de visualização das ideias">
+                    ⤢ Expandir
+                </button>
             </div>
         </div>
         <p class="safe-cut-transfer-hint">
-            Marque os grupos desejados ou clique em <strong>"⤵ Daqui até o fim"</strong> para fatiar o tópico a partir de uma ideia. Os grupos movidos serão renumerados no novo volume:
+            Marque os grupos desejados ou clique em <strong>"⤵ Daqui até o fim"</strong> para fatiar o tópico a partir de uma ideia:
         </p>
+
+        <!-- Lista redimensionável verticalmente com o mouse -->
         <div id="safecut-ideas-list" class="safe-cut-ideas-list" role="group" aria-label="Grupos de ideias disponíveis para transferência"></div>
-        <div id="safecut-transfer-summary" class="safe-cut-transfer-summary" aria-live="polite">
-            Nenhum grupo selecionado (o novo volume iniciará vazio).
+
+        <div class="safe-cut-transfer-footer">
+            <span class="safe-cut-resize-tip" title="Arraste o canto inferior direito da lista acima para ajustar a altura">↕ Arraste o canto inferior direito da lista para ajustar a altura</span>
+            <div id="safecut-transfer-summary" class="safe-cut-transfer-summary" aria-live="polite">
+                Nenhum grupo selecionado (o novo volume iniciará vazio).
+            </div>
         </div>
     </div>
 

@@ -2730,6 +2730,27 @@ window.TopicsManager = (function () {
     }
 
     /**
+     * Alterna o modo expandido da lista de ideias dentro do modal da Tesoura.
+     */
+    function _alternarExpansaoListaCorte(forcarEstado) {
+        const modal = document.getElementById('modal-predivisao');
+        const btnExpand = document.getElementById('btn-safecut-expand-list');
+        const listEl = document.getElementById('safecut-ideas-list');
+        if (!modal || !btnExpand) return;
+
+        const novoEstado = typeof forcarEstado === 'boolean'
+            ? forcarEstado
+            : !modal.classList.contains('is-list-expanded');
+
+        modal.classList.toggle('is-list-expanded', novoEstado);
+        btnExpand.setAttribute('aria-pressed', novoEstado ? 'true' : 'false');
+        btnExpand.textContent = novoEstado ? '⤡ Restaurar tamanho' : '⤢ Expandir';
+
+        // Limpa altura inline deixada pelo resize manual do mouse para que a classe CSS assuma
+        if (listEl) listEl.style.height = '';
+    }
+
+    /**
      * Inicializa de forma idempotente a delegação de eventos do modal de pré-divisão.
      * Elimina a necessidade de onclick/onchange inline nos itens gerados dinamicamente.
      */
@@ -2738,6 +2759,14 @@ window.TopicsManager = (function () {
         if (!modal || modal.dataset.safecutBound === 'true') return;
 
         modal.addEventListener('click', (event) => {
+            // 0. Botão "⤢ Expandir / ⤡ Restaurar tamanho"
+            const btnExpand = event.target.closest('[data-safecut-action="toggle-expand"]');
+            if (btnExpand) {
+                event.preventDefault();
+                _alternarExpansaoListaCorte();
+                return;
+            }
+
             // 1. Botão "⤵ Daqui até o fim" em um item específico
             const btnFromHere = event.target.closest('[data-safecut-action="from-here"]');
             if (btnFromHere) {
@@ -2872,6 +2901,7 @@ window.TopicsManager = (function () {
     function fecharModalPreDivisao() {
         const backdrop = document.getElementById('safecut-backdrop');
         if (backdrop) backdrop.classList.remove('is-active');
+        _alternarExpansaoListaCorte(false);
         _ultimoIndiceClicadoCorte = null;
         if (window.RenderCycle) RenderCycle.bloquearScrollBody(false);
     }
