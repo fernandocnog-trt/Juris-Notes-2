@@ -2026,6 +2026,222 @@ MINI PLAYER DE ÁUDIO — MODAL FOCADO
 }
 
 /* ================================================
+   SELETOR DE GRUPOS DE IDEIAS (MODAL TESOURA)
+   ================================================ */
+.safe-cut-modal {
+    max-width: 640px;
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.safe-cut-transfer-section {
+    margin: 0 20px;
+    padding: 12px 14px;
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
+.safe-cut-transfer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.safe-cut-transfer-label {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--trt-blue);
+}
+
+.safe-cut-transfer-quick-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.btn-safecut-link {
+    background: none;
+    border: none;
+    color: var(--trt-blue-mid);
+    font-size: 0.75rem;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-safecut-link:hover {
+    background: rgba(26, 58, 92, 0.08);
+    text-decoration: underline;
+}
+
+.safe-cut-transfer-hint {
+    font-size: 0.75rem;
+    color: #64748b;
+    line-height: 1.4;
+    margin: 0;
+}
+
+.safe-cut-ideas-list {
+    max-height: clamp(140px, 28vh, 240px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-right: 4px;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.safe-cut-ideas-list::-webkit-scrollbar { width: 6px; }
+.safe-cut-ideas-list::-webkit-scrollbar-track { background: transparent; }
+.safe-cut-ideas-list::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+.safe-cut-idea-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+    user-select: none;
+}
+
+.safe-cut-idea-item:hover {
+    border-color: var(--trt-blue-mid);
+    background: #fdfdfd;
+}
+
+.safe-cut-idea-item:has(.safecut-idea-checkbox:checked) {
+    background: #fff8e1;
+    border-color: #fbc02d;
+    box-shadow: 0 2px 4px rgba(251, 192, 45, 0.14);
+}
+
+.safecut-idea-checkbox {
+    margin-top: 4px;
+    width: 16px;
+    height: 16px;
+    accent-color: var(--safecut-accent-dark);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.safe-cut-idea-badge {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    font-size: 0.74rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    margin-top: 1px;
+    border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.safe-cut-idea-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.safe-cut-idea-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.safe-cut-idea-title-left {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.safe-cut-idea-doc {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.safe-cut-idea-meta {
+    font-size: 0.72rem;
+    color: #64748b;
+    font-weight: 600;
+}
+
+.safe-cut-idea-tese {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #6a1b9a;
+    background: #f3e5f5;
+    border: 1px solid #e1bee7;
+    padding: 1px 7px;
+    border-radius: 10px;
+}
+
+.btn-safecut-from-here {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    color: #334155;
+    font-size: 0.68rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.btn-safecut-from-here:hover,
+.btn-safecut-from-here:focus-visible {
+    background: var(--safecut-accent-dark);
+    color: #ffffff;
+    border-color: var(--safecut-accent-dark);
+    outline: none;
+}
+
+.safe-cut-idea-preview {
+    font-size: 0.75rem;
+    color: #475569;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-style: italic;
+}
+
+.safe-cut-transfer-summary {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: var(--safecut-accent-dark);
+    text-align: right;
+    padding-top: 4px;
+    border-top: 1px dashed #e2e8f0;
+}
+
+/* ================================================
    OCULTADOR RÁPIDO + RADAR DE SUGESTÕES (LGPD - GERADOR IA)
    ================================================ */
 .quick-redact-panel {
