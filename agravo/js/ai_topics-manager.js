@@ -697,22 +697,6 @@ window.TopicsManager = (function () {
         return `<div class="sub-annotations-wrapper">${subCardsHTMLArray.join('')}</div>`;
     }
 
-    function _ehCheckpoint(an) {
-        return Boolean(an && (an.tipo === 'checkpoint_entrada' || an.tipo === 'checkpoint_saida'));
-    }
-
-    function _mapNumerosVisuais(anotacoes) {
-        const mapa = new Map();
-        let contador = 0;
-        (anotacoes || []).forEach((an, idx) => {
-            if (!_ehCheckpoint(an)) {
-                contador += 1;
-                mapa.set(idx, contador);
-            }
-        });
-        return mapa;
-    }
-
     /**
      * Fábrica de cards no formato de fluxograma alternado.
      * Retorna: card + bloco de sub-anotações (se houver) + conector SVG.
@@ -721,67 +705,7 @@ window.TopicsManager = (function () {
      */
     function criarCard(anotacao, index, arr, renderContext) {
         const total    = arr.length;
-        const numero   = (renderContext && renderContext.visualNumberMap && renderContext.visualNumberMap.has(index))
-            ? renderContext.visualNumberMap.get(index)
-            : (index + 1);
-
-        if (anotacao.tipo === 'checkpoint_entrada' || anotacao.tipo === 'checkpoint_saida') {
-            const isSaida = anotacao.tipo === 'checkpoint_saida';
-            const alignClass = index % 2 === 0 ? 'align-left' : 'align-right';
-            const bgColor = isSaida ? '#fff3e0' : '#e8f5e9';
-            const borderColor = isSaida ? '#ff9800' : '#4caf50';
-            const icon = isSaida ? '✂️' : '🔗';
-            
-            const meta = anotacao.metaHandoff;
-            let tituloCheckpoint = isSaida ? 'FIM DESTA PARTE (PONTO DE CORTE)' : 'CONTINUAÇÃO DE VOLUME';
-            let corpoCheckpoint = escaparHTML(anotacao.conteudo);
-
-            if (meta) {
-                const badgeStyle = `background: ${ isSaida ? '#ffe0b2' : '#c8e6c9' }; color: ${ isSaida ? '#e65100' : '#1b5e20' }; padding: 3px 8px; border-radius: 6px; font-family: monospace; font-size: 0.72rem; font-weight: 800; border: 1px solid ${borderColor}; letter-spacing: 0.5px;`;
-                tituloCheckpoint = `
-                    <div style="display: flex; align-items: center; justify-content: space-between; width: 100%; border-bottom: 1px dashed ${borderColor}; padding-bottom: 8px; margin-bottom: 10px;">
-                        <span style="display: flex; align-items: center; gap: 6px; font-weight: 800; color: ${isSaida ? '#e65100' : '#2e7d32'}; font-size: 0.8rem; text-transform: uppercase;">
-                            ${icon} ${isSaida ? 'Fim do Volume ' + toRoman(meta.versao) : 'Continuação do Volume ' + toRoman(meta.versao)}
-                        </span>
-                        <span style="${badgeStyle}" title="ID de Sincronização da IA">🏷️ ${escaparHTML(meta.chkId)}</span>
-                    </div>
-                `;
-                const labelAlvo = isSaida ? 'Continua em:' : 'Origem:';
-                const valorAlvo = isSaida ? meta.alvo : meta.origem;
-                corpoCheckpoint = `
-                    <div style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.65); padding: 8px 12px; border-radius: 6px; border: 1px solid rgba(0,0,0,0.06);">
-                        <span style="font-size: 0.75rem; color: #555; font-weight: 700; text-transform: uppercase;">${labelAlvo}</span>
-                        <strong style="font-size: 0.88rem; color: var(--trt-blue);">${escaparHTML(valorAlvo)}</strong>
-                    </div>
-                `;
-            } else {
-                tituloCheckpoint = `<div style="font-weight: 800; color: ${isSaida ? '#e65100' : '#2e7d32'}; font-size: 0.8rem; margin-bottom: 6px;">${icon} ${tituloCheckpoint}</div>`;
-                corpoCheckpoint = `<p class="card-texto" style="font-weight: 600; font-size: 0.85rem; color: #333; margin: 0;">${corpoCheckpoint}</p>`;
-            }
-
-            const btnDeletarHtml = `
-                <div class="card-actions-bar" style="border-top: 1px dashed ${borderColor}; margin-top: 10px; padding-top: 6px; display: flex; justify-content: flex-end;">
-                    <button class="delete-btn" title="Remover Marcação de Volume" onclick="_menuAnotacaoCtx={topicoId:'${activeTabId}', index:${index}}; excluirAnotacao()" style="color: #c62828; background: rgba(255,255,255,0.6); border-radius: 4px; padding: 4px 8px; display: flex; align-items: center; gap: 4px; font-size: 0.72rem; font-weight: 700; border: 1px solid rgba(198, 40, 40, 0.2); cursor: pointer;">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 14px; height: 14px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                        Excluir Marcação
-                    </button>
-                </div>`;
-
-            return `
-            <div class="timeline-item-master ${alignClass}" id="timeline-wrapper-${anotacao.uuid || index}">
-                <div class="main-card-wrapper" data-uuid="${anotacao.uuid || index}" data-cidx="main">
-                    <div class="annotation-number-area">
-                        <div class="timeline-number" style="background-color: ${borderColor}; color: #fff; font-size: 0.9rem;">${icon}</div>
-                    </div>
-                    <div class="annotation-card" style="background-color: ${bgColor}; border: 2px dashed ${borderColor}; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-                        ${tituloCheckpoint}
-                        ${corpoCheckpoint}
-                        ${btnDeletarHtml}
-                    </div>
-                </div>
-            </div>`;
-        }
-
+        const numero   = index + 1;
         const tagClass = poloParaClasse(anotacao.polo);
         const metaTexto = _obterMetaTexto(anotacao);
 
@@ -1105,20 +1029,17 @@ window.TopicsManager = (function () {
         const corTexto = obterCorContraste(_activeTopicoCor);
         
         const fragment = document.createDocumentFragment(); // Otimização de reflow
-        const mapaVisuais = _mapNumerosVisuais(topico.anotacoes);
 
         topico.anotacoes.forEach((anotacao, index) => {
-            if (_ehCheckpoint(anotacao)) return;
-            const numeroVisual = mapaVisuais.get(index);
             const btn = document.createElement('div');
             btn.className = 'fab-idea-marker';
             btn.style.backgroundColor = _activeTopicoCor;
             btn.style.color = corTexto;
-            btn.textContent = numeroVisual;
+            btn.textContent = index + 1;
             
             // UX Rica: Tooltip injeta o título da tese se existir
             const nomeTese = anotacao.tese ? ` - ${escaparHTML(anotacao.tese)}` : '';
-            btn.title = `Ir para a Ideia ${numeroVisual}${nomeTese}`;
+            btn.title = `Ir para a Ideia ${index + 1}${nomeTese}`;
 
             // 4. Feitiçaria Matemática de Scroll (Alerta 1 resolvido)
             btn.onclick = (e) => {
@@ -1417,22 +1338,18 @@ window.TopicsManager = (function () {
             _sincronizarBtnGlobais(false, false);
             _atualizarMarcadoresDeIdeia(topicoAtivo);
             atualizarContadorNotasOcultas();
-            atualizarAlertaCapacidadeTopico(topicoAtivo);
             _sincronizarModulosPerifericos();
             restaurarScroll();
             return;
         }
 
-        const mapaVisuais = _mapNumerosVisuais(topicoAtivo.anotacoes);
-
         let sumarioHtml = '';
-        const tesesValidas = topicoAtivo.anotacoes.filter(an => !_ehCheckpoint(an) && an.tese && an.tese.trim() !== '');
+        const tesesValidas = topicoAtivo.anotacoes.filter(an => an.tese && an.tese.trim() !== '');
         if (tesesValidas.length > 0) {
             sumarioHtml = `<div class="thesis-summary-panel">`;
 
             topicoAtivo.anotacoes.forEach((an, idx) => {
-                if (!_ehCheckpoint(an) && an.tese && an.tese.trim() !== '') {
-                    const numVisual = mapaVisuais.get(idx);
+                if (an.tese && an.tese.trim() !== '') {
                     const fasesPresentes = new Set();
                     
                     fasesPresentes.add(typeof identificarFaseMetodologica === 'function' ? identificarFaseMetodologica(an.documento) : 4);
@@ -1485,7 +1402,7 @@ window.TopicsManager = (function () {
                     sumarioHtml += `
                         <div class="thesis-badge ${matureClass}" onclick="abrirModalTese('${activeTabId}', ${idx})">
                             <div class="thesis-badge-inner" ${bgStyle}>
-                                <span class="num" style="background-color: ${_activeTopicoCor}; color: ${corTextoTese};">${numVisual}</span> 
+                                <span class="num" style="background-color: ${_activeTopicoCor}; color: ${corTextoTese};">${idx + 1}</span> 
                                 <span class="texto-tese">${txt}</span>
                             </div>
                         </div>`;
@@ -1499,16 +1416,10 @@ window.TopicsManager = (function () {
 
         const renderContext = {
             romanCounter: 0,
-            romanMap: new Map(),
-            visualNumberMap: mapaVisuais
+            romanMap: new Map() 
         };
 
         topicoAtivo.anotacoes.forEach((an, index) => {
-            if (_ehCheckpoint(an)) {
-                cardsHTML += criarCard(an, index, topicoAtivo.anotacoes, renderContext);
-                return;
-            }
-
             const chaveObiceCrua = an.tese || "Óbice Não Nomeado"; 
             const diretrizes = (topicoAtivo.diretrizesPorObice && topicoAtivo.diretrizesPorObice[chaveObiceCrua]) 
                                 ? topicoAtivo.diretrizesPorObice[chaveObiceCrua] 
@@ -1669,7 +1580,6 @@ window.TopicsManager = (function () {
         });
         
         _sincronizarBtnGlobais(temGlobais, forcadoAberto);
-        atualizarAlertaCapacidadeTopico(topicoAtivo);
         _sincronizarModulosPerifericos();
     }
 
@@ -2530,454 +2440,6 @@ window.TopicsManager = (function () {
         });
     }
 
-    // ==========================================
-    // INÍCIO: LÓGICA DA TESOURA E CHECKPOINT (COM TRANSFERÊNCIA SELETIVA E MODO EXPANDIDO)
-    // ==========================================
-    
-    const toRoman = (num) => {
-        const lookup = {M:1000,CM:900,D:500,CD:400,C:100,XC:90,L:50,XL:40,X:10,IX:9,V:5,IV:4,I:1};
-        let roman = '', i;
-        for (i in lookup) { while (num >= lookup[i]) { roman += i; num -= lookup[i]; } }
-        return roman;
-    };
-
-    let _debounceContagemItens = null;
-    let _ultimoIndiceClicadoCorte = null;
-
-    function atualizarAlertaCapacidadeTopico(topico) {
-        clearTimeout(_debounceContagemItens);
-        _debounceContagemItens = setTimeout(() => {
-            if (!topico || !topico.anotacoes) return;
-            let total = topico.anotacoes.length;
-            topico.anotacoes.forEach(an => {
-                total += (an.subAnotacoes ? an.subAnotacoes.length : 0);
-                if (an.itensCorrelacionados) {
-                    total += an.itensCorrelacionados.length;
-                    an.itensCorrelacionados.forEach(ic => total += (ic.subAnotacoes ? ic.subAnotacoes.length : 0));
-                }
-            });
-
-            const btn = document.getElementById('btn-dividir-topico');
-            if (btn) {
-                const limiteAtingido = total >= 30;
-                btn.classList.toggle('limite-pulse-alert', limiteAtingido);
-                btn.disabled = false;
-                
-                if (limiteAtingido) {
-                    btn.title = '⚠️ Este tópico está muito longo! Clique para dividir em um novo volume e evitar que a IA se perca ou esqueça do contexto.';
-                } else {
-                    btn.title = 'Dividir Tópico em Volumes (Checkpoint IA)';
-                }
-            }
-        }, 500);
-    }
-
-    /**
-     * Extrai um resumo estruturado do Grupo de Ideia (Mestre + Correlacionados + Sub-nós)
-     * para exibição clara no checklist do modal da Tesoura.
-     */
-    function _obterResumoGrupoIdeia(anotacao) {
-        const doc = anotacao.documento || anotacao.polo || 'Elemento Probatório';
-        const folha = anotacao.pagina ? `fl. ${anotacao.pagina}` : '';
-        const qtdCorrelacionados = anotacao.itensCorrelacionados ? anotacao.itensCorrelacionados.length : 0;
-        let qtdNos = anotacao.subAnotacoes ? anotacao.subAnotacoes.length : 0;
-
-        if (anotacao.itensCorrelacionados) {
-            anotacao.itensCorrelacionados.forEach(ic => {
-                qtdNos += (ic.subAnotacoes ? ic.subAnotacoes.length : 0);
-            });
-        }
-
-        let previewTexto = '';
-        if (anotacao.tipo === 'texto') {
-            previewTexto = anotacao.conteudo || '';
-        } else if (anotacao.tipo === 'imagem') {
-            previewTexto = `[Imagem] ${anotacao.comentario || ''}`;
-        } else if (anotacao.tipo === 'audio') {
-            const dadosAudio = _obterDadosAudioSeguros(anotacao);
-            previewTexto = dadosAudio && !dadosAudio.isCorrompido
-                ? `[Áudio: ${dadosAudio.orador}] ${dadosAudio.transcricao || dadosAudio.comentario || ''}`
-                : '[Trecho de Áudio]';
-        }
-
-        const partesExtras = [];
-        if (qtdCorrelacionados > 0) partesExtras.push(`+${qtdCorrelacionados} agrupada(s)`);
-        if (qtdNos > 0) partesExtras.push(`${qtdNos} nó(s)`);
-
-        return {
-            doc,
-            folha,
-            tese: anotacao.tese ? anotacao.tese.trim() : '',
-            detalhesAgrupamento: partesExtras.join(' • '),
-            preview: previewTexto.replace(/\s+/g, ' ').trim().substring(0, 110)
-        };
-    }
-
-    function _atualizarResumoSelecaoCorte() {
-        const checkboxes = document.querySelectorAll('#safecut-ideas-list .safecut-idea-checkbox');
-        const total = checkboxes.length;
-        let selecionados = 0;
-        checkboxes.forEach(chk => { if (chk.checked) selecionados++; });
-
-        const summaryEl = document.getElementById('safecut-transfer-summary');
-        const btnLabelEl = document.getElementById('btn-executar-tesoura-label');
-
-        if (summaryEl) {
-            if (total === 0) {
-                summaryEl.textContent = 'Nenhum grupo disponível para transferência.';
-            } else if (selecionados === 0) {
-                summaryEl.textContent = 'Nenhum grupo selecionado (o novo volume iniciará vazio).';
-            } else {
-                summaryEl.textContent = `${selecionados} de ${total} grupo(s) selecionado(s) para mover ao novo volume.`;
-            }
-        }
-
-        if (btnLabelEl) {
-            btnLabelEl.textContent = selecionados === 0
-                ? 'Dividir em Volumes'
-                : `Mover (${selecionados}) e Dividir`;
-        }
-    }
-
-    /**
-     * Alterna o modo expandido da lista de ideias dentro do modal da Tesoura.
-     */
-    function _alternarExpansaoListaCorte(forcarEstado) {
-        const modal = document.getElementById('modal-predivisao');
-        const btnExpand = document.getElementById('btn-safecut-expand-list');
-        const listEl = document.getElementById('safecut-ideas-list');
-        if (!modal || !btnExpand) return;
-
-        const novoEstado = typeof forcarEstado === 'boolean'
-            ? forcarEstado
-            : !modal.classList.contains('is-list-expanded');
-
-        modal.classList.toggle('is-list-expanded', novoEstado);
-        btnExpand.setAttribute('aria-pressed', novoEstado ? 'true' : 'false');
-        btnExpand.textContent = novoEstado ? '⤡ Restaurar tamanho' : '⤢ Expandir';
-
-        // Limpa altura inline deixada pelo resize manual do mouse para que a classe CSS assuma
-        if (listEl) listEl.style.height = '';
-    }
-
-    /**
-     * Inicializa de forma idempotente a delegação de eventos do modal de pré-divisão.
-     * Elimina a necessidade de onclick/onchange inline nos itens gerados dinamicamente.
-     */
-    function _inicializarEventosModalCorte() {
-        const modal = document.getElementById('modal-predivisao');
-        if (!modal || modal.dataset.safecutBound === 'true') return;
-
-        modal.addEventListener('click', (event) => {
-            // 0. Botão "⤢ Expandir / ⤡ Restaurar tamanho"
-            const btnExpand = event.target.closest('[data-safecut-action="toggle-expand"]');
-            if (btnExpand) {
-                event.preventDefault();
-                _alternarExpansaoListaCorte();
-                return;
-            }
-
-            // 1. Botão "⤵ Daqui até o fim" em um item específico
-            const btnFromHere = event.target.closest('[data-safecut-action="from-here"]');
-            if (btnFromHere) {
-                event.preventDefault();
-                event.stopPropagation();
-                const startOrder = parseInt(btnFromHere.dataset.orderIndex, 10);
-                if (!isNaN(startOrder)) {
-                    const allCheckboxes = Array.from(modal.querySelectorAll('.safecut-idea-checkbox'));
-                    allCheckboxes.forEach((chk, idx) => {
-                        chk.checked = (idx >= startOrder);
-                    });
-                    _ultimoIndiceClicadoCorte = startOrder;
-                    _atualizarResumoSelecaoCorte();
-                }
-                return;
-            }
-
-            // 2. Botões de cabeçalho: "Marcar todos" / "Limpar"
-            const btnBulk = event.target.closest('[data-safecut-action="select-all"], [data-safecut-action="clear-all"]');
-            if (btnBulk) {
-                event.preventDefault();
-                const marcar = btnBulk.dataset.safecutAction === 'select-all';
-                modal.querySelectorAll('.safecut-idea-checkbox').forEach(chk => {
-                    chk.checked = marcar;
-                });
-                _ultimoIndiceClicadoCorte = null;
-                _atualizarResumoSelecaoCorte();
-                return;
-            }
-
-            // 3. Suporte a Shift + Clique diretamente no checkbox para seleção de intervalo
-            const chkTarget = event.target.closest('.safecut-idea-checkbox');
-            if (chkTarget) {
-                const currentOrder = parseInt(chkTarget.dataset.orderIndex, 10);
-                if (event.shiftKey && _ultimoIndiceClicadoCorte !== null && !isNaN(currentOrder)) {
-                    const allCheckboxes = Array.from(modal.querySelectorAll('.safecut-idea-checkbox'));
-                    const min = Math.min(_ultimoIndiceClicadoCorte, currentOrder);
-                    const max = Math.max(_ultimoIndiceClicadoCorte, currentOrder);
-                    const targetState = chkTarget.checked;
-                    for (let i = min; i <= max; i++) {
-                        if (allCheckboxes[i]) allCheckboxes[i].checked = targetState;
-                    }
-                }
-                _ultimoIndiceClicadoCorte = currentOrder;
-                _atualizarResumoSelecaoCorte();
-            }
-        });
-
-        modal.addEventListener('change', (event) => {
-            if (event.target.classList.contains('safecut-idea-checkbox')) {
-                _atualizarResumoSelecaoCorte();
-            }
-        });
-
-        modal.dataset.safecutBound = 'true';
-    }
-
-    function acionarDivisaoTopico() {
-        if (!activeTabId) {
-            if (window.exibirToast) window.exibirToast('Nenhum tópico selecionado.', 'aviso');
-            return;
-        }
-
-        const topicoAtual = topicos.find(t => t.id === activeTabId);
-        if (!topicoAtual) return;
-
-        // Guardrail de Integridade: Impede dividir novamente um volume que já foi encerrado
-        const jaPossuiSaida = (topicoAtual.anotacoes || []).some(a => a && a.tipo === 'checkpoint_saida');
-        if (jaPossuiSaida) {
-            if (window.exibirToast) {
-                window.exibirToast('Este volume já foi dividido anteriormente. Acesse o último volume criado para continuar ou realizar nova divisão.', 'aviso');
-            }
-            return;
-        }
-
-        _inicializarEventosModalCorte();
-        _ultimoIndiceClicadoCorte = null;
-
-        const listContainer = document.getElementById('safecut-ideas-list');
-        if (listContainer) {
-            const anotacoes = topicoAtual.anotacoes || [];
-            const mapaVisuais = _mapNumerosVisuais(anotacoes);
-            const corTopico = topicoAtual.cor || '#1a3a5c';
-            const corTexto = obterCorContraste(corTopico);
-            const htmlBuffer = [];
-            let orderIndex = 0;
-
-            anotacoes.forEach((an, idx) => {
-                if (_ehCheckpoint(an)) return;
-                const numVisual = mapaVisuais.get(idx);
-                const info = _obterResumoGrupoIdeia(an);
-                const currentOrder = orderIndex++;
-
-                htmlBuffer.push(`
-                <label class="safe-cut-idea-item">
-                    <input type="checkbox" class="safecut-idea-checkbox" value="${idx}" data-order-index="${currentOrder}">
-                    <span class="safe-cut-idea-badge" style="background-color: ${corTopico}; color: ${corTexto};">${numVisual}</span>
-                    <div class="safe-cut-idea-info">
-                        <div class="safe-cut-idea-title-row">
-                            <div class="safe-cut-idea-title-left">
-                                <span class="safe-cut-idea-doc">Ideia ${numVisual} — ${escaparHTML(info.doc)}</span>
-                                ${info.folha ? `<span class="safe-cut-idea-meta">(${escaparHTML(info.folha)})</span>` : ''}
-                                ${info.detalhesAgrupamento ? `<span class="safe-cut-idea-meta">• ${escaparHTML(info.detalhesAgrupamento)}</span>` : ''}
-                                ${info.tese ? `<span class="safe-cut-idea-tese">⚖️ ${escaparHTML(info.tese)}</span>` : ''}
-                            </div>
-                            <button type="button" class="btn-safecut-from-here" data-safecut-action="from-here" data-order-index="${currentOrder}" title="Marcar da Ideia ${numVisual} até o final">
-                                ⤵ Daqui até o fim
-                            </button>
-                        </div>
-                        ${info.preview ? `<div class="safe-cut-idea-preview">"${escaparHTML(info.preview)}"</div>` : ''}
-                    </div>
-                </label>`);
-            });
-
-            listContainer.innerHTML = htmlBuffer.length > 0
-                ? htmlBuffer.join('')
-                : '<p style="font-size:0.8rem; color:#64748b; text-align:center; padding:12px;">Este tópico ainda não possui grupos de ideias para transferir.</p>';
-            listContainer.scrollTop = 0;
-        }
-
-        _atualizarResumoSelecaoCorte();
-
-        if (window.RenderCycle) RenderCycle.bloquearScrollBody(true);
-
-        const backdrop = document.getElementById('safecut-backdrop');
-        if (backdrop) backdrop.classList.add('is-active');
-        
-        const btnCortar = document.getElementById('btn-executar-tesoura');
-        if (btnCortar) btnCortar.classList.remove('ready-to-cut');
-    }
-
-    function fecharModalPreDivisao() {
-        const backdrop = document.getElementById('safecut-backdrop');
-        if (backdrop) backdrop.classList.remove('is-active');
-        _alternarExpansaoListaCorte(false);
-        _ultimoIndiceClicadoCorte = null;
-        if (window.RenderCycle) RenderCycle.bloquearScrollBody(false);
-    }
-
-    async function baixarBackupPreCorte() {
-        try {
-            await acionarCriacaoBackup('_PRE_CORTE');
-            if (typeof exibirToast === 'function') {
-                exibirToast('Fotografia de segurança pré-corte salva com sucesso!', 'sucesso');
-            }
-            const btnCortar = document.getElementById('btn-executar-tesoura');
-            if (btnCortar) btnCortar.classList.add('ready-to-cut');
-        } catch (err) {
-            console.log("[Tesoura] Backup de segurança cancelado pelo usuário.");
-        }
-    }
-
-    function executarDivisaoTopico() {
-        console.log("[Tesoura] Processando divisão de volume...");
-        const topicoAtual = topicos.find(t => t.id === activeTabId);
-        if (!topicoAtual) return;
-
-        // 1. Coleta os índices originais marcados para transferência
-        const indicesSelecionados = new Set(
-            Array.from(document.querySelectorAll('#safecut-ideas-list .safecut-idea-checkbox:checked'))
-                .map(chk => parseInt(chk.value, 10))
-                .filter(n => !isNaN(n))
-        );
-
-        const anotacoesRestantes = [];
-        const anotacoesTransferidas = [];
-
-        (topicoAtual.anotacoes || []).forEach((an, idx) => {
-            if (!_ehCheckpoint(an) && indicesSelecionados.has(idx)) {
-                anotacoesTransferidas.push(an);
-            } else {
-                anotacoesRestantes.push(an);
-            }
-        });
-
-        // Desvincula os grupos transferidos do Volume atual
-        topicoAtual.anotacoes = anotacoesRestantes;
-
-        // 2. Particionamento seguro de Diretrizes por Óbice (Específico do AI) e Diretrizes por Tese (Fallback)
-        const diretrizesPorObiceNovo = {};
-        if (topicoAtual.diretrizesPorObice && anotacoesTransferidas.length > 0) {
-            const obicesTransferidos = new Set(
-                anotacoesTransferidas.map(a => a.tese || "Óbice Não Nomeado")
-            );
-            const obicesRestantes = new Set(
-                anotacoesRestantes.filter(a => !_ehCheckpoint(a)).map(a => a.tese || "Óbice Não Nomeado")
-            );
-
-            obicesTransferidos.forEach(chaveObice => {
-                if (topicoAtual.diretrizesPorObice[chaveObice]) {
-                    diretrizesPorObiceNovo[chaveObice] = JSON.parse(
-                        JSON.stringify(topicoAtual.diretrizesPorObice[chaveObice])
-                    );
-                    if (!obicesRestantes.has(chaveObice)) {
-                        delete topicoAtual.diretrizesPorObice[chaveObice];
-                    }
-                }
-            });
-        }
-
-        const diretrizesPorTeseNovo = {};
-        if (topicoAtual.diretrizesPorTese && anotacoesTransferidas.length > 0) {
-            const tesesTransferidas = new Set(
-                anotacoesTransferidas.map(a => a.tese || "Tese Não Nomeada")
-            );
-            const tesesRestantes = new Set(
-                anotacoesRestantes.filter(a => !_ehCheckpoint(a)).map(a => a.tese || "Tese Não Nomeada")
-            );
-
-            tesesTransferidas.forEach(chaveTese => {
-                if (topicoAtual.diretrizesPorTese[chaveTese]) {
-                    diretrizesPorTeseNovo[chaveTese] = JSON.parse(
-                        JSON.stringify(topicoAtual.diretrizesPorTese[chaveTese])
-                    );
-                    if (!tesesRestantes.has(chaveTese)) {
-                        delete topicoAtual.diretrizesPorTese[chaveTese];
-                    }
-                }
-            });
-        }
-
-        const volAtual = topicoAtual.volumeData && topicoAtual.volumeData.sequencia ? topicoAtual.volumeData.sequencia : 1;
-        const proxVol = volAtual + 1;
-        const nomeBase = topicoAtual.nome.replace(/\s*\(Vol\. [IVXLCDM]+\)$/, '');
-        const novoNome = `${nomeBase} (Vol. ${toRoman(proxVol)})`;
-        const novoId = 'topico-' + Date.now();
-        const slugA = nomeBase.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, '-');
-        const chkId = `CHK-${slugA}-v${volAtual}`;
-
-        topicoAtual.anotacoes.push({
-            uuid: 'id-chk-out-' + Date.now(),
-            tipo: 'checkpoint_saida',
-            conteudo: `CONTINUA NO TÓPICO: "${novoNome}" | ID: ${chkId}`,
-            metaHandoff: { alvo: novoNome, slug: slugA, versao: volAtual, chkId: chkId }
-        });
-
-        const checkpointEntrada = {
-            uuid: 'id-chk-in-' + Date.now(),
-            tipo: 'checkpoint_entrada',
-            conteudo: `CONTINUAÇÃO DO TÓPICO: "${topicoAtual.nome}" | ID: ${chkId}`,
-            metaHandoff: { origem: topicoAtual.nome, slug: slugA, versao: volAtual, chkId: chkId }
-        };
-
-        const novoTopico = {
-            id: novoId,
-            nome: novoNome,
-            cor: topicoAtual.cor,
-            alegacoes: topicoAtual.alegacoes,
-            fundamentos: topicoAtual.fundamentos,
-            veredito: topicoAtual.veredito,
-            matrizCalculo: topicoAtual.matrizCalculo,
-            volumeData: { sequencia: proxVol, anteriorId: topicoAtual.id, chkId: chkId },
-            diretrizesGlobais: [],
-            diretrizesPorObice: diretrizesPorObiceNovo,
-            diretrizesPorTese: diretrizesPorTeseNovo,
-            anotacoes: [checkpointEntrada, ...anotacoesTransferidas]
-        };
-
-        topicos.push(novoTopico);
-        activeTabId = novoId;
-
-        // Suprime a restauração do yOffset do Volume anterior para iniciar no topo do novo Volume
-        suprimirProximaRestauracao();
-        renderizarFichario(topicos);
-        fecharModalPreDivisao();
-
-        // Feedback visual tátil no primeiro grupo transferido sem conflitar com o _scrollGuard
-        if (anotacoesTransferidas.length > 0) {
-            const primeiroUuid = anotacoesTransferidas[0].uuid;
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    const wrapperAlvo = primeiroUuid
-                        ? document.getElementById(`timeline-wrapper-${primeiroUuid}`)
-                        : null;
-                    const cardAlvo = wrapperAlvo
-                        ? wrapperAlvo.querySelector('.main-card-wrapper > .annotation-card')
-                        : null;
-                    if (cardAlvo) {
-                        cardAlvo.classList.remove('card-flash-focus');
-                        void cardAlvo.offsetWidth;
-                        cardAlvo.classList.add('card-flash-focus');
-                    }
-                });
-            });
-        }
-
-        // Sincroniza os badges numéricos nas páginas do PDF e salva o backup
-        if (typeof window.sincronizarHighlightsGerais === 'function') window.sincronizarHighlightsGerais();
-        if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
-        if (typeof exibirToast === 'function') {
-            const msg = anotacoesTransferidas.length > 0
-                ? `Volume ${toRoman(proxVol)} criado com ${anotacoesTransferidas.length} grupo(s) transferido(s) e renumerado(s)!`
-                : 'Volume dividido. Estado salvo com sucesso.';
-            exibirToast(msg, 'sucesso');
-        }
-    }
-
-    // ==========================================
-    // FIM: LÓGICA DA TESOURA E CHECKPOINT
-    // ==========================================
-
     // API pública do módulo
     return {
         obterDadosAudioSeguros: _obterDadosAudioSeguros,
@@ -3011,14 +2473,7 @@ window.TopicsManager = (function () {
         abrirModalPilhaProcessual,
         fecharModalPilhaProcessual,
         salvarPilhaProcessual,
-        desagruparPilhaProcessual,
-        // EXPORTAÇÕES DA TESOURA
-        acionarDivisaoTopico,
-        fecharModalPreDivisao,
-        baixarBackupPreCorte,
-        executarDivisaoTopico,
-        ehCheckpoint: _ehCheckpoint,
-        obterMapaNumerosVisuais: _mapNumerosVisuais
+        desagruparPilhaProcessual
     };
 
 })();
