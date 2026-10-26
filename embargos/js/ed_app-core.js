@@ -1626,25 +1626,10 @@ async function salvarAnotacao(tipo, conteudo, documento, polo, topicoId, comenta
             exibirToast(`Anotação salva em "${topicoAlvo.nome}".`);
         }
 
-        // Busca de inserção ordenada por Fase Metodológica (1 a 4), respeitando as fronteiras de Checkpoint
-        let insertIndex = topicoAlvo.anotacoes.length;
-        for (let i = 0; i < topicoAlvo.anotacoes.length; i++) {
-            const itemAtual = topicoAlvo.anotacoes[i];
-
-            // Nunca insere antes de um checkpoint_entrada
-            if (itemAtual && itemAtual.tipo === 'checkpoint_entrada') continue;
-
-            // Nunca insere depois de um checkpoint_saida
-            if (itemAtual && itemAtual.tipo === 'checkpoint_saida') {
-                insertIndex = i;
-                break;
-            }
-
-            if (identificarFaseMetodologica(itemAtual.documento) > faseNova) {
-                insertIndex = i;
-                break;
-            }
-        }
+        // Insere a Nova Ideia sempre ao final da lista de ideias existentes
+        // (respeitando apenas o limite de um eventual checkpoint_saida no rodapé)
+        const idxSaida = topicoAlvo.anotacoes.findIndex(a => a && a.tipo === 'checkpoint_saida');
+        const insertIndex = idxSaida !== -1 ? idxSaida : topicoAlvo.anotacoes.length;
         topicoAlvo.anotacoes.splice(insertIndex, 0, novaExtracao);
     }
 
