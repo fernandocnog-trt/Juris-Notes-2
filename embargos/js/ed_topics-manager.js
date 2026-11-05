@@ -4044,7 +4044,6 @@ window.TopicsManager = (function () {
         toggleDiretrizesGlobais,
         togglePreambuloTopico,
         resetVisibilidadeGlobais,
-        MAPA_TESE_ICONES,
         obterCor,
         abrirModalPilha,
         fecharModalPilha,
