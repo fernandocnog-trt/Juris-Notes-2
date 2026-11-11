@@ -180,46 +180,54 @@ window.TopicsManager = (function () {
     }
 
     /* ================================================
-       OBSERVER DE LAYOUT OTIMIZADO (ANTI-THRASING)
+       OBSERVER DE LAYOUT (ANTI-THRASHING v2)
+       Memória POR ELEMENTO (WeakMap) + ignora a 1ª medição.
+       Observa só as caixas que o motor de layout mede
+       (.annotation-card e .sub-annotation-item), cujo tamanho
+       não é alterado pelo próprio posicionamento: sem retroalimentação.
        ================================================ */
     let _layoutDebounceTimer = null;
-    let _isUpdatingLayout = false;
-    const _lastHeights = new Map(); 
+    const _ultimasDimensoes = new WeakMap(); // elemento -> { w, h }
+
+    function _isZenAtivo() {
+        const el = document.getElementById('topics-tab-content');
+        return !!(el && el.classList.contains('zen-mode-ativo'));
+    }
+
+    /**
+     * Recalcula posições e redesenha as conexões acompanhando a
+     * transição CSS de "top" (0.3s), para as linhas não ficarem para trás.
+     */
+    function redesenharMapa() {
+        const container = document.getElementById('timeline-container');
+        if (!container || container.offsetParent === null) return;
+        _sincronizarConexoesComAnimacao(container);
+    }
 
     const resizeObserver = new ResizeObserver((entries) => {
-        if (_isUpdatingLayout) return;
-        let needsRedraw = false;
+        let precisaRedesenhar = false;
 
         for (const entry of entries) {
-            // 1. FILTRO DE ELEMENTOS OCULTOS: Ignora abas inativas ou nós desmontados
-            if (!entry.target || entry.target.offsetParent === null) continue;
+            const el = entry.target;
+            // Ignora nós desmontados ou em abas ocultas
+            if (!el.isConnected || el.offsetParent === null) continue;
 
-            const currentHeight = Math.round(entry.contentRect.height);
-            const elementId = entry.target.id || entry.target.dataset.uuid || 'dom-node';
-            const lastHeight = _lastHeights.get(elementId) || 0;
+            const box = entry.borderBoxSize && entry.borderBoxSize[0];
+            const w = Math.round(box ? box.inlineSize : entry.contentRect.width);
+            const h = Math.round(box ? box.blockSize : entry.contentRect.height);
 
-            // 2. THRESHOLD DELTA: Ignora variações sub-pixel que geram loop infinito
-            if (currentHeight > 10 && Math.abs(currentHeight - lastHeight) >= 3) {
-                _lastHeights.set(elementId, currentHeight);
-                needsRedraw = true;
+            const anterior = _ultimasDimensoes.get(el);
+            _ultimasDimensoes.set(el, { w, h });
+
+            if (!anterior) continue; // 1ª observação: apenas registra a medida
+            if (Math.abs(w - anterior.w) >= 3 || Math.abs(h - anterior.h) >= 3) {
+                precisaRedesenhar = true;
             }
         }
 
-        // 3. EXECUÇÃO EM LOTE VIA REQUEST ANIMATION FRAME
-        if (needsRedraw) {
-            clearTimeout(_layoutDebounceTimer);
-            _layoutDebounceTimer = setTimeout(() => {
-                _isUpdatingLayout = true;
-                requestAnimationFrame(() => {
-                    const container = document.getElementById('timeline-container');
-                    if (container && container.offsetParent !== null) {
-                        posicionarNosDeIdeia(container);
-                        desenharConexoes();
-                    }
-                    setTimeout(() => { _isUpdatingLayout = false; }, 50);
-                });
-            }, 150); 
-        }
+        if (!precisaRedesenhar) return;
+        clearTimeout(_layoutDebounceTimer);
+        _layoutDebounceTimer = setTimeout(redesenharMapa, 120);
     });
 
     // Funções Privadas do Modo de Leitura Centralizado
@@ -858,8 +866,11 @@ window.TopicsManager = (function () {
                 }
             });
 
-            // Fecha em qualquer rolagem da página ou de sub-containers internos
-            document.addEventListener('scroll', ocultar, { capture: true, passive: true });
+            // Fecha em qualquer rolagem — só age se houver tooltip ativo
+            // (antes, cada evento de scroll mexia em classe/atributo do DOM)
+            document.addEventListener('scroll', () => {
+                if (_activeTarget) ocultar();
+            }, { capture: true, passive: true });
 
             _bound = true;
         }
@@ -1965,6 +1976,10 @@ window.TopicsManager = (function () {
                 childrenOnly: true,
                 getNodeKey: function(node) {
                     if (node.id) return node.id;
+                },
+                // Mantém as linhas antigas até o redesenho (evita quadro sem conexões)
+                onBeforeElChildrenUpdated: function(fromEl) {
+                    return fromEl.id !== 'connections-canvas';
                 }
             });
         } else {
@@ -1972,53 +1987,50 @@ window.TopicsManager = (function () {
         }
             
         requestAnimationFrame(() => {
-            document.querySelectorAll('.sub-text-content, .card-texto, .juris-scroll-fade-body').forEach(el => {
-                if (typeof resizeObserver !== 'undefined') resizeObserver.observe(el);
-                
+            // FASE 1 — LEITURA EM LOTE (antes: ler/escrever alternado = 1 reflow por elemento)
+            const medicoes = [];
+            contentEl.querySelectorAll('.sub-text-content, .card-texto, .juris-scroll-fade-body').forEach(el => {
                 const isScrollFadeBody = el.classList.contains('juris-scroll-fade-body');
-                const truncateTarget = isScrollFadeBody ? el.parentElement : el;
-                const isOverflowing = (el.scrollHeight - el.clientHeight) > 2;
+                const transborda = (el.scrollHeight - el.clientHeight) > 2;
+                const noFim = isScrollFadeBody && transborda
+                    && Math.ceil(el.scrollTop + el.clientHeight) >= el.scrollHeight - 4;
+                medicoes.push({ el, isScrollFadeBody, transborda, noFim });
+            });
 
-                if (isOverflowing) {
-                    if (truncateTarget) {
-                        truncateTarget.classList.add('is-truncated');
-                        if (isScrollFadeBody) {
-                            const noFim = Math.ceil(el.scrollTop + el.clientHeight) >= el.scrollHeight - 4;
-                            truncateTarget.classList.toggle('is-scrolled-end', noFim);
-                        }
-                    }
-                    const parentCard = el.closest('.annotation-card, .sub-annotation-card');
-                    if (parentCard) parentCard.classList.add('has-truncated-text');
-                } else {
-                    if (truncateTarget) {
-                        truncateTarget.classList.remove('is-truncated', 'is-scrolled-end');
-                    }
-                    const parentCard = el.closest('.annotation-card, .sub-annotation-card');
-                    if (parentCard) parentCard.classList.remove('has-truncated-text');
+            // FASE 2 — ESCRITA EM LOTE
+            const cardsTruncados = new Set();
+            medicoes.forEach(({ el, isScrollFadeBody, transborda, noFim }) => {
+                const alvo = isScrollFadeBody ? el.parentElement : el;
+                if (alvo) {
+                    alvo.classList.toggle('is-truncated', transborda);
+                    alvo.classList.toggle('is-scrolled-end', noFim);
+                }
+                if (transborda) {
+                    const card = el.closest('.annotation-card, .sub-annotation-card');
+                    if (card) cardsTruncados.add(card);
                 }
             });
-
-            const historyContainer = document.getElementById('history-container');
-            if (historyContainer && typeof resizeObserver !== 'undefined') resizeObserver.observe(historyContainer);
-            
-            if (headerEl && typeof resizeObserver !== 'undefined') resizeObserver.observe(headerEl);
-
-            document.querySelectorAll('.image-resize-wrapper').forEach(wrapper => {
-                wrapper.addEventListener('mouseup', () => desenharConexoes());
-                wrapper.addEventListener('mouseleave', () => desenharConexoes());
+            // Um cartão é "truncado" se QUALQUER texto dele transborda
+            // (antes, o último texto avaliado sobrescrevia os anteriores)
+            contentEl.querySelectorAll('.annotation-card, .sub-annotation-card').forEach(card => {
+                card.classList.toggle('has-truncated-text', cardsTruncados.has(card));
             });
 
+            // FASE 3 — POSICIONA E DESENHA NO MESMO QUADRO (sem quadro intermediário sem linhas)
             const container = document.getElementById('timeline-container');
             if (container) {
                 posicionarNosDeIdeia(container);
-                restaurarScroll();
-                
-                requestAnimationFrame(() => {
-                    desenharConexoes();
-                    _reassertScroll();
-                });
-            } else {
-                restaurarScroll();
+                desenharConexoes(_isZenAtivo());
+            }
+            restaurarScroll();
+            requestAnimationFrame(_reassertScroll);
+
+            // FASE 4 — OBSERVAÇÃO: só as caixas que o motor mede.
+            // Redimensionar imagem altera o cartão, que já é observado:
+            // os listeners mouseup/mouseleave (que se acumulavam a cada render) saíram.
+            if (container) {
+                container.querySelectorAll('.annotation-card, .sub-annotation-item')
+                    .forEach(el => resizeObserver.observe(el));
             }
             
             _TagTooltipController.inicializarDelegacao();
@@ -4064,6 +4076,7 @@ window.TopicsManager = (function () {
         suprimirProximaRestauracao,
         toggleDiretrizesGlobais,
         togglePreambuloTopico,
+        redesenharMapa,
         resetVisibilidadeGlobais,
         MAPA_TESE_ICONES,
         obterCor,
