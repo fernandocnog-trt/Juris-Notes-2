@@ -31,7 +31,8 @@ window.TopicsManager = (function () {
         requestAnimationFrame(() => {
             const container = document.getElementById('timeline-container');
             if (container && container.offsetParent !== null) {
-                desenharConexoes(_isZenAtivo());
+                posicionarNosDeIdeia(container);
+                desenharConexoes();
             }
         });
     }
@@ -179,73 +180,46 @@ window.TopicsManager = (function () {
     }
 
     /* ================================================
-       OBSERVER DE LAYOUT (ANTI-THRASHING v2)
-       Memória POR ELEMENTO (WeakMap) + ignora a 1ª medição.
-       Observa só as caixas que o motor de layout mede
-       (.annotation-card e .sub-annotation-item), cujo tamanho
-       não é alterado pelo próprio posicionamento: sem retroalimentação.
+       OBSERVER DE LAYOUT OTIMIZADO (ANTI-THRASING)
        ================================================ */
     let _layoutDebounceTimer = null;
-    const _ultimasDimensoes = new WeakMap(); // elemento -> { w, h }
-
-    function _isZenAtivo() {
-        const el = document.getElementById('topics-tab-content');
-        return !!(el && el.classList.contains('zen-mode-ativo'));
-    }
-
-    /**
-     * Redesenha as conexões SVG. O posicionamento dos nós agora é do CSS Grid:
-     * o JS só lê a geometria final e desenha as linhas.
-     */
-    function redesenharMapa() {
-        const container = document.getElementById('timeline-container');
-        if (!container || container.offsetParent === null) return;
-        desenharConexoes(_isZenAtivo());
-    }
-
-    /**
-     * Agrupa os nós pelo cartão de origem e devolve o HTML interno de
-     * .sub-annotations-wrapper: um .sub-group por origem, na linha do grid
-     * correspondente ao seu cartão.
-     * @param {Array<{source: string|number, html: string}>} itens
-     * @param {Map<string, number>} linhaPorOrigem - chave de origem -> linha (1 = cartão principal)
-     */
-    function _montarGruposDeNos(itens, linhaPorOrigem) {
-        const porLinha = new Map();
-        itens.forEach(({ source, html }) => {
-            const linha = linhaPorOrigem.get(String(source)) || 1; // órfãos ancoram no principal
-            if (!porLinha.has(linha)) porLinha.set(linha, []);
-            porLinha.get(linha).push(html);
-        });
-        return [...porLinha.keys()].sort((a, b) => a - b).map(linha =>
-            `<div class="sub-group${linha > 1 ? ' sub-group--correlata' : ''}" style="grid-row: ${linha};">${porLinha.get(linha).join('')}</div>`
-        ).join('');
-    }
+    let _isUpdatingLayout = false;
+    const _lastHeights = new Map(); 
 
     const resizeObserver = new ResizeObserver((entries) => {
-        let precisaRedesenhar = false;
+        if (_isUpdatingLayout) return;
+        let needsRedraw = false;
 
         for (const entry of entries) {
-            const el = entry.target;
-            // Ignora nós desmontados ou em abas ocultas
-            if (!el.isConnected || el.offsetParent === null) continue;
+            // 1. FILTRO DE ELEMENTOS OCULTOS: Ignora abas inativas ou nós desmontados
+            if (!entry.target || entry.target.offsetParent === null) continue;
 
-            const box = entry.borderBoxSize && entry.borderBoxSize[0];
-            const w = Math.round(box ? box.inlineSize : entry.contentRect.width);
-            const h = Math.round(box ? box.blockSize : entry.contentRect.height);
+            const currentHeight = Math.round(entry.contentRect.height);
+            const elementId = entry.target.id || entry.target.dataset.uuid || 'dom-node';
+            const lastHeight = _lastHeights.get(elementId) || 0;
 
-            const anterior = _ultimasDimensoes.get(el);
-            _ultimasDimensoes.set(el, { w, h });
-
-            if (!anterior) continue; // 1ª observação: apenas registra a medida
-            if (Math.abs(w - anterior.w) >= 3 || Math.abs(h - anterior.h) >= 3) {
-                precisaRedesenhar = true;
+            // 2. THRESHOLD DELTA: Ignora variações sub-pixel que geram loop infinito
+            if (currentHeight > 10 && Math.abs(currentHeight - lastHeight) >= 3) {
+                _lastHeights.set(elementId, currentHeight);
+                needsRedraw = true;
             }
         }
 
-        if (!precisaRedesenhar) return;
-        clearTimeout(_layoutDebounceTimer);
-        _layoutDebounceTimer = setTimeout(redesenharMapa, 120);
+        // 3. EXECUÇÃO EM LOTE VIA REQUEST ANIMATION FRAME
+        if (needsRedraw) {
+            clearTimeout(_layoutDebounceTimer);
+            _layoutDebounceTimer = setTimeout(() => {
+                _isUpdatingLayout = true;
+                requestAnimationFrame(() => {
+                    const container = document.getElementById('timeline-container');
+                    if (container && container.offsetParent !== null) {
+                        posicionarNosDeIdeia(container);
+                        desenharConexoes();
+                    }
+                    setTimeout(() => { _isUpdatingLayout = false; }, 50);
+                });
+            }, 150); 
+        }
     });
 
     // Funções Privadas do Modo de Leitura Centralizado
@@ -884,11 +858,8 @@ window.TopicsManager = (function () {
                 }
             });
 
-            // Fecha em qualquer rolagem — só age se houver tooltip ativo
-            // (antes, cada evento de scroll mexia em classe/atributo do DOM)
-            document.addEventListener('scroll', () => {
-                if (_activeTarget) ocultar();
-            }, { capture: true, passive: true });
+            // Fecha em qualquer rolagem da página ou de sub-containers internos
+            document.addEventListener('scroll', ocultar, { capture: true, passive: true });
 
             _bound = true;
         }
@@ -1215,19 +1186,6 @@ window.TopicsManager = (function () {
             });
         }
 
-        // Mapa origem -> linha do grid (1 = cartão principal; 2+ = correlacionados renderizados)
-        const linhaPorOrigem = new Map([['main', 1]]);
-        if (anotacao.itensCorrelacionados) {
-            const pilhasVistas = new Set();
-            anotacao.itensCorrelacionados.forEach((ic, i) => {
-                if (ic.pilhaProcId) {
-                    if (pilhasVistas.has(ic.pilhaProcId)) return; // só a âncora da pilha ocupa linha
-                    pilhasVistas.add(ic.pilhaProcId);
-                }
-                linhaPorOrigem.set(String(i), linhaPorOrigem.size + 1);
-            });
-        }
-
         if (flatSubAnotacoes.length > 0) {
             const subCardsHTMLArray = [];
             const gruposProcessadosNesteCard = new Set();
@@ -1251,7 +1209,7 @@ window.TopicsManager = (function () {
                     const bordaFaseClass = `borda-fase-${faseSub}`;
                     const itemWrapperClass = intencao === 'nota' ? `sub-annotation-item is-nota-interna ${isRevisada ? 'is-revisada' : 'is-pendente'}` : `sub-annotation-item`;
         
-                    subCardsHTMLArray.push({ source: sub.viewSource, html: `
+                    subCardsHTMLArray.push(`
                         <div class="${itemWrapperClass}" data-source="${sub.viewSource}">
                             <div class="sub-annotation-card ${bordaFaseClass}">
                                 <div class="sub-badge has-intent intencao-${intencao}" title="Opções" onclick="abrirMenuSubAnotacao('${activeTabId}', ${index}, '${sub.viewSource}', ${sub.localIndex}, event)">
@@ -1267,19 +1225,19 @@ window.TopicsManager = (function () {
                                 </button>
                                 ${_gerarBtnRevisaoHtml(activeTabId, index, sub.viewSource, sub.localIndex, intencao, isRevisada)}
                             </div>
-                        </div>` });
+                        </div>`);
                 } 
                 // 2. NÓS AGRUPADOS (A PILHA)
                 else {
                     if (!gruposProcessadosNesteCard.has(sub.grupoId)) {
                         gruposProcessadosNesteCard.add(sub.grupoId);
-                        subCardsHTMLArray.push({ source: sub.viewSource, html: _gerarHtmlPilha(sub, renderContext, activeTabId) });
+                        subCardsHTMLArray.push(_gerarHtmlPilha(sub, renderContext, activeTabId));
                     }
                 }
             });
         
             if (subCardsHTMLArray.length > 0) {
-                htmlSubAnotacoes = `<div class="sub-annotations-wrapper">${_montarGruposDeNos(subCardsHTMLArray, linhaPorOrigem)}</div>`;
+                htmlSubAnotacoes = `<div class="sub-annotations-wrapper">${subCardsHTMLArray.join('')}</div>`;
             }
         }
 
@@ -1409,24 +1367,24 @@ window.TopicsManager = (function () {
 
         // Wrapper Master Flex atualizado para envelopar a hierarquia inteira
         const wrapperMaster = `
-            <div class="timeline-item-master ${alignClass}" id="timeline-wrapper-${anotacao.uuid || index}" style="--linhas: ${linhaPorOrigem.size};">
+            <div class="timeline-item-master ${alignClass}" id="timeline-wrapper-${anotacao.uuid || index}">
                 <div class="main-card-wrapper" data-uuid="${anotacao.uuid || index}" data-cidx="main"
                      ondragover="DnDManager.dragOver(event)"
                      ondrop="DnDManager.drop(event, '${activeTabId}', ${index}, 'main')"
                      ondragenter="DnDManager.dragEnter(event)"
                      ondragleave="DnDManager.dragLeave(event)">
-                    <div class="annotation-card ${bgZoneClass} ${bgPoloClass}">
-                        <div class="annotation-number-area">
-                            <div class="timeline-number master-drag-handle" 
-                                 draggable="true"
-                                 ondragstart="DnDManager.dragStart(event, '${activeTabId}', ${index}, 'main')"
-                                 ondragend="DnDManager.dragEnd(event)"
-                                 style="background-color: ${_activeTopicoCor}; color: ${corTextoBadge}; cursor: grab;" 
-                                 title="Arraste para trocar o Card Mestre, ou Clique para Nomear Tese"
-                                 onclick="abrirModalTese('${activeTabId}', ${index})">
-                                ${numero}
-                            </div>
+                    <div class="annotation-number-area">
+                        <div class="timeline-number master-drag-handle" 
+                             draggable="true"
+                             ondragstart="DnDManager.dragStart(event, '${activeTabId}', ${index}, 'main')"
+                             ondragend="DnDManager.dragEnd(event)"
+                             style="background-color: ${_activeTopicoCor}; color: ${corTextoBadge}; cursor: grab;" 
+                             title="Arraste para trocar o Card Mestre, ou Clique para Nomear Tese"
+                             onclick="abrirModalTese('${activeTabId}', ${index})">
+                            ${numero}
                         </div>
+                    </div>
+                    <div class="annotation-card ${bgZoneClass} ${bgPoloClass}">
                         <div class="card-header card-header--tags">
                             ${_gerarGrupoTagsHeader(anotacao.documento, anotacao.polo)}
                             <span class="card-meta" style="cursor:pointer;" title="Clique: Copiar | Shift+Clique: Editar folha | Ctrl+Clique: Ir ao PDF" onclick="handleMetaClick(event, '${activeTabId}', ${index}, false)">${metaTexto}</span>
@@ -1585,12 +1543,12 @@ window.TopicsManager = (function () {
         return `
         <div class="timeline-item-master ${alignClass} nivel-hierarquico" id="timeline-wrapper-tese-${teseSlug}">
             <div class="main-card-wrapper">
-                <div class="annotation-card" style="border-left: 4px solid ${corTema}; background-color: #ffffff; background-image: linear-gradient(${rgbaTeseFundo}, ${rgbaTeseFundo});">
-                    <div class="annotation-number-area">
-                        <div class="timeline-icon-box" title="Tese" style="background-color: ${corTema}; color: ${corTextoTese};">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle></svg>
-                        </div>
+                <div class="annotation-number-area">
+                    <div class="timeline-icon-box" title="Tese" style="background-color: ${corTema}; color: ${corTextoTese};">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle></svg>
                     </div>
+                </div>
+                <div class="annotation-card" style="border-left: 4px solid ${corTema}; background-color: #ffffff; background-image: linear-gradient(${rgbaTeseFundo}, ${rgbaTeseFundo});">
                     <div class="card-header" style="justify-content: space-between; margin-bottom: 0;">
                         <div class="hierarquia-titulo" style="color: ${corTituloTese}; font-weight: bold; display: flex; align-items: center; gap: 8px;">${iconSvgTese} Tese: ${escaparHTML(teseAtual)}</div>
                         <div class="card-actions-bar" style="margin-top: 0; padding-top: 0; border-top: none;">
@@ -1601,7 +1559,7 @@ window.TopicsManager = (function () {
                     </div>
                 </div>
             </div>
-            <div class="sub-annotations-wrapper">${tesesHtml ? `<div class="sub-group" style="grid-row: 1;">${tesesHtml}</div>` : ''}</div>
+            <div class="sub-annotations-wrapper">${tesesHtml}</div>
         </div>`;
     }
 
@@ -1956,24 +1914,24 @@ window.TopicsManager = (function () {
             htmlDiretrizesGlobais = `
             <div class="timeline-item-master align-left nivel-hierarquico nivel-global" id="timeline-wrapper-globais-${activeTabId}">
                 <div class="main-card-wrapper">
-                    <div class="annotation-card">
-                        <div class="annotation-number-area">
-                            <div class="timeline-icon-box" title="Diretrizes Globais do Tópico">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-                            </div>
-                        </div>
-                        <div class="card-header" style="justify-content: space-between; margin-bottom: 0;">
-                            <div class="hierarquia-titulo">Diretrizes Globais do Tópico</div>
-                            <div class="card-actions-bar" style="margin-top: 0; padding-top: 0; border-top: none;">
-                                <button title="Adicionar Diretriz Global" onclick="adicionarDiretrizEstrutural('global', '${activeTabId}', null, event)">
-                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                                </button>
-                            </div>
+                    <div class="annotation-number-area">
+                        <div class="timeline-icon-box" title="Diretrizes Globais do Tópico">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
                         </div>
                     </div>
+                    <div class="annotation-card">
+                            <div class="card-header" style="justify-content: space-between; margin-bottom: 0;">
+                                <div class="hierarquia-titulo">Diretrizes Globais do Tópico</div>
+                                <div class="card-actions-bar" style="margin-top: 0; padding-top: 0; border-top: none;">
+                                    <button title="Adicionar Diretriz Global" onclick="adicionarDiretrizEstrutural('global', '${activeTabId}', null, event)">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                 </div>
-                <div class="sub-annotations-wrapper">
-                    ${globaisHtml ? `<div class="sub-group" style="grid-row: 1;">${globaisHtml}</div>` : ''}
+                <div class="sub-annotations-wrapper" style="position: relative; min-height: auto;">
+                    ${globaisHtml}
                 </div>
             </div>`;
         }
@@ -2007,10 +1965,6 @@ window.TopicsManager = (function () {
                 childrenOnly: true,
                 getNodeKey: function(node) {
                     if (node.id) return node.id;
-                },
-                // Mantém as linhas antigas até o redesenho (evita quadro sem conexões)
-                onBeforeElChildrenUpdated: function(fromEl) {
-                    return fromEl.id !== 'connections-canvas';
                 }
             });
         } else {
@@ -2018,47 +1972,53 @@ window.TopicsManager = (function () {
         }
             
         requestAnimationFrame(() => {
-            // FASE 1 — LEITURA EM LOTE (antes: ler/escrever alternado = 1 reflow por elemento)
-            const medicoes = [];
-            contentEl.querySelectorAll('.sub-text-content, .card-texto, .juris-scroll-fade-body').forEach(el => {
+            document.querySelectorAll('.sub-text-content, .card-texto, .juris-scroll-fade-body').forEach(el => {
+                if (typeof resizeObserver !== 'undefined') resizeObserver.observe(el);
+                
                 const isScrollFadeBody = el.classList.contains('juris-scroll-fade-body');
-                const transborda = (el.scrollHeight - el.clientHeight) > 2;
-                const noFim = isScrollFadeBody && transborda
-                    && Math.ceil(el.scrollTop + el.clientHeight) >= el.scrollHeight - 4;
-                medicoes.push({ el, isScrollFadeBody, transborda, noFim });
+                const truncateTarget = isScrollFadeBody ? el.parentElement : el;
+                const isOverflowing = (el.scrollHeight - el.clientHeight) > 2;
+
+                if (isOverflowing) {
+                    if (truncateTarget) {
+                        truncateTarget.classList.add('is-truncated');
+                        if (isScrollFadeBody) {
+                            const noFim = Math.ceil(el.scrollTop + el.clientHeight) >= el.scrollHeight - 4;
+                            truncateTarget.classList.toggle('is-scrolled-end', noFim);
+                        }
+                    }
+                    const parentCard = el.closest('.annotation-card, .sub-annotation-card');
+                    if (parentCard) parentCard.classList.add('has-truncated-text');
+                } else {
+                    if (truncateTarget) {
+                        truncateTarget.classList.remove('is-truncated', 'is-scrolled-end');
+                    }
+                    const parentCard = el.closest('.annotation-card, .sub-annotation-card');
+                    if (parentCard) parentCard.classList.remove('has-truncated-text');
+                }
             });
 
-            // FASE 2 — ESCRITA EM LOTE
-            const cardsTruncados = new Set();
-            medicoes.forEach(({ el, isScrollFadeBody, transborda, noFim }) => {
-                const alvo = isScrollFadeBody ? el.parentElement : el;
-                if (alvo) {
-                    alvo.classList.toggle('is-truncated', transborda);
-                    alvo.classList.toggle('is-scrolled-end', noFim);
-                }
-                if (transborda) {
-                    const card = el.closest('.annotation-card, .sub-annotation-card');
-                    if (card) cardsTruncados.add(card);
-                }
-            });
-            // Um cartão é "truncado" se QUALQUER texto dele transborda
-            // (antes, o último texto avaliado sobrescrevia os anteriores)
-            contentEl.querySelectorAll('.annotation-card, .sub-annotation-card').forEach(card => {
-                card.classList.toggle('has-truncated-text', cardsTruncados.has(card));
+            const historyContainer = document.getElementById('history-container');
+            if (historyContainer && typeof resizeObserver !== 'undefined') resizeObserver.observe(historyContainer);
+            
+            if (headerEl && typeof resizeObserver !== 'undefined') resizeObserver.observe(headerEl);
+
+            document.querySelectorAll('.image-resize-wrapper').forEach(wrapper => {
+                wrapper.addEventListener('mouseup', () => desenharConexoes());
+                wrapper.addEventListener('mouseleave', () => desenharConexoes());
             });
 
-            // FASE 3 — DESENHA AS CONEXÕES (o layout já foi resolvido pelo CSS Grid)
             const container = document.getElementById('timeline-container');
-            if (container) desenharConexoes(_isZenAtivo());
-            restaurarScroll();
-            requestAnimationFrame(_reassertScroll);
-
-            // FASE 4 — OBSERVAÇÃO: só as caixas que o motor mede.
-            // Redimensionar imagem altera o cartão, que já é observado:
-            // os listeners mouseup/mouseleave (que se acumulavam a cada render) saíram.
             if (container) {
-                container.querySelectorAll('.annotation-card, .sub-annotation-item')
-                    .forEach(el => resizeObserver.observe(el));
+                posicionarNosDeIdeia(container);
+                restaurarScroll();
+                
+                requestAnimationFrame(() => {
+                    desenharConexoes();
+                    _reassertScroll();
+                });
+            } else {
+                restaurarScroll();
             }
             
             _TagTooltipController.inicializarDelegacao();
@@ -2080,6 +2040,107 @@ window.TopicsManager = (function () {
             if (markers !== masters) {
                 console.warn('⚠️ Divergência arquitetural detectada: Marcadores (' + markers + ') vs Masters Renderizados (' + masters + ').');
             }
+        });
+    }
+
+    /**
+     * Motor de Slots Elásticos.
+     * Cada origem (cartão principal ou correlacionado) reserva a altura que seus nós exigem,
+     * metade acima e metade abaixo. Os nós são então centralizados na origem.
+     * Idempotente: a medição usa offsetHeight do cartão, que as folgas não alteram.
+     * Passes: A (lê) → B (escreve folgas) → C (lê posições) → D (escreve tops).
+     */
+    function posicionarNosDeIdeia(container) {
+        const GAP_NOS = 20; // espaçamento vertical entre nós do mesmo grupo
+
+        // PASSE A: LEITURA
+        const planos = [];
+        container.querySelectorAll('.timeline-item-master').forEach(master => {
+            if (master.offsetParent === null) return; // aba oculta: não muta
+
+            const mainWrapper = master.querySelector(':scope > .main-card-wrapper');
+            const subWrapper = master.querySelector(':scope > .sub-annotations-wrapper');
+            if (!mainWrapper || !subWrapper) return;
+
+            const wrappers = [mainWrapper, ...mainWrapper.querySelectorAll(':scope > .correlated-item-wrapper')];
+            const origens = wrappers.map((wrapper, i) => ({
+                wrapper,
+                key: i === 0 ? 'main' : wrapper.dataset.cidx,
+                card: wrapper.querySelector(':scope > .annotation-card'),
+                itens: [],
+                total: 0,
+                pad: 0
+            }));
+
+            // Trava de segurança: cartão sem altura = view oculta ou desmontada
+            if (origens.some(o => !o.card || o.card.offsetHeight === 0)) return;
+
+            const porChave = new Map(origens.map(o => [o.key, o]));
+            const principal = origens[0];
+
+            subWrapper.querySelectorAll(':scope > .sub-annotation-item').forEach(el => {
+                const alvo = porChave.get(el.dataset.source || 'main') || principal; // órfãos ancoram no principal
+                alvo.itens.push({ el, h: el.offsetHeight });
+            });
+
+            origens.forEach(o => {
+                if (o.itens.length === 0) return;
+                o.total = o.itens.reduce((soma, it) => soma + it.h, 0) + GAP_NOS * (o.itens.length - 1);
+                o.pad = Math.ceil(Math.max(0, o.total - o.card.offsetHeight) / 2);
+            });
+
+            planos.push({ subWrapper, origens });
+        });
+
+        // PASSE B: ESCRITA DAS FOLGAS (sempre grava, inclusive 0px, para limpar resíduos)
+        planos.forEach(({ origens }) => {
+            origens.forEach((o, i) => {
+                const valor = `${o.pad}px`;
+                if (o.wrapper.style.getPropertyValue('--slot-pad') !== valor) {
+                    o.wrapper.style.setProperty('--slot-pad', valor);
+                }
+
+                // Folga da origem anterior: soma-se à própria para que o conector
+                // alcance o cartão de cima, por maior que seja o vão.
+                if (i > 0) {
+                    const valorPrev = `${origens[i - 1].pad}px`;
+                    if (o.wrapper.style.getPropertyValue('--slot-pad-prev') !== valorPrev) {
+                        o.wrapper.style.setProperty('--slot-pad-prev', valorPrev);
+                    }
+                }
+            });
+        });
+
+        // PASSE C: LEITURA (um único reflow)
+        const posicoes = [];
+        const alturas = [];
+        planos.forEach(({ subWrapper, origens }) => {
+            const topoBase = subWrapper.getBoundingClientRect().top;
+            let cursor = 0;
+
+            origens.forEach(o => {
+                if (o.itens.length === 0) return;
+                const centro = (o.card.getBoundingClientRect().top - topoBase) + (o.card.offsetHeight / 2);
+                // Defesa: nunca abaixo de 0 nem sobre o grupo anterior
+                let y = Math.max(cursor, centro - (o.total / 2));
+                o.itens.forEach(({ el, h }) => {
+                    posicoes.push({ el, y });
+                    y += h + GAP_NOS;
+                });
+                cursor = y;
+            });
+
+            alturas.push({ subWrapper, altura: Math.max(0, cursor - GAP_NOS) });
+        });
+
+        // PASSE D: ESCRITA
+        posicoes.forEach(({ el, y }) => {
+            el.style.position = 'absolute';
+            el.style.width = '100%';
+            el.style.top = `${y}px`;
+        });
+        alturas.forEach(({ subWrapper, altura }) => {
+            subWrapper.style.minHeight = altura > 0 ? `${altura}px` : '';
         });
     }
 
@@ -2137,26 +2198,6 @@ window.TopicsManager = (function () {
             });
         }
 
-        // Hastes entre cartões correlacionados (antes: CSS esticado por --slot-pad)
-        const hastesGeometria = [];
-        container.querySelectorAll('.main-card-wrapper').forEach(mainWrapper => {
-            let cardAnterior = mainWrapper.querySelector(':scope > .annotation-card');
-            mainWrapper.querySelectorAll(':scope > .correlated-item-wrapper').forEach(w => {
-                const card = w.querySelector(':scope > .annotation-card');
-                if (!card) return;
-                if (cardAnterior) {
-                    const rAnt = cardAnterior.getBoundingClientRect();
-                    const rCard = card.getBoundingClientRect();
-                    hastesGeometria.push({
-                        x: (rCard.left + rCard.width / 2) - containerRect.left,
-                        y1: rAnt.bottom - containerRect.top + 4,   // respiro de 4px em cada cartão
-                        y2: rCard.top - containerRect.top - 4
-                    });
-                }
-                cardAnterior = card;
-            });
-        });
-
         const FAN_STEP = 14;    // distância máxima entre pontos de saída no lado do cartão
         const FAN_MARGIN = 20;  // respiro mantido nas bordas superior/inferior do cartão
 
@@ -2164,7 +2205,7 @@ window.TopicsManager = (function () {
             const subWrapper = master.querySelector(':scope > .sub-annotations-wrapper');
             if (!subWrapper) return;
 
-            const subItems = subWrapper.querySelectorAll('.sub-annotation-item');
+            const subItems = subWrapper.querySelectorAll(':scope > .sub-annotation-item');
             if (subItems.length === 0) return;
 
             const isRightAligned = master.classList.contains('align-right');
@@ -2214,22 +2255,6 @@ window.TopicsManager = (function () {
             svgContent += `<path class="spine-connection" d="${pathD}" />`;
         });
 
-        // Haste esquerda: seta ▲ no topo, ponto ● na base. Haste direita: o inverso.
-        const corHaste = 'rgba(85, 85, 85, 0.75)';
-        hastesGeometria.forEach(({ x, y1, y2 }) => {
-            if (y2 - y1 < 12) return;
-            const xe = x - 6.25, xd = x + 6.25;
-            svgContent +=
-                `<g fill="${corHaste}" stroke="none">` +
-                `<rect x="${xe - 0.75}" y="${y1}" width="1.5" height="${y2 - y1}" rx="0.75"/>` +
-                `<rect x="${xd - 0.75}" y="${y1}" width="1.5" height="${y2 - y1}" rx="0.75"/>` +
-                `<path d="M ${xe - 4},${y1 + 6} L ${xe + 4},${y1 + 6} L ${xe},${y1} Z"/>` +
-                `<circle cx="${xe}" cy="${y2 - 2.5}" r="2.5"/>` +
-                `<circle cx="${xd}" cy="${y1 + 2.5}" r="2.5"/>` +
-                `<path d="M ${xd - 4},${y2 - 6} L ${xd + 4},${y2 - 6} L ${xd},${y2} Z"/>` +
-                `</g>`;
-        });
-
         tracejadasGeometria.forEach(coord => {
             const ctrlX = (coord.startX + coord.endX) / 2;
             let strokeColor = "#777", strokeOpacity = "1", strokeWidth = "1.5", dashArray = "5 4";
@@ -2243,6 +2268,35 @@ window.TopicsManager = (function () {
         });
 
         svg.innerHTML = svgContent; // Reflow executado em lote, sem quebras
+    }
+        
+    /**
+     * Motor de Sincronia: Executa o posicionamento UMA vez, e depois 
+     * aciona o loop de redesenho SVG passivo por 350ms (acompanhando CSS transition).
+     */
+    function _sincronizarConexoesComAnimacao(container) {
+        // 1. Snapshot Único: Aciona as transições CSS definindo o destino final
+        posicionarNosDeIdeia(container);
+        
+        // 2. Captura o estado Zen uma única vez fora do loop
+        const isZenModeActive = document.getElementById('topics-tab-content').classList.contains('zen-mode-ativo');
+        
+        // 3. Loop de Acompanhamento (Leitura passiva)
+        let start = null;
+        const duration = 350; // Tempo do CSS transition (0.3s) + 50ms de segurança
+
+        function step(timestamp) {
+            if (!start) start = timestamp;
+            const progress = timestamp - start;
+            
+            // Desenha com base nas posições intermediárias calculadas pelo CSS
+            desenharConexoes(isZenModeActive);
+
+            if (progress < duration) {
+                requestAnimationFrame(step);
+            }
+        }
+        requestAnimationFrame(step);
     }
 
     // A função toggleTextExpansion foi removida. O sistema agora utiliza o Modo de Leitura Centralizado.
@@ -2388,8 +2442,12 @@ window.TopicsManager = (function () {
             renderizarFichario(topicos);
         } else if (estavaNaAbaLeitura) {
             // Se já era o mesmo tópico mas o container estava oculto (display:none),
-            // garante que as conexões sejam redesenhadas ao exibir a aba
-            redesenharMapa();
+            // garante que as coordenadas absolutas dos subnós estejam calculadas
+            const timelineEl = document.getElementById('timeline-container');
+            if (timelineEl) {
+                posicionarNosDeIdeia(timelineEl);
+                desenharConexoes();
+            }
         }
 
         // Aguarda o ciclo de posicionamento do DOM e reseta o cursor antes de rolar
@@ -3992,7 +4050,8 @@ window.TopicsManager = (function () {
             requestAnimationFrame(() => {
                 const container = document.getElementById('timeline-container');
                 if (container && container.offsetParent !== null) {
-                    desenharConexoes(_isZenAtivo());
+                    posicionarNosDeIdeia(container);
+                    desenharConexoes();
                     _sincronizarAcessibilidadeTagsTruncadas(container);
                 }
             });
@@ -4005,7 +4064,6 @@ window.TopicsManager = (function () {
         suprimirProximaRestauracao,
         toggleDiretrizesGlobais,
         togglePreambuloTopico,
-        redesenharMapa,
         resetVisibilidadeGlobais,
         MAPA_TESE_ICONES,
         obterCor,

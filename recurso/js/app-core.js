@@ -1998,11 +1998,8 @@ document.addEventListener('visibilitychange', () => {
             // O(1) restrito às páginas ativas (Tracking via Set)
             PdfEngine.forcarReRenderizacaoVisiveis();
             
-            // O fichário não muda enquanto a aba está oculta:
-            // basta realinhar as conexões, sem reconstruir o DOM inteiro.
-            if (window.TopicsManager && typeof TopicsManager.redesenharMapa === 'function') {
-                TopicsManager.redesenharMapa();
-            }
+            // Re-renderização leve e síncrona do UI pararelo
+            if(window.TopicsManager) TopicsManager.renderizarFichario(topicos);
         }
     }
 });
