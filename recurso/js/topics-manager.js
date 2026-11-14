@@ -2072,7 +2072,7 @@ window.TopicsManager = (function () {
         // ASSERT DE ENGENHARIA (Validação silenciosa pós-renderização)
         requestAnimationFrame(() => {
             const markers = document.querySelectorAll('.fab-idea-marker').length;
-            const masters = document.querySelectorAll('.timeline-item-master:not(.is-checkpoint):not(.nivel-global)').length;
+            const masters = document.querySelectorAll('.timeline-item-master:not(.is-checkpoint):not(.nivel-hierarquico)').length;
             if (markers !== masters) {
                 console.warn('⚠️ Divergência arquitetural detectada: Marcadores (' + markers + ') vs Masters Renderizados (' + masters + ').');
             }
