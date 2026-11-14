@@ -182,42 +182,33 @@ window.TopicsManager = (function () {
        OBSERVER DE LAYOUT OTIMIZADO (ANTI-THRASING)
        ================================================ */
     let _layoutDebounceTimer = null;
-    let _isUpdatingLayout = false;
-    const _lastHeights = new Map(); 
+    const _ultimasDimensoes = new WeakMap(); // elemento -> { w, h }
+    let _conexoesPendentes = false; // desenho pedido enquanto o mapa estava oculto
 
     const resizeObserver = new ResizeObserver((entries) => {
-        if (_isUpdatingLayout) return;
-        let needsRedraw = false;
+        let precisaRedesenhar = false;
 
         for (const entry of entries) {
-            // 1. FILTRO DE ELEMENTOS OCULTOS: Ignora abas inativas ou nós desmontados
-            if (!entry.target || entry.target.offsetParent === null) continue;
+            const el = entry.target;
+            if (!el.isConnected) continue;
 
-            const currentHeight = Math.round(entry.contentRect.height);
-            const elementId = entry.target.id || entry.target.dataset.uuid || 'dom-node';
-            const lastHeight = _lastHeights.get(elementId) || 0;
+            const box = entry.borderBoxSize && entry.borderBoxSize[0];
+            const w = Math.round(box ? box.inlineSize : entry.contentRect.width);
+            const h = Math.round(box ? box.blockSize : entry.contentRect.height);
 
-            // 2. THRESHOLD DELTA: Ignora variações sub-pixel que geram loop infinito
-            if (currentHeight > 10 && Math.abs(currentHeight - lastHeight) >= 3) {
-                _lastHeights.set(elementId, currentHeight);
-                needsRedraw = true;
-            }
+            const anterior = _ultimasDimensoes.get(el);
+            if (anterior && anterior.w === w && anterior.h === h) continue;
+            _ultimasDimensoes.set(el, { w, h });
+
+            // Qualquer mudança real de tamanho redesenha, inclusive a 1ª medição
+            // e a volta de uma aba oculta (0 -> tamanho real). Desde a Fase 2 o
+            // desenho só escreve no SVG, então isto não realimenta o observer.
+            if (w > 0 && h > 0) precisaRedesenhar = true;
         }
 
-        // 3. EXECUÇÃO EM LOTE VIA REQUEST ANIMATION FRAME
-        if (needsRedraw) {
-            clearTimeout(_layoutDebounceTimer);
-            _layoutDebounceTimer = setTimeout(() => {
-                _isUpdatingLayout = true;
-                requestAnimationFrame(() => {
-                    const container = document.getElementById('timeline-container');
-                    if (container && container.offsetParent !== null) {
-                        desenharConexoes(_isZenAtivo());
-                    }
-                    setTimeout(() => { _isUpdatingLayout = false; }, 50);
-                });
-            }, 150); 
-        }
+        if (!precisaRedesenhar && !_conexoesPendentes) return;
+        clearTimeout(_layoutDebounceTimer);
+        _layoutDebounceTimer = setTimeout(redesenharMapa, 120);
     });
 
     function _isZenAtivo() {
@@ -231,7 +222,7 @@ window.TopicsManager = (function () {
      */
     function redesenharMapa() {
         const container = document.getElementById('timeline-container');
-        if (!container || container.offsetParent === null) return;
+        if (!container) return;
         desenharConexoes(_isZenAtivo());
     }
 
@@ -2055,7 +2046,14 @@ window.TopicsManager = (function () {
 
             // FASE 3 — DESENHA AS CONEXÕES (o layout já foi resolvido pelo CSS Grid)
             const container = document.getElementById('timeline-container');
-            if (container) desenharConexoes(_isZenAtivo());
+            if (container) {
+                desenharConexoes(_isZenAtivo());
+                if (typeof resizeObserver !== 'undefined') {
+                    resizeObserver.observe(container); // pega a volta da aba oculta e mudanças fora dos cartões
+                    container.querySelectorAll('.annotation-card, .sub-annotation-item')
+                        .forEach(el => resizeObserver.observe(el));
+                }
+            }
             restaurarScroll();
             requestAnimationFrame(() => _reassertScroll());
             
@@ -2108,6 +2106,14 @@ window.TopicsManager = (function () {
         if (!container || !svg) return;
 
         const containerRect = container.getBoundingClientRect();
+
+        // Mapa oculto (aba Leitura ativa): toda medida viria zerada e as linhas
+        // seriam gravadas no ponto 0,0. Mantém o desenho atual e deixa pendente.
+        if (containerRect.width === 0 || containerRect.height === 0) {
+            _conexoesPendentes = true;
+            return;
+        }
+        _conexoesPendentes = false;
         
         // --- LOOP 1: APENAS LEITURA (MEMÓRIA GEOMÉTRICA) ---
         const spineGeometria = [];
