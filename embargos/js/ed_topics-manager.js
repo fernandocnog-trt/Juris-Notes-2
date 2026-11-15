@@ -1868,8 +1868,8 @@ window.TopicsManager = (function () {
         let ultimaTeseRenderizada = null;
 
         topicoAtivo.anotacoes.forEach((anotacao, index) => {
-            const chaveTeseCrua = anotacao.tese || "Provas não agrupadas";
-            const isTesePreenchida = (anotacao.tese && anotacao.tese.trim() !== '');
+            const isTesePreenchida = Boolean(anotacao.tese && anotacao.tese.trim() !== '');
+            const chaveTeseCrua = isTesePreenchida ? anotacao.tese : "Tese Não Nomeada";
             const vicioRaw = anotacao.vicio || topicoAtivo.vicio || 'omissao';
             const vicioFormatado = window.JurisUtils.formatarVicioED(vicioRaw);
 
@@ -1879,7 +1879,7 @@ window.TopicsManager = (function () {
                                           : [];
 
                 if (isTesePreenchida || diretrizesDoVicio.length > 0) {
-                    const tituloExibicao = isTesePreenchida ? anotacao.tese.trim() : "Provas não agrupadas";
+                    const tituloExibicao = isTesePreenchida ? anotacao.tese.trim() : "Tese Não Nomeada";
                     // Fallback seguro caso JurisUtils falhe
                     const vicioSeguroUI = vicioFormatado || 'Vício Não Identificado';
 
@@ -2529,14 +2529,17 @@ window.TopicsManager = (function () {
         // 2. Varre Vícios e Provas
         let ultimaTese = null;
         topico.anotacoes.forEach(an => {
-            const teseAtual = an.tese || "Provas sem agrupamento";
+            const teseAtual = (an.tese && an.tese.trim() !== '') ? an.tese : "Tese Não Nomeada";
             const vicioRaw = an.vicio || topico.vicio || 'omissao';
             
-            // Subnós de Vício (ED)
+            // Subnós de Vício (ED) e eventual Diretriz por Tese
             if (teseAtual !== ultimaTese) {
                 if (topico.diretrizesPorVicio && topico.diretrizesPorVicio[vicioRaw]) {
                     const vicioFormatado = window.JurisUtils ? window.JurisUtils.formatarVicioED(vicioRaw) : vicioRaw;
                     processar(topico.diretrizesPorVicio[vicioRaw], `⚖️ Diretriz do Vício: <strong>${escaparHTML(vicioFormatado)}</strong>`);
+                }
+                if (topico.diretrizesPorTese && topico.diretrizesPorTese[teseAtual]) {
+                    processar(topico.diretrizesPorTese[teseAtual], `⚖️ Tese: <strong>${escaparHTML(teseAtual)}</strong>`);
                 }
                 ultimaTese = teseAtual;
             }
