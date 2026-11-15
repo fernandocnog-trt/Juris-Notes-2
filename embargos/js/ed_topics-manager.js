@@ -1869,7 +1869,7 @@ window.TopicsManager = (function () {
 
         topicoAtivo.anotacoes.forEach((anotacao, index) => {
             const isTesePreenchida = Boolean(anotacao.tese && anotacao.tese.trim() !== '');
-            const chaveTeseCrua = isTesePreenchida ? anotacao.tese : "Tese Não Nomeada";
+            const chaveTeseCrua = isTesePreenchida ? anotacao.tese.trim() : "Tese Não Nomeada";
             const vicioRaw = anotacao.vicio || topicoAtivo.vicio || 'omissao';
             const vicioFormatado = window.JurisUtils.formatarVicioED(vicioRaw);
 
@@ -2529,7 +2529,7 @@ window.TopicsManager = (function () {
         // 2. Varre Vícios e Provas
         let ultimaTese = null;
         topico.anotacoes.forEach(an => {
-            const teseAtual = (an.tese && an.tese.trim() !== '') ? an.tese : "Tese Não Nomeada";
+            const teseAtual = (an.tese && an.tese.trim() !== '') ? an.tese.trim() : "Tese Não Nomeada";
             const vicioRaw = an.vicio || topico.vicio || 'omissao';
             
             // Subnós de Vício (ED) e eventual Diretriz por Tese
