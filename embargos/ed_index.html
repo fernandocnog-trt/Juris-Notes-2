@@ -442,7 +442,7 @@
                     { html: 'ed_modais.html', js: null, id: 'modal-gerador-contexto' },
                     // ATENÇÃO: Uso de '../' para voltar à raiz a partir da pasta do módulo ED
                     { html: '../ferramentas/juris-relatorio.template.html', js: '../ferramentas/juris-relatorio.js', id: 'modal-juris-relatorio' },
-                    { html: '../ferramentas/juris-prompts.template.html', js: '../ferramentas/juris-prompts.js', id: 'modal-juris-prompts' }
+                    { html: '../ferramentas/juris-prompts.template.html?v=2.1.0', js: '../ferramentas/juris-prompts.js?v=2.1.0', id: 'modal-juris-prompts' }
                 ];
 
                 for (const asset of assets) {
@@ -670,6 +670,6 @@
     <!-- SCRIPT DE AUTENTICAÇÃO E ACERVO (Diferido) -->
     <script type="module" src="js/ed_firebase-auth.js" defer></script>
     <script type="module" src="js/ed_firebase-acervo.js" defer></script>
-    <script type="module" src="js/ed_firebase-prompts.js" defer></script>
+    <script type="module" src="js/ed_firebase-prompts.js?v=2.1.0" defer></script>
 </body>
 </html>
