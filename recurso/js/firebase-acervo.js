@@ -31,6 +31,9 @@ window.AcervoManager = (function() {
             case 'permission-denied':
                 msgUsuario = "Acesso negado. Verifique as regras de segurança do banco de dados.";
                 break;
+            case 'not-found':
+                msgUsuario = "Um ou mais modelos não foram encontrados na nuvem (podem ter sido excluídos em outra aba).";
+                break;
             case 'unavailable':
             case 'network-request-failed':
                 msgUsuario = "Sem conexão com a internet. Verifique sua rede e tente novamente.";
@@ -93,10 +96,10 @@ window.AcervoManager = (function() {
         }
     }
 
-    async function carregarModelos() {
+    async function carregarModelos(forcarAtualizacao = false) {
         const uid = getUserId();
         if (!uid) return [];
-        if (modelosEmCache.length > 0) return modelosEmCache;
+        if (!forcarAtualizacao && modelosEmCache.length > 0) return modelosEmCache;
 
         const q = query(collection(db, "usuarios", uid, "acervo"), orderBy("nome", "asc"));
         const querySnapshot = await getDocs(q);
@@ -250,6 +253,46 @@ window.AcervoManager = (function() {
         modelosEmCache = [];
     }
 
+    async function renomearModelosEmLote(listaAtualizacoes) {
+        const uid = getUserId();
+        if (!uid) throw new Error("Usuário não autenticado.");
+        if (!Array.isArray(listaAtualizacoes) || listaAtualizacoes.length === 0) return 0;
+
+        const TAMANHO_BATCH = 450; // Margem segura abaixo do limite de 500 do Firestore
+        let totalCommitados = 0;
+        const agora = Date.now();
+
+        try {
+            for (let i = 0; i < listaAtualizacoes.length; i += TAMANHO_BATCH) {
+                const fatia = listaAtualizacoes.slice(i, i + TAMANHO_BATCH);
+                const batch = writeBatch(db);
+                let opsNoBatch = 0;
+
+                fatia.forEach(item => {
+                    if (item && item.id && typeof item.novoNome === 'string' && item.novoNome.trim() !== '') {
+                        const docRef = doc(db, "usuarios", uid, "acervo", item.id);
+                        batch.update(docRef, {
+                            nome: item.novoNome.trim(),
+                            atualizadoEm: agora
+                        });
+                        opsNoBatch++;
+                    }
+                });
+
+                if (opsNoBatch > 0) {
+                    await batch.commit();
+                    totalCommitados += opsNoBatch;
+                }
+            }
+            return totalCommitados;
+        } catch (e) {
+            _processarErroFirebase(e, 'renomearModelosEmLote (writeBatch)');
+        } finally {
+            // Garante invalidação do cache mesmo se um lote posterior falhar após o primeiro ter sido gravado
+            modelosEmCache = [];
+        }
+    }
+
     return { 
         salvarNovoModelo, 
         adicionarNoAModelo, 
@@ -257,6 +300,7 @@ window.AcervoManager = (function() {
         atualizarNoDoModelo, 
         removerNoDoModelo,
         renomearModelo,
+        renomearModelosEmLote,
         excluirModeloCompleto,
         salvarConfigTags,
         carregarConfigTags,
