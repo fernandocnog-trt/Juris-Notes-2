@@ -1947,18 +1947,16 @@ window.TopicsManager = (function () {
         }
             
         requestAnimationFrame(() => {
-            document.querySelectorAll('.sub-text-content, .card-texto, .juris-scroll-fade-body').forEach(el => {
-                if (typeof resizeObserver !== 'undefined') resizeObserver.observe(el);
-            });
-            const historyContainer = document.getElementById('history-container');
-            if (historyContainer && typeof resizeObserver !== 'undefined') resizeObserver.observe(historyContainer);
+            if (typeof resizeObserver !== 'undefined') {
+                document.querySelectorAll(
+                    '.sub-text-content, .card-texto, .juris-scroll-fade-body, .image-resize-wrapper'
+                ).forEach(el => resizeObserver.observe(el));
+
+                const historyContainer = document.getElementById('history-container');
+                if (historyContainer) resizeObserver.observe(historyContainer);
+            }
 
             aplicarTruncamentoDinamicoSeguro();
-            
-            document.querySelectorAll('.image-resize-wrapper').forEach(wrapper => {
-                wrapper.addEventListener('mouseup', () => desenharConexoes());
-                wrapper.addEventListener('mouseleave', () => desenharConexoes());
-            });
 
             const container = document.getElementById('timeline-container');
             if (container) {
@@ -2220,27 +2218,6 @@ window.TopicsManager = (function () {
         });
 
         svg.innerHTML = svgContent;
-    }
-
-    /**
-     * Motor de Sincronia: Executa posicionamento e aciona loop passivo de SVG
-     */
-    function _sincronizarConexoesComAnimacao(container) {
-        if (typeof posicionarNosDeIdeia === 'function') posicionarNosDeIdeia(container);
-        
-        const isZenModeActive = document.getElementById('topics-tab-content').classList.contains('zen-mode-ativo');
-        let start = null;
-        const duration = 350; 
-
-        function step(timestamp) {
-            if (!start) start = timestamp;
-            const progress = timestamp - start;
-            
-            desenharConexoes(isZenModeActive);
-
-            if (progress < duration) requestAnimationFrame(step);
-        }
-        requestAnimationFrame(step);
     }
 
     // A função toggleTextExpansion foi removida. O sistema agora utiliza o Modo de Leitura Centralizado.
