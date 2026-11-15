@@ -12,7 +12,8 @@
     padding: 20px 24px; 
     display: none; 
     contain: layout paint; 
-    transform: translateZ(0); 
+    /* PERF: translateZ(0) removido. O contêiner já é rolável (camada própria);
+       a promoção forçada só ampliava a textura mantida na GPU. */
 }
 .topics-tab-bar { 
     display: flex; 
@@ -24,7 +25,6 @@
     position: relative;
     z-index: 10;
     contain: layout paint;
-    transform: translateZ(0); 
 }
 .topics-tab-bar::-webkit-scrollbar { 
     display: none; /* Esconde no Chrome/Edge/Safari */
@@ -556,7 +556,8 @@
    ================================================ */
 .sub-annotation-stack {
     border-color: var(--trt-blue-mid) !important;
-    will-change: transform;
+    /* PERF: will-change removido (criava uma camada de GPU permanente por pilha) */
+    isolation: isolate; /* mantém o contexto de empilhamento dos ::before/::after (z-index: -1) */
     cursor: default;
     background-color: #ffffff;
     position: relative; /* Necessário para os pseudo-elementos */
@@ -745,9 +746,11 @@
     left: -10px;
     width: 28px;
     height: 28px;
-    background: rgba(26, 58, 92, 0.85); /* Glassmorphism Elegante */
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
+    /* PERF: backdrop-filter removido. Havia um por nó de ideia, e cada um obriga o
+       navegador a criar uma superfície de GPU própria; com dezenas de nós a memória
+       de vídeo se esgota e a aba Anotações passa a piscar/ficar em branco.
+       A cor sólida abaixo equivale ao azul translúcido sobre o fundo do cartão. */
+    background: #2f4c6b;
     color: #ffffff;
     border-radius: 50%;
     align-items: center;
