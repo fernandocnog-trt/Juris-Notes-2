@@ -4,6 +4,7 @@ window.PromptUIController = (function() {
     let currentExecutionContext = { parentId: null, stepIdx: null };
     let editingCustomFields = [];
     let editingSubPromptIds = [];
+    let initialFormSnapshot = null;
     let expandedBranchIds = new Set();
     
     // Estado de execução exclusivo para rotinas com ramificação: "${parentId}::ROOT" e "${parentId}::${subId}::${stepIdx}"
@@ -414,6 +415,31 @@ window.PromptUIController = (function() {
         getEl('modal-juris-prompts').style.display = 'none';
     }
 
+    // Helpers de Snapshot e Dirty State do Formulário
+    function _getFormStateSerialized() {
+        const title = (getEl('jp-title-input')?.value || '').trim();
+        const content = (getEl('jp-content-input')?.value || '').trim();
+        const fields = editingCustomFields
+            .filter(f => (f.label || '').trim() !== '' || (f.options || '').trim() !== '' || (f.guidelines || '').trim() !== '')
+            .map(f => ({
+                type: f.type,
+                label: (f.label || '').trim(),
+                options: (f.options || '').trim(),
+                guidelines: (f.guidelines || '').trim()
+            }));
+        return JSON.stringify({
+            title,
+            content,
+            fields,
+            subIds: [...editingSubPromptIds]
+        });
+    }
+
+    function _isFormDirty() {
+        if (initialFormSnapshot === null) return false;
+        return _getFormStateSerialized() !== initialFormSnapshot;
+    }
+
     // Abertura Form
     function openAddModal() {
         fecharModalPrincipal();
@@ -426,8 +452,10 @@ window.PromptUIController = (function() {
         editingSubPromptIds = [];
         renderBuilder();
         renderSubPromptsBuilder();
+        initialFormSnapshot = _getFormStateSerialized();
         getEl('backdrop-jp-form').classList.add('active');
         getEl('modal-jp-form').style.display = 'block';
+        requestAnimationFrame(() => getEl('jp-title-input')?.focus());
     }
 
     function openEditModal(id) {
@@ -446,11 +474,18 @@ window.PromptUIController = (function() {
             : [];
         renderBuilder();
         renderSubPromptsBuilder();
+        initialFormSnapshot = _getFormStateSerialized();
         getEl('backdrop-jp-form').classList.add('active');
         getEl('modal-jp-form').style.display = 'block';
+        requestAnimationFrame(() => getEl('jp-title-input')?.focus());
     }
 
-    function closeAddModal() {
+    function closeAddModal(force = false) {
+        if (!force && _isFormDirty()) {
+            const confirmarDescarte = confirm('Existem alterações não salvas neste modelo. Deseja realmente descartá-las e voltar?');
+            if (!confirmarDescarte) return;
+        }
+        initialFormSnapshot = null;
         getEl('backdrop-jp-form').classList.remove('active');
         getEl('modal-jp-form').style.display = 'none';
         restaurarModalPrincipal();
@@ -653,7 +688,7 @@ window.PromptUIController = (function() {
                 expandedBranchIds.add(finalId);
             }
 
-            closeAddModal();
+            closeAddModal(true);
             if (window.exibirToast) window.exibirToast('Salvo na nuvem com sucesso!', 'sucesso');
             
         } catch (error) {
