@@ -62,6 +62,15 @@ function _safeDisplay(id, styleStr) {
     else console.warn(`[ED Acervo UI] Elemento não encontrado: ${id}`);
 }
 
+function _isModeloAuditado(mod) {
+    if (window.AcervoManager && typeof AcervoManager.verificarSeModeloAuditado === 'function') {
+        return AcervoManager.verificarSeModeloAuditado(mod);
+    }
+    if (!mod || !mod.auditoriaIA) return false;
+    const qtdNos = Array.isArray(mod.nos) ? mod.nos.length : 0;
+    return mod.auditoriaIA.nome === mod.nome && mod.auditoriaIA.qtdNos === qtdNos;
+}
+
 // --- HELPER VISUAL (Fábrica de SVGs) ---
 function getIconeAcervoSVG(intencao) {
     const map = {
@@ -444,12 +453,16 @@ function renderizarProximoLoteAcervo() {
         if(escopoAtual === 'global') escopoSelo = `<span class="acervo-node-badge" style="background:#e3f2fd; color:#0d47a1; margin-right:6px;">🌐 Global</span>`;
         if(escopoAtual === 'tese') escopoSelo = `<span class="acervo-node-badge" style="background:#f3e5f5; color:#6a1b9a; margin-right:6px;">⚖️ Vício</span>`;
 
+        const pontoPendente = !_isModeloAuditado(mod)
+            ? `<span class="acervo-pending-dot" title="Modelo novo ou modificado (pendente de auditoria IA)"></span>`
+            : '';
+
         // Remoção completa de eventos inlines (onclick)
         item.innerHTML = `
             <div class="acervo-item-header">
                 <div style="flex: 1; pointer-events: none;"> <!-- pointer-events previne falsos alvos no clique -->
-                    <div class="acervo-item-titulo">${TopicsManager.escaparHTML(mod.nome)}</div>
-                    <div style="font-size:0.7rem; color:#888; margin-top:2px;">${escopoSelo} ${mod.nos.length} nó(s) salvos</div>
+                    <div class="acervo-item-titulo" style="display:flex; align-items:center;">${pontoPendente}<span>${TopicsManager.escaparHTML(mod.nome)}</span></div>
+                    <div style="font-size:0.7rem; color:#888; margin-top:2px; display:flex; align-items:center;">${escopoSelo} ${mod.nos.length} nó(s) salvos</div>
                     ${htmlTags}
                 </div>
                 <button class="acervo-action-btn" data-action="edit" data-id="${mod.id}" title="Editar este modelo">
@@ -794,7 +807,31 @@ window.abrirEdicaoModeloAcervo = async function(event, modeloId) {
         container.appendChild(box);
     });
 
+    _sincronizarBotaoAuditoriaModalEdicao(_isModeloAuditado(modelo));
     document.getElementById('modal-editar-modelo-acervo').style.display = 'flex';
+};
+
+function _sincronizarBotaoAuditoriaModalEdicao(isAuditado) {
+    const btn = document.getElementById('btn-toggle-auditado-modelo');
+    if (!btn) return;
+    btn.className = `acervo-audit-toggle-btn ${isAuditado ? 'is-audited' : 'is-pending'}`;
+    btn.textContent = isAuditado ? '✔ Auditado IA' : '⏳ Pendente IA';
+    btn.dataset.auditado = isAuditado ? 'true' : 'false';
+}
+
+window.alternarStatusAuditoriaModeloAtual = async function() {
+    if (!_modeloSelecionadoId || !window.AcervoManager) return;
+    const btn = document.getElementById('btn-toggle-auditado-modelo');
+    const estadoAtual = btn && btn.dataset.auditado === 'true';
+    const novoEstado = !estadoAtual;
+
+    try {
+        await AcervoManager.definirStatusAuditoriaModelo(_modeloSelecionadoId, novoEstado);
+        _sincronizarBotaoAuditoriaModalEdicao(novoEstado);
+        exibirToast(novoEstado ? 'Modelo marcado como Auditado pela IA.' : 'Modelo marcado como Pendente de auditoria.', 'sucesso');
+    } catch (e) {
+        exibirToast('Erro ao atualizar status de auditoria.', 'erro');
+    }
 };
 
 function renderizarTagsSelecionadas(modeloId) {
@@ -898,10 +935,59 @@ window.criarEAdicionarTagInline = async function(novaTag) {
     }
 };
 
-window.abrirModalGerenciarTags = function() {
+window.abrirModalGerenciarTags = async function() {
     document.getElementById('modal-acervo-inserir').style.display = 'none';
     renderizarListaTagsGlobais();
     document.getElementById('modal-gerenciar-tags').style.display = 'flex';
+    await _atualizarPlacarAuditoriaModalTags();
+};
+
+async function _atualizarPlacarAuditoriaModalTags() {
+    const badgeResumo = document.getElementById('badge-resumo-auditoria-acervo');
+    const btnMarcarBase = document.getElementById('btn-marcar-base-atual-auditada');
+    if (!badgeResumo || !window.AcervoManager) return;
+
+    try {
+        const modelos = await AcervoManager.carregarModelos();
+        const total = modelos.length;
+        const auditados = modelos.filter(_isModeloAuditado).length;
+        const pendentes = total - auditados;
+        badgeResumo.textContent = `${pendentes} pendente(s) • ${auditados} auditado(s) (Total: ${total})`;
+        if (btnMarcarBase) {
+            btnMarcarBase.style.display = pendentes > 0 ? 'inline-block' : 'none';
+        }
+    } catch (e) {
+        badgeResumo.textContent = 'Indisponível';
+    }
+}
+
+window.marcarBaseAtualComoAuditada = async function() {
+    if (!window.AcervoManager) return;
+    const modelos = await AcervoManager.carregarModelos(true);
+    const pendentes = modelos.filter(m => !_isModeloAuditado(m));
+    if (pendentes.length === 0) return exibirToast('Todos os modelos já estão marcados como auditados.', 'aviso');
+
+    if (!confirm(
+        `Deseja marcar todos os ${pendentes.length} modelo(s) pendentes atuais como "Auditados pela IA"?\n\n` +
+        `Use esta opção se a sua base atual já passou por padronização e você deseja exportar apenas os modelos novos criados a partir de agora.`
+    )) return;
+
+    try {
+        const operacoes = pendentes.map(mod => ({
+            id: mod.id,
+            novoNome: null,
+            auditoriaIA: AcervoManager.criarAssinaturaAuditoria(
+                mod.nome,
+                Array.isArray(mod.nos) ? mod.nos.length : 0,
+                'bootstrap-manual'
+            )
+        }));
+        const gravados = await AcervoManager.renomearModelosEmLote(operacoes);
+        await _atualizarPlacarAuditoriaModalTags();
+        exibirToast(`${gravados} modelo(s) marcados como auditados!`, 'sucesso');
+    } catch (e) {
+        exibirToast(e.message || 'Erro ao marcar base atual.', 'erro');
+    }
 };
 
 window.fecharModalGerenciarTags = function() {
