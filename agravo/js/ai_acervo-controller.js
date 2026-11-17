@@ -32,10 +32,26 @@ const TAMANHO_LOTE_RENDERIZACAO = 20;
 let _observerScrollAcervo = null;
 let _eventDelegationAtivo = false;
 
-function _safeDisplay(id, styleStr) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = styleStr;
-    else console.warn(`[Acervo AI] Elemento não encontrado: ${id}`);
+// Remoção completa de eventos inlines (onclick)
+        item.innerHTML = `
+            <div class="acervo-item-header">
+                <div style="flex: 1; pointer-events: none;"> <!-- pointer-events previne falsos alvos no clique -->
+                    <div class="acervo-item-titulo">${TopicsManager.escaparHTML(mod.nome)}</div>
+                    <div style="font-size:0.7rem; color:#888; margin-top:2px; display:flex; align-items:center;">${escopoSelo} ${mod.nos.length} nó(s) salvos</div>
+                    ${htmlTags}
+                </div>
+                <button class="acervo-action-btn" data-action="edit" data-id="${mod.id}" title="Editar este modelo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="pointer-events: none;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                </button>
+            </div>`;
+
+function _isModeloAuditado(mod) {
+    if (window.AcervoManager && typeof AcervoManager.verificarSeModeloAuditado === 'function') {
+        return AcervoManager.verificarSeModeloAuditado(mod);
+    }
+    if (!mod || !mod.auditoriaIA) return false;
+    const qtdNos = Array.isArray(mod.nos) ? mod.nos.length : 0;
+    return mod.auditoriaIA.nome === mod.nome && mod.auditoriaIA.qtdNos === qtdNos;
 }
 
 // --- HELPER VISUAL (Fábrica de SVGs) ---
@@ -376,11 +392,15 @@ function renderizarProximoLoteAcervo() {
         if(escopoAtual === 'global') escopoSelo = `<span class="acervo-node-badge" style="background:#e3f2fd; color:#0d47a1; margin-right:6px; padding:2px 6px; border-radius:4px; font-weight:bold;">🌐 Global</span>`;
         if(escopoAtual === 'tese') escopoSelo = `<span class="acervo-node-badge" style="background:#f3e5f5; color:#6a1b9a; margin-right:6px; padding:2px 6px; border-radius:4px; font-weight:bold;">⚖️ Tese</span>`;
 
+        const pontoPendente = !_isModeloAuditado(mod)
+            ? `<span class="acervo-pending-dot" title="Modelo novo ou modificado (pendente de auditoria IA)"></span>`
+            : '';
+
         // Remoção completa de eventos inlines (onclick)
         item.innerHTML = `
             <div class="acervo-item-header">
                 <div style="flex: 1; pointer-events: none;"> <!-- pointer-events previne falsos alvos no clique -->
-                    <div class="acervo-item-titulo">${TopicsManager.escaparHTML(mod.nome)}</div>
+                    <div class="acervo-item-titulo" style="display:flex; align-items:center;">${pontoPendente}<span>${TopicsManager.escaparHTML(mod.nome)}</span></div>
                     <div style="font-size:0.7rem; color:#888; margin-top:2px; display:flex; align-items:center;">${escopoSelo} ${mod.nos.length} nó(s) salvos</div>
                     ${htmlTags}
                 </div>
@@ -669,7 +689,31 @@ window.abrirEdicaoModeloAcervo = async function(event, modeloId) {
         container.appendChild(box);
     });
 
+    _sincronizarBotaoAuditoriaModalEdicao(_isModeloAuditado(modelo));
     document.getElementById('modal-editar-modelo-acervo').style.display = 'flex';
+};
+
+function _sincronizarBotaoAuditoriaModalEdicao(isAuditado) {
+    const btn = document.getElementById('btn-toggle-auditado-modelo');
+    if (!btn) return;
+    btn.className = `acervo-audit-toggle-btn ${isAuditado ? 'is-audited' : 'is-pending'}`;
+    btn.textContent = isAuditado ? '✔ Auditado IA' : '⏳ Pendente IA';
+    btn.dataset.auditado = isAuditado ? 'true' : 'false';
+}
+
+window.alternarStatusAuditoriaModeloAtual = async function() {
+    if (!_modeloSelecionadoId || !window.AcervoManager) return;
+    const btn = document.getElementById('btn-toggle-auditado-modelo');
+    const estadoAtual = btn && btn.dataset.auditado === 'true';
+    const novoEstado = !estadoAtual;
+
+    try {
+        await AcervoManager.definirStatusAuditoriaModelo(_modeloSelecionadoId, novoEstado);
+        _sincronizarBotaoAuditoriaModalEdicao(novoEstado);
+        exibirToast(novoEstado ? 'Modelo marcado como Auditado pela IA.' : 'Modelo marcado como Pendente de auditoria.', 'sucesso');
+    } catch (e) {
+        exibirToast('Erro ao atualizar status de auditoria.', 'erro');
+    }
 };
 
 function renderizarTagsSelecionadas(modeloId) {
@@ -773,10 +817,59 @@ window.criarEAdicionarTagInline = async function(novaTag) {
     }
 };
 
-window.abrirModalGerenciarTags = function() {
+window.abrirModalGerenciarTags = async function() {
     document.getElementById('modal-acervo-inserir').style.display = 'none';
     renderizarListaTagsGlobais();
     document.getElementById('modal-gerenciar-tags').style.display = 'flex';
+    await _atualizarPlacarAuditoriaModalTags();
+};
+
+async function _atualizarPlacarAuditoriaModalTags() {
+    const badgeResumo = document.getElementById('badge-resumo-auditoria-acervo');
+    const btnMarcarBase = document.getElementById('btn-marcar-base-atual-auditada');
+    if (!badgeResumo || !window.AcervoManager) return;
+
+    try {
+        const modelos = await AcervoManager.carregarModelos();
+        const total = modelos.length;
+        const auditados = modelos.filter(_isModeloAuditado).length;
+        const pendentes = total - auditados;
+        badgeResumo.textContent = `${pendentes} pendente(s) • ${auditados} auditado(s) (Total: ${total})`;
+        if (btnMarcarBase) {
+            btnMarcarBase.style.display = pendentes > 0 ? 'inline-block' : 'none';
+        }
+    } catch (e) {
+        badgeResumo.textContent = 'Indisponível';
+    }
+}
+
+window.marcarBaseAtualComoAuditada = async function() {
+    if (!window.AcervoManager) return;
+    const modelos = await AcervoManager.carregarModelos(true);
+    const pendentes = modelos.filter(m => !_isModeloAuditado(m));
+    if (pendentes.length === 0) return exibirToast('Todos os modelos já estão marcados como auditados.', 'aviso');
+
+    if (!confirm(
+        `Deseja marcar todos os ${pendentes.length} modelo(s) pendentes atuais como "Auditados pela IA"?\n\n` +
+        `Use esta opção se a sua base atual já passou por padronização e você deseja exportar apenas os modelos novos criados a partir de agora.`
+    )) return;
+
+    try {
+        const operacoes = pendentes.map(mod => ({
+            id: mod.id,
+            novoNome: null,
+            auditoriaIA: AcervoManager.criarAssinaturaAuditoria(
+                mod.nome,
+                Array.isArray(mod.nos) ? mod.nos.length : 0,
+                'bootstrap-manual'
+            )
+        }));
+        const gravados = await AcervoManager.renomearModelosEmLote(operacoes);
+        await _atualizarPlacarAuditoriaModalTags();
+        exibirToast(`${gravados} modelo(s) marcados como auditados!`, 'sucesso');
+    } catch (e) {
+        exibirToast(e.message || 'Erro ao marcar base atual.', 'erro');
+    }
 };
 
 window.fecharModalGerenciarTags = function() {
@@ -939,10 +1032,6 @@ window.acionarExcluirModeloAtual = async function() {
 // MÓDULO 3: EXPORTAÇÃO PARA IA (GOVERNANÇA)
 // ==========================================
 
-/**
- * Função pura e local para geração de download em memória.
- * Mantém o acervo-controller isolado sem quebrar o Revealing Module do ExportManager.
- */
 function _downloadTextoComoArquivo(nomeArquivo, conteudoTexto) {
     const blob = new Blob([conteudoTexto], { type: 'text/plain;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -955,17 +1044,94 @@ function _downloadTextoComoArquivo(nomeArquivo, conteudoTexto) {
     document.body.appendChild(link);
     link.click();
     
-    // Limpeza assíncrona segura para evitar memory leaks sem quebrar o download
     setTimeout(() => {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
     }, 150);
 }
 
+function _obterChaveStorageLoteLocal() {
+    const meta = document.querySelector('meta[name="juris-module"]');
+    const mod = meta ? meta.content : 'ro';
+    return `juris_historico_lotes_ia_${mod}`;
+}
+
+function _salvarLoteNoStorageLocal(loteInfo) {
+    if (!loteInfo || !loteInfo.loteId) return;
+    try {
+        const chave = _obterChaveStorageLoteLocal();
+        const atual = JSON.parse(localStorage.getItem(chave) || '{"historico":{}}');
+        if (!atual.historico) atual.historico = {};
+        atual.ultimoLoteId = loteInfo.loteId;
+        atual.historico[loteInfo.loteId] = loteInfo;
+        localStorage.setItem(chave, JSON.stringify(atual));
+    } catch (e) { /* storage indisponível */ }
+}
+
+// Busca estrita por loteId: NÃO faz fallback para ultimoLoteId
+function _lerLoteDoStorageLocalEstrito(loteIdEspecifico) {
+    if (!loteIdEspecifico) return null;
+    try {
+        const chave = _obterChaveStorageLoteLocal();
+        const atual = JSON.parse(localStorage.getItem(chave) || 'null');
+        if (!atual || !atual.historico) return null;
+        return atual.historico[loteIdEspecifico] || null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function _montarPromptAuditoria({ modo, loteId, qtdPendentes, qtdReferencia, totalPendentesModulo }) {
+    const temSecao1 = qtdReferencia > 0;
+    const isCompleto = modo === 'completo';
+
+    let prompt = `# PERSONA E CONTEXTO
+Atue como um Engenheiro de Conhecimento e Especialista em Taxonomia Jurídica.
+Você recebeu um arquivo de exportação do sistema "Juris Notes" referente ao Lote de Auditoria "${loteId}".\n`;
+
+    if (temSecao1) {
+        prompt += `- A SEÇÃO 1 contém ${qtdReferencia} modelo(s) JÁ AUDITADO(S) (apenas Nome, Escopo e Tags). Use-a exclusivamente como RÉGUA DE PADRÃO para manter a mesma estrutura terminológica e evitar criar nomes duplicados.
+- A SEÇÃO 2 contém ${qtdPendentes} modelo(s) PENDENTE(S) (de um total de ${totalPendentesModulo}) com seu conteúdo integral (Nós de Ideia) para serem auditados nesta rodada.\n`;
+    } else {
+        prompt += `- O arquivo contém um lote de ${qtdPendentes} modelo(s) (de um total de ${totalPendentesModulo}) com seu conteúdo integral (Nós de Ideia) para auditoria taxonômica.\n`;
+    }
+
+    prompt += `
+# A REGRA DE OURO: O FILTRO DE TOLERÂNCIA
+Sua missão NÃO é reescrever nomes por perfeccionismo estilístico. Aplique um "Filtro de Bom Senso":
+- Se um modelo já possui um título descritivo, claro e funcional${temSecao1 ? ' (alinhado ao padrão da Seção 1)' : ''}, classifique-o como [ADEQUADO].
+- Aponte como [CRÍTICO] apenas os outliers: títulos vagos, genéricos demais, confusos ou fora do padrão lógico do gabinete.
+
+# ENTREGAS ESPERADAS
+1. Diagnóstico de Nomenclatura e Padrão Utilizado
+Explicite a estrutura lógica adotada como régua (ex: [Tema Principal] - [Subtema] - [Especificidade]).
+
+2. Tabela de Resgate (De -> Para)
+Apresente uma tabela contendo APENAS os modelos em estado [CRÍTICO] que precisam mudar de nome.
+Colunas: "ID do Modelo" | "Nome Problemático Atual" | "Sugestão de Novo Nome" | "Motivo da Alteração".
+
+3. Resgate de Órfãos ${isCompleto ? 'e Auditoria Global de Tags' : '(Modelos Sem Tags)'}
+Liste os modelos analisados que estão com status [SEM TAGS] e sugira de 2 a 3 tags precisas para cada um.${isCompleto ? '\nAponte também eventuais tags sinônimas/duplicadas na base e sugira uma Árvore Taxonômica Essencial para o gabinete.' : ''}
+
+4. Bloco de Importação e Homologação Automática (OBRIGATÓRIO PARA O SISTEMA)
+Ao final da resposta, gere OBRIGATORIAMENTE o bloco abaixo.
+REGRA DE INTEGRIDADE: Emita exatamente UMA linha para cada um dos ${qtdPendentes} modelos analisados neste lote:
+- Se o modelo for [CRÍTICO] (precisa mudar de nome), use: ID_DO_MODELO ||| Nome Problemático Atual Exato ||| Sugestão de Novo Nome
+- Se o modelo for [ADEQUADO] (nome mantido sem alteração), use: ID_DO_MODELO ||| <OK>
+Não omita o cabeçalho LOTE e não omita a tag de fechamento <<<FIM_JURIS_RENOMEAR>>>:
+
+<<<JURIS_RENOMEAR>>>
+LOTE: ${loteId}
+ID_DO_MODELO ||| Nome Problemático Atual Exato ||| Sugestão de Novo Nome
+ID_DO_MODELO_ADEQUADO ||| <OK>
+<<<FIM_JURIS_RENOMEAR>>>`;
+
+    return prompt;
+}
+
 window.exportarBaseParaNotebookLM = async function(event) {
     if (!window.AcervoManager) return exibirToast('Conecte-se ao Firebase primeiro.', 'erro');
     
-    // Captura segura e imutável do alvo
     const btnExport = event ? event.currentTarget : null;
     let textoOriginal = '';
     
@@ -976,20 +1142,78 @@ window.exportarBaseParaNotebookLM = async function(event) {
     }
 
     try {
-        const modelos = await AcervoManager.carregarModelos();
-        
+        const modelos = await AcervoManager.carregarModelos(true);
         if (!modelos || modelos.length === 0) {
             exibirToast('Seu acervo está vazio. Nada para exportar.', 'aviso');
             return;
         }
 
-        // 1. Geração do Payload Markdown
+        const radioModo = document.querySelector('input[name="modo_exportacao_acervo_ia"]:checked');
+        let modo = (radioModo && radioModo.value === 'completo') ? 'completo' : 'incremental';
+
+        const selectLimite = document.getElementById('select-tamanho-lote-ia');
+        const tamanhoMaximoLote = selectLimite ? (parseInt(selectLimite.value, 10) || 50) : 50;
+
+        const todosAuditados = modelos.filter(_isModeloAuditado);
+        let filaCandidatosPendentes = [];
+
+        if (modo === 'incremental') {
+            filaCandidatosPendentes = modelos.filter(m => !_isModeloAuditado(m));
+            if (filaCandidatosPendentes.length === 0) {
+                const confirmarReauditoria = confirm(
+                    `🎉 Todos os ${modelos.length} modelos deste módulo já estão com o selo "Auditado IA" em dia!\n\n` +
+                    `Deseja iniciar uma rodada de Reauditoria Completa (até ${tamanhoMaximoLote} modelos)?`
+                );
+                if (!confirmarReauditoria) return;
+                modo = 'completo';
+            }
+        }
+
+        if (modo === 'completo') {
+            filaCandidatosPendentes = [...modelos].sort((a, b) => {
+                const tA = (a.auditoriaIA && a.auditoriaIA.em) ? a.auditoriaIA.em : 0;
+                const tB = (b.auditoriaIA && b.auditoriaIA.em) ? b.auditoriaIA.em : 0;
+                if (tA !== tB) return tA - tB;
+                return (a.criadoEm || 0) - (b.criadoEm || 0);
+            });
+        } else {
+            filaCandidatosPendentes.sort((a, b) => (a.criadoEm || 0) - (b.criadoEm || 0));
+        }
+
+        const totalPendentesModulo = filaCandidatosPendentes.length;
+        const loteParaAuditoriaProfunda = filaCandidatosPendentes.slice(0, tamanhoMaximoLote);
+        const idsNoLote = new Set(loteParaAuditoriaProfunda.map(m => m.id));
+
+        const modelosReferencia = todosAuditados.filter(m => !idsNoLote.has(m.id));
+
+        const sufixoRandom = Math.random().toString(36).substring(2, 6).toUpperCase();
+        const dataCurta = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const loteId = `LOTE-${dataCurta}-${sufixoRandom}`;
+
         let txtConteudo = "=================================================\n";
         txtConteudo += "BASE DE CONHECIMENTO JURIS NOTES - AUDITORIA DE IA\n";
+        txtConteudo += `LOTE DE AUDITORIA: ${loteId}\n`;
+        txtConteudo += `MODO: ${modo.toUpperCase()} | RODADA: ${loteParaAuditoriaProfunda.length} de ${totalPendentesModulo} modelo(s)\n`;
         txtConteudo += "Data de Exportação: " + new Date().toLocaleString() + "\n";
         txtConteudo += "=================================================\n\n";
 
-        modelos.forEach(mod => {
+        if (modelosReferencia.length > 0) {
+            txtConteudo += "=================================================\n";
+            txtConteudo += `SEÇÃO 1: ESPELHO TAXONÔMICO (${modelosReferencia.length} MODELOS JÁ PADRONIZADOS - APENAS REFERÊNCIA)\n`;
+            txtConteudo += "=================================================\n";
+            modelosReferencia.forEach(mod => {
+                const tags = (mod.tags && mod.tags.length > 0) ? mod.tags.join(', ') : 'Sem Tags';
+                const escopo = mod.escopo ? mod.escopo.toUpperCase() : 'CARD';
+                txtConteudo += `- NOME: ${mod.nome} | ESCOPO: ${escopo} | TAGS: [${tags}]\n`;
+            });
+            txtConteudo += "\n\n";
+        }
+
+        txtConteudo += "=================================================\n";
+        txtConteudo += `SEÇÃO 2: FILA DE AUDITORIA PROFUNDA (${loteParaAuditoriaProfunda.length} MODELOS NESTE LOTE)\n`;
+        txtConteudo += "=================================================\n\n";
+
+        loteParaAuditoriaProfunda.forEach(mod => {
             const tags = (mod.tags && mod.tags.length > 0) ? mod.tags.join(', ') : '[SEM TAGS]';
             const escopo = mod.escopo ? mod.escopo.toUpperCase() : 'CARD';
             
@@ -1009,28 +1233,46 @@ window.exportarBaseParaNotebookLM = async function(event) {
             txtConteudo += `\n-------------------------------------------------\n\n`;
         });
 
-        // 2. Aciona Download Seguro
-        const dataFormatada = new Date().toISOString().slice(0,10);
-        _downloadTextoComoArquivo(`JurisNotes_Acervo_Exportacao_${dataFormatada}.txt`, txtConteudo);
+        const textareaPrompt = document.getElementById('textarea-prompt-notebooklm');
+        if (textareaPrompt) {
+            textareaPrompt.value = _montarPromptAuditoria({
+                modo,
+                loteId,
+                qtdPendentes: loteParaAuditoriaProfunda.length,
+                qtdReferencia: modelosReferencia.length,
+                totalPendentesModulo
+            });
+        }
 
-        // 3. Destruição visual de Modais (Bypass de Side-effects)
-        // Evitamos chamar as funções originais do sistema para não disparar 'reads' desnecessários no Firebase.
-        const modalTags = document.getElementById('modal-gerenciar-tags');
-        const modalAcervo = document.getElementById('modal-acervo-inserir');
-        const wizardBackdrop = document.getElementById('wizard-backdrop');
+        const subtitulo = document.getElementById('subtitulo-exportacao-notebooklm');
+        if (subtitulo) {
+            subtitulo.textContent = `Lote ${loteId} gerado: auditando ${loteParaAuditoriaProfunda.length} de ${totalPendentesModulo} modelo(s) (+ ${modelosReferencia.length} em índice leve de referência).`;
+        }
+
+        _downloadTextoComoArquivo(`JurisNotes_Acervo_${loteId}.txt`, txtConteudo);
+
+        _safeDisplay('modal-gerenciar-tags', 'none');
+        _safeDisplay('modal-acervo-inserir', 'none');
+        _safeDisplay('wizard-backdrop', 'none');
         
-        if(modalTags) modalTags.style.display = 'none';
-        if(modalAcervo) modalAcervo.style.display = 'none';
-        if(wizardBackdrop) wizardBackdrop.style.display = 'none';
-        
-        // 4. Exibição do Prompt
         window.abrirModalPromptNotebookLM();
+        setTimeout(() => { window.copiarPromptNotebookLM(true); }, 80);
+
+        const manifestoLote = {
+            loteId,
+            ids: Array.from(idsNoLote),
+            modo,
+            criadoEm: Date.now()
+        };
+        _salvarLoteNoStorageLocal(manifestoLote);
+        if (typeof AcervoManager.salvarManifestoLoteIA === 'function') {
+            AcervoManager.salvarManifestoLoteIA(manifestoLote);
+        }
 
     } catch (error) {
         console.error("[AcervoController] Erro na exportação:", error);
         exibirToast('Erro ao exportar base de dados.', 'erro');
     } finally {
-        // Restaura estado original do botão
         if (btnExport) {
             btnExport.innerHTML = textoOriginal;
             btnExport.disabled = false;
@@ -1046,21 +1288,30 @@ window.abrirModalPromptNotebookLM = function() {
 window.fecharModalPromptNotebookLM = function() {
     document.getElementById('prompt-notebooklm-backdrop').style.display = 'none';
     document.getElementById('modal-prompt-notebooklm').style.display = 'none';
+    
+    const historyContainer = document.getElementById('history-container');
+    const pdfContainer = document.getElementById('pdf-container');
+    
+    if (historyContainer) historyContainer.classList.remove('pdf-foco-ativo');
+    if (pdfContainer) pdfContainer.classList.remove('pdf-foco-ativo');
 };
 
-window.copiarPromptNotebookLM = function() {
+window.copiarPromptNotebookLM = function(isAutoCopy = false) {
     const textarea = document.getElementById('textarea-prompt-notebooklm');
     if (!textarea) return;
     
     textarea.select();
     textarea.setSelectionRange(0, 99999);
     
-    // Fallback de Clipboard protegido
     if (navigator.clipboard && window.isSecureContext) {
         navigator.clipboard.writeText(textarea.value).then(() => {
             exibirToast('Comando copiado! Cole no NotebookLM.', 'sucesso');
-        }).catch(err => {
-            exibirToast('Falha ao copiar comando.', 'erro');
+        }).catch(() => {
+            if (isAutoCopy) {
+                exibirToast('Arquivo baixado! Clique em "📋 Copiar Comando" para copiar o prompt.', 'aviso');
+            } else {
+                exibirToast('Falha ao copiar comando.', 'erro');
+            }
         });
     } else {
         document.execCommand('copy');
@@ -1073,28 +1324,25 @@ window.copiarPromptNotebookLM = function() {
 // ==========================================
 
 window.ativarModoFocoAcervo = function(tituloModelo) {
-    document.getElementById('focus-modelo-titulo').textContent = TopicsManager.escaparHTML(tituloModelo);
+    const tituloEl = document.getElementById('focus-modelo-titulo');
+    if (tituloEl) tituloEl.textContent = TopicsManager.escaparHTML(tituloModelo);
     
     const listView = document.getElementById('acervo-list-view');
     const focusView = document.getElementById('acervo-focus-view');
     
-    // Animação de saída da lista
     listView.style.opacity = '0';
     setTimeout(() => {
         listView.style.display = 'none';
-        // Prepara e anima entrada do foco
         focusView.style.display = 'flex';
-        // Força reflow mínimo para garantir a animação de entrada
         void focusView.offsetWidth; 
         focusView.classList.add('is-active');
-    }, 250); // Sincronizado com CSS
+    }, 250);
 };
 
 window.desativarModoFocoAcervo = function() {
     const listView = document.getElementById('acervo-list-view');
     const focusView = document.getElementById('acervo-focus-view');
     
-    // Desativa Tela Cheia por segurança ao voltar
     document.getElementById('modal-acervo-inserir').classList.remove('is-fullscreen');
     
     focusView.classList.remove('is-active');
@@ -1105,7 +1353,6 @@ window.desativarModoFocoAcervo = function() {
         void listView.offsetWidth;
         listView.style.opacity = '1';
         
-        // Limpa estado selecionado (legado)
         document.querySelectorAll('#lista-acervo-geral .acervo-item').forEach(el => el.classList.remove('selected'));
         _modeloSelecionadoId = null;
     }, 250);
@@ -1121,16 +1368,17 @@ window.toggleFullscreenAcervo = function() {
 // ==========================================
 let _modelosBaseImportacao = [];
 let _itensRenomeacaoIA = [];
-let _edicoesManuaisRenomeacao = new Map(); // chaveEstavel -> { selecionado, novoNome }
-let _ultimoLoteReversaoIA = null; // Array<{ id, nomeAnterior, nomeAplicado }>
-let _modalOrigemImportacao = 'tags'; // 'tags' | 'notebooklm'
+let _itensHomologacaoExplicitaIA = [];
+let _edicoesManuaisRenomeacao = new Map();
+let _cacheManifestosSessao = new Map();
+let _seqAnaliseRenomeacao = 0;
+let _ultimoLoteReversaoIA = null; // Array<{ id, nomeAnterior, nomeAplicado, auditoriaAnterior, foiRenomeado }>
+let _loteIdDetectadoNoTexto = null;
+let _loteVerificadoComSucesso = false;
+let _blocoDelimitadoCompleto = false;
+let _modalOrigemImportacao = 'tags';
 let _delegacaoImportacaoAtiva = false;
 
-/**
- * Normalização conservadora para comparação de títulos:
- * Usa Unicode NFC, colapsa espaços múltiplos e remove apenas aspas/crases/asteriscos externos.
- * NUNCA remove algarismos ou pontuação jurídica (ex: "13º Salário", "40% do FGTS").
- */
 function _normalizarTituloComparacao(texto) {
     if (!texto) return '';
     return String(texto)
@@ -1150,21 +1398,25 @@ function _limparCampoBrutoImportacao(texto) {
         .replace(/\s+/g, ' ');
 }
 
-/**
- * Extrai estritamente linhas de renomeação:
- * 1. Se houver sentinelas <<<JURIS_RENOMEAR>>> ... <<<FIM_JURIS_RENOMEAR>>>, lê apenas o interior.
- * 2. Aceita exclusivamente linhas separadas por "|||".
- *    - 3 campos: ID ||| Nome Antigo ||| Novo Nome
- *    - 2 campos: Nome Antigo ||| Novo Nome
- */
-function _extrairInstrucoesRenomeacaoEstritas(textoBruto) {
-    if (!textoBruto || !textoBruto.trim()) return [];
+function _extrairDadosBlocoRenomeacao(textoBruto) {
+    if (!textoBruto || !textoBruto.trim()) {
+        return { instrucoes: [], loteId: null, temAbertura: false, temFechamento: false };
+    }
+
+    const temAbertura = /<<<JURIS_RENOMEAR>>>/i.test(textoBruto);
+    const temFechamento = /<<<FIM_JURIS_RENOMEAR>>>|<<<FIM>>>/i.test(textoBruto);
 
     let escopoTexto = textoBruto;
     const regexBloco = /<<<JURIS_RENOMEAR>>>([\s\S]*?)(?:<<<FIM_JURIS_RENOMEAR>>>|<<<FIM>>>|$)/i;
     const matchBloco = textoBruto.match(regexBloco);
     if (matchBloco && matchBloco[1]) {
         escopoTexto = matchBloco[1];
+    }
+
+    let loteIdDetectado = null;
+    const matchLote = escopoTexto.match(/^\s*LOTE\s*:\s*([A-Za-z0-9_-]+)\s*$/im);
+    if (matchLote && matchLote[1]) {
+        loteIdDetectado = matchLote[1].trim();
     }
 
     const linhas = escopoTexto.split(/\r?\n/);
@@ -1181,33 +1433,64 @@ function _extrairInstrucoesRenomeacaoEstritas(textoBruto) {
             const nomeAntigo = partes[1];
             const novoNome = partes.slice(2).join(' - ');
 
-            // Ignora a linha de exemplo literal do prompt
-            if (idInformado === 'ID_DO_MODELO' || nomeAntigo === 'Nome Problemático Atual Exato') continue;
+            if (idInformado === 'ID_DO_MODELO' || idInformado === 'ID_DO_MODELO_ADEQUADO') continue;
             if (!idInformado && !nomeAntigo) continue;
 
+            const isTokenOk = /^<?(?:OK|ADEQUADO|MANTIDO)>?$/i.test(novoNome);
             instrucoes.push({
-                formato: '3-campos',
                 idInformado,
                 nomeAntigoInformado: nomeAntigo,
-                novoNomeSugerido: novoNome
+                novoNomeSugerido: novoNome,
+                aprovadoExplicito: isTokenOk
             });
         } else if (partes.length === 2) {
-            const nomeAntigo = partes[0];
-            const novoNome = partes[1];
+            const campo1 = partes[0];
+            const campo2 = partes[1];
+            if (campo1 === 'ID_DO_MODELO' || campo1 === 'ID_DO_MODELO_ADEQUADO' || campo1 === 'Nome Problemático Atual Exato') continue;
 
-            if (nomeAntigo === 'Nome Problemático Atual Exato') continue;
-            if (!nomeAntigo) continue;
-
-            instrucoes.push({
-                formato: '2-campos',
-                idInformado: null,
-                nomeAntigoInformado: nomeAntigo,
-                novoNomeSugerido: novoNome
-            });
+            const isTokenOk = /^<?(?:OK|ADEQUADO|MANTIDO)>?$/i.test(campo2);
+            if (isTokenOk) {
+                instrucoes.push({
+                    idInformado: campo1,
+                    nomeAntigoInformado: '',
+                    novoNomeSugerido: '',
+                    aprovadoExplicito: true
+                });
+            } else {
+                instrucoes.push({
+                    idInformado: null,
+                    nomeAntigoInformado: campo1,
+                    novoNomeSugerido: campo2,
+                    aprovadoExplicito: false
+                });
+            }
         }
     }
 
-    return instrucoes;
+    return { instrucoes, loteId: loteIdDetectado, temAbertura, temFechamento };
+}
+
+async function _buscarManifestoEstritoPorId(loteId) {
+    if (!loteId) return null;
+    if (_cacheManifestosSessao.has(loteId)) {
+        return _cacheManifestosSessao.get(loteId);
+    }
+
+    const local = _lerLoteDoStorageLocalEstrito(loteId);
+    if (local) {
+        _cacheManifestosSessao.set(loteId, local);
+        return local;
+    }
+
+    if (window.AcervoManager && typeof AcervoManager.carregarManifestoLoteIA === 'function') {
+        const remoto = await AcervoManager.carregarManifestoLoteIA(loteId);
+        if (remoto) _salvarLoteNoStorageLocal(remoto);
+        _cacheManifestosSessao.set(loteId, remoto || null);
+        return remoto || null;
+    }
+
+    _cacheManifestosSessao.set(loteId, null);
+    return null;
 }
 
 window.abrirModalImportarRenomeacoes = async function(origem = 'tags') {
@@ -1225,14 +1508,16 @@ window.abrirModalImportarRenomeacoes = async function(origem = 'tags') {
     if (historyContainer) historyContainer.classList.add('pdf-foco-ativo');
 
     try {
-        // Força leitura atualizada do Firestore para evitar comparação contra cache defasado
         _modelosBaseImportacao = await AcervoManager.carregarModelos(true);
     } catch (e) {
         return exibirToast(e.message || 'Erro ao carregar modelos atuais para conferência.', 'erro');
     }
 
     _itensRenomeacaoIA = [];
+    _itensHomologacaoExplicitaIA = [];
     _edicoesManuaisRenomeacao.clear();
+    _cacheManifestosSessao.clear();
+    _seqAnaliseRenomeacao++;
 
     const textarea = document.getElementById('textarea-import-renomeacoes');
     if (textarea) textarea.value = '';
@@ -1240,6 +1525,8 @@ window.abrirModalImportarRenomeacoes = async function(origem = 'tags') {
     if (fileInput) fileInput.value = '';
 
     _safeDisplay('box-preview-renomeacoes', 'none');
+    _safeDisplay('box-homologar-lote-aprovados', 'none');
+    _safeDisplay('alerta-integridade-renomeacoes', 'none');
     _atualizarBarraReversaoUI();
     _configurarEventDelegationImportacao();
 
@@ -1259,14 +1546,15 @@ window.fecharModalImportarRenomeacoes = function() {
     if (window.analisarTextoRenomeacoesDebounced && window.analisarTextoRenomeacoesDebounced.cancel) {
         window.analisarTextoRenomeacoesDebounced.cancel();
     }
+    _seqAnaliseRenomeacao++;
 
     _safeDisplay('importar-renomeacoes-backdrop', 'none');
     _safeDisplay('modal-importar-renomeacoes', 'none');
 
     _itensRenomeacaoIA = [];
+    _itensHomologacaoExplicitaIA = [];
     _edicoesManuaisRenomeacao.clear();
 
-    // Retorna de forma previsível ao modal de origem
     if (_modalOrigemImportacao === 'notebooklm') {
         window.abrirModalPromptNotebookLM();
     } else {
@@ -1301,7 +1589,6 @@ function _resolverModeloPorIdOuPrefixo(idBruto, mapaPorId) {
         return { modelo: mapaPorId.get(idLimpo), ambiguo: false };
     }
 
-    // Fallback seguro caso a IA tenha enviado apenas o prefixo de 8+ caracteres do ID
     const prefixoAlvo = idLimpo.startsWith('mod-') ? idLimpo : `mod-${idLimpo}`;
     if (prefixoAlvo.length >= 10) {
         const candidatos = _modelosBaseImportacao.filter(m => m.id.startsWith(prefixoAlvo));
@@ -1311,17 +1598,28 @@ function _resolverModeloPorIdOuPrefixo(idBruto, mapaPorId) {
     return { modelo: null, ambiguo: false };
 }
 
-window.analisarTextoRenomeacoesIA = function() {
+window.analisarTextoRenomeacoesIA = async function() {
+    const seqAtual = ++_seqAnaliseRenomeacao;
+
     const textarea = document.getElementById('textarea-import-renomeacoes');
     const boxPreview = document.getElementById('box-preview-renomeacoes');
+    const boxHomologar = document.getElementById('box-homologar-lote-aprovados');
+    const chkHomologar = document.getElementById('chk-homologar-aprovados-lote');
+    const alertaIntegridade = document.getElementById('alerta-integridade-renomeacoes');
+    const tituloAlerta = document.getElementById('titulo-alerta-integridade');
+    const textoAlerta = document.getElementById('texto-alerta-integridade');
     const btnConfirmar = document.getElementById('btn-confirmar-renomeacoes-lote');
 
     if (!textarea || !boxPreview) return;
 
-    const instrucoes = _extrairInstrucoesRenomeacaoEstritas(textarea.value);
+    const { instrucoes, loteId, temAbertura, temFechamento } = _extrairDadosBlocoRenomeacao(textarea.value);
+
     if (instrucoes.length === 0) {
         boxPreview.style.display = 'none';
+        if (boxHomologar) boxHomologar.style.display = 'none';
+        if (alertaIntegridade) alertaIntegridade.style.display = 'none';
         _itensRenomeacaoIA = [];
+        _itensHomologacaoExplicitaIA = [];
         if (btnConfirmar) {
             btnConfirmar.disabled = true;
             btnConfirmar.textContent = '✔ Aplicar Atualizações Selecionadas';
@@ -1329,21 +1627,48 @@ window.analisarTextoRenomeacoesIA = function() {
         return;
     }
 
-    // Índices locais do acervo atual
+    const manifestoAlvo = loteId ? await _buscarManifestoEstritoPorId(loteId) : null;
+    if (seqAtual !== _seqAnaliseRenomeacao) return;
+
+    const blocoTruncado = temAbertura && !temFechamento;
+    const blocoDelimitadoCompleto = temAbertura && temFechamento;
+    const loteVerificado = Boolean(manifestoAlvo && Array.isArray(manifestoAlvo.ids) && manifestoAlvo.ids.length > 0);
+    const conjuntoIdsDoLote = loteVerificado ? new Set(manifestoAlvo.ids) : null;
+    const isModoCompletoNoLote = Boolean(manifestoAlvo && manifestoAlvo.modo === 'completo');
+
+    _blocoDelimitadoCompleto = blocoDelimitadoCompleto;
+    _loteVerificadoComSucesso = loteVerificado;
+    _loteIdDetectadoNoTexto = loteId;
+
+    if (alertaIntegridade && tituloAlerta && textoAlerta) {
+        if (blocoTruncado) {
+            alertaIntegridade.style.display = 'flex';
+            tituloAlerta.textContent = '⚠️ Atenção: Fechamento <<<FIM_JURIS_RENOMEAR>>> não encontrado!';
+            textoAlerta.textContent = 'A resposta da IA parece ter sido cortada antes do fim. Por segurança, a homologação de modelos sem alteração foi bloqueada neste envio.';
+        } else if (blocoDelimitadoCompleto && !loteVerificado) {
+            alertaIntegridade.style.display = 'flex';
+            tituloAlerta.textContent = loteId
+                ? `⚠️ Manifesto do lote "${loteId}" não localizado na nuvem ou neste navegador`
+                : '⚠️ Cabeçalho "LOTE:" não encontrado no bloco colado';
+            textoAlerta.textContent = 'Por segurança, nenhum item foi marcado automaticamente. Confira a lista e marque manualmente o que desejar aplicar.';
+        } else {
+            alertaIntegridade.style.display = 'none';
+        }
+    }
+
     const mapaPorId = new Map();
     const mapaListaPorNome = new Map();
 
     _modelosBaseImportacao.forEach(mod => {
         mapaPorId.set(mod.id, mod);
         const chaveNome = _normalizarTituloComparacao(mod.nome);
-        if (!mapaListaPorNome.has(chaveNome)) {
-            mapaListaPorNome.set(chaveNome, []);
-        }
+        if (!mapaListaPorNome.has(chaveNome)) mapaListaPorNome.set(chaveNome, []);
         mapaListaPorNome.get(chaveNome).push(mod);
     });
 
-    const idsJaIncluidosNoLote = new Set();
-    const novosItens = [];
+    const idsJaProcessados = new Set();
+    const novasRenomeacoes = [];
+    const novasHomologacoesExplicitas = [];
 
     instrucoes.forEach((inst, idx) => {
         let modeloAlvo = null;
@@ -1354,57 +1679,81 @@ window.analisarTextoRenomeacoesIA = function() {
             const resId = _resolverModeloPorIdOuPrefixo(inst.idInformado, mapaPorId);
             if (resId.modelo) {
                 modeloAlvo = resId.modelo;
-                const nomeBancoNorm = _normalizarTituloComparacao(modeloAlvo.nome);
-                const nomeInformadoNorm = _normalizarTituloComparacao(inst.nomeAntigoInformado);
-
-                if (inst.nomeAntigoInformado && nomeBancoNorm !== nomeInformadoNorm) {
-                    statusBase = 'conferir';
-                    motivoAviso = `O ID corresponde a "${modeloAlvo.nome}", que difere do nome antigo informado ("${inst.nomeAntigoInformado}").`;
+                if (!inst.aprovadoExplicito && inst.nomeAntigoInformado) {
+                    const nomeBancoNorm = _normalizarTituloComparacao(modeloAlvo.nome);
+                    const nomeInformadoNorm = _normalizarTituloComparacao(inst.nomeAntigoInformado);
+                    if (nomeBancoNorm !== nomeInformadoNorm) {
+                        statusBase = 'conferir';
+                        motivoAviso = `O ID corresponde a "${modeloAlvo.nome}", que difere do nome antigo informado ("${inst.nomeAntigoInformado}").`;
+                    } else {
+                        statusBase = 'pronto';
+                    }
                 } else {
                     statusBase = 'pronto';
                 }
             } else if (resId.ambiguo) {
                 statusBase = 'nao-encontrado';
                 motivoAviso = `Prefixo de ID "${inst.idInformado}" é ambíguo.`;
-            } else {
-                // Se o ID falhou mas o nome antigo existe univocamente, sinaliza para conferência
+            } else if (!inst.aprovadoExplicito && inst.nomeAntigoInformado) {
                 const candidatosNome = mapaListaPorNome.get(_normalizarTituloComparacao(inst.nomeAntigoInformado)) || [];
                 if (candidatosNome.length === 1) {
                     modeloAlvo = candidatosNome[0];
                     statusBase = 'conferir';
-                    motivoAviso = `ID "${inst.idInformado}" não localizado; encontrado apenas pelo nome antigo. Confira antes de marcar.`;
-                } else if (candidatosNome.length > 1) {
-                    statusBase = 'nao-encontrado';
-                    motivoAviso = `ID inválido e existem ${candidatosNome.length} modelos homônimos com este nome.`;
+                    motivoAviso = `ID "${inst.idInformado}" não localizado; encontrado apenas pelo nome antigo.`;
                 } else {
                     statusBase = 'nao-encontrado';
                     motivoAviso = 'ID e nome antigo não localizados no acervo deste módulo.';
                 }
+            } else {
+                return;
             }
         } else {
-            // Formato de 2 campos (apenas Nome Antigo ||| Novo Nome)
             const candidatosNome = mapaListaPorNome.get(_normalizarTituloComparacao(inst.nomeAntigoInformado)) || [];
             if (candidatosNome.length === 1) {
                 modeloAlvo = candidatosNome[0];
-                statusBase = 'pronto';
+                statusBase = 'conferir';
+                motivoAviso = 'Linha sem ID: confira antes de marcar.';
             } else if (candidatosNome.length > 1) {
                 modeloAlvo = candidatosNome[0];
                 statusBase = 'conferir';
-                motivoAviso = `Atenção: Existem ${candidatosNome.length} modelos com o nome "${inst.nomeAntigoInformado}". Exporte novamente e use o ID para precisão.`;
+                motivoAviso = `Existem ${candidatosNome.length} modelos com o nome "${inst.nomeAntigoInformado}".`;
             } else {
                 statusBase = 'nao-encontrado';
                 motivoAviso = 'Nome antigo não localizado no acervo deste módulo.';
             }
         }
 
-        // Deduplicação por modeloId dentro do mesmo lote
         if (modeloAlvo) {
-            if (idsJaIncluidosNoLote.has(modeloAlvo.id)) return;
-            idsJaIncluidosNoLote.add(modeloAlvo.id);
+            if (idsJaProcessados.has(modeloAlvo.id)) return;
+            idsJaProcessados.add(modeloAlvo.id);
 
-            if (_normalizarTituloComparacao(modeloAlvo.nome) === _normalizarTituloComparacao(inst.novoNomeSugerido)) {
-                statusBase = 'sem-alteracao';
-                motivoAviso = 'O novo nome sugerido já é igual ao nome atual do modelo.';
+            const pertenceAoLoteVerificado = loteVerificado && conjuntoIdsDoLote.has(modeloAlvo.id);
+            const nomeIgualAoAtual = !inst.aprovadoExplicito &&
+                (_normalizarTituloComparacao(modeloAlvo.nome) === _normalizarTituloComparacao(inst.novoNomeSugerido));
+
+            if (inst.aprovadoExplicito || nomeIgualAoAtual) {
+                if (!blocoDelimitadoCompleto) return;
+                if (loteVerificado && !pertenceAoLoteVerificado) return;
+
+                const jaAuditadoNesteMesmoLote = _isModeloAuditado(modeloAlvo) &&
+                    modeloAlvo.auditoriaIA &&
+                    loteId &&
+                    modeloAlvo.auditoriaIA.loteId === loteId;
+
+                if (!jaAuditadoNesteMesmoLote && (!_isModeloAuditado(modeloAlvo) || isModoCompletoNoLote)) {
+                    novasHomologacoesExplicitas.push(modeloAlvo);
+                }
+                return;
+            }
+
+            if (!loteVerificado) {
+                statusBase = 'conferir';
+                if (!motivoAviso) {
+                    motivoAviso = 'Lote não verificado: marque manualmente se desejar aplicar esta alteração.';
+                }
+            } else if (!pertenceAoLoteVerificado && statusBase === 'pronto') {
+                statusBase = 'conferir';
+                motivoAviso = `Aviso: Este modelo não pertencia ao lote ${loteId}. Confira antes de marcar.`;
             }
         }
 
@@ -1412,14 +1761,15 @@ window.analisarTextoRenomeacoesIA = function() {
         const edicaoPrevia = _edicoesManuaisRenomeacao.get(chaveEstavel);
 
         const novoNomeFinal = edicaoPrevia ? edicaoPrevia.novoNome : inst.novoNomeSugerido;
-        const selecionadoDefault = (statusBase === 'pronto');
-        const selecionadoFinal = (edicaoPrevia && typeof edicaoPrevia.selecionado === 'boolean' && statusBase !== 'nao-encontrado' && statusBase !== 'sem-alteracao')
+        const selecionadoDefault = (statusBase === 'pronto' && loteVerificado);
+        const selecionadoFinal = (edicaoPrevia && typeof edicaoPrevia.selecionado === 'boolean' && statusBase !== 'nao-encontrado')
             ? edicaoPrevia.selecionado
             : selecionadoDefault;
 
-        novosItens.push({
+        novasRenomeacoes.push({
             chaveEstavel,
             modeloId: modeloAlvo ? modeloAlvo.id : null,
+            modeloRef: modeloAlvo || null,
             nomeOriginalBanco: modeloAlvo ? modeloAlvo.nome : (inst.nomeAntigoInformado || '(Sem nome)'),
             novoNome: novoNomeFinal,
             statusBase,
@@ -1430,19 +1780,50 @@ window.analisarTextoRenomeacoesIA = function() {
         });
     });
 
-    _itensRenomeacaoIA = novosItens;
+    _itensRenomeacaoIA = novasRenomeacoes;
+    _itensHomologacaoExplicitaIA = novasHomologacoesExplicitas;
+
+    if (chkHomologar) {
+        chkHomologar.checked = Boolean(blocoDelimitadoCompleto && loteVerificado && novasHomologacoesExplicitas.length > 0);
+    }
+
+    _renderizarListaHomologadosUI();
     _recalcularConflitosDeNomes();
     _renderizarDOMPreviewRenomeacoes();
 };
 
 window.analisarTextoRenomeacoesDebounced = window.debounce(window.analisarTextoRenomeacoesIA, 250);
 
-/**
- * Verifica se algum item selecionado (ou editado) possui:
- * - Novo nome vazio
- * - Novo nome duplicado com outro item do próprio lote
- * - Novo nome idêntico a outro modelo já existente no acervo (que não está sendo renomeado)
- */
+function _renderizarListaHomologadosUI() {
+    const listaHomologar = document.getElementById('lista-homologar-aprovados');
+    const sumarioHomologar = document.getElementById('sumario-homologar-aprovados');
+    if (!listaHomologar) return;
+
+    listaHomologar.textContent = '';
+    if (sumarioHomologar) {
+        sumarioHomologar.textContent = `Ver lista dos ${_itensHomologacaoExplicitaIA.length} modelo(s) aprovados sem alteração`;
+    }
+
+    const fragment = document.createDocumentFragment();
+    _itensHomologacaoExplicitaIA.forEach(mod => {
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'acervo-homologation-item';
+
+        const nomeSpan = document.createElement('span');
+        nomeSpan.textContent = mod.nome;
+
+        const idSpan = document.createElement('span');
+        idSpan.className = 'acervo-rename-id-chip';
+        idSpan.textContent = mod.id;
+
+        itemDiv.appendChild(nomeSpan);
+        itemDiv.appendChild(idSpan);
+        fragment.appendChild(itemDiv);
+    });
+
+    listaHomologar.appendChild(fragment);
+}
+
 function _recalcularConflitosDeNomes() {
     const idsSendoRenomeados = new Set(
         _itensRenomeacaoIA.filter(i => i.modeloId && i.selecionado).map(i => i.modeloId)
@@ -1485,8 +1866,7 @@ function _recalcularConflitosDeNomes() {
             item.selecionado = false;
             return;
         } else if (item.statusBase === 'sem-alteracao') {
-            // Usuário editou manualmente um item que antes era sem-alteracao
-            item.statusEfetivo = 'pronto';
+            item.statusEfetivo = _loteVerificadoComSucesso ? 'pronto' : 'conferir';
         }
 
         if ((contagemNovosNomesNoLote.get(novoNorm) || 0) > 1) {
@@ -1499,18 +1879,12 @@ function _recalcularConflitosDeNomes() {
     });
 }
 
-/**
- * Constrói a lista de pré-visualização utilizando exclusivamente DOM API segura
- * (createElement, textContent, input.value) sem innerHTML interpolado.
- */
 function _renderizarDOMPreviewRenomeacoes() {
     const boxPreview = document.getElementById('box-preview-renomeacoes');
     const listaEl = document.getElementById('lista-preview-renomeacoes');
     if (!boxPreview || !listaEl) return;
 
-    boxPreview.style.display = 'flex';
     listaEl.textContent = '';
-
     const fragment = document.createDocumentFragment();
 
     _itensRenomeacaoIA.forEach((item, idx) => {
@@ -1518,7 +1892,6 @@ function _renderizarDOMPreviewRenomeacoes() {
         row.className = `acervo-rename-row status-${item.statusEfetivo}`;
         row.dataset.idx = String(idx);
 
-        // Coluna 1: Checkbox
         const chk = document.createElement('input');
         chk.type = 'checkbox';
         chk.className = 'chk-rename-ia';
@@ -1528,7 +1901,6 @@ function _renderizarDOMPreviewRenomeacoes() {
         chk.checked = !desabilitado && Boolean(item.selecionado);
         chk.style.marginTop = '4px';
 
-        // Coluna 2: Nome Antigo + Chip de ID
         const oldCol = document.createElement('div');
         oldCol.className = 'acervo-rename-old-col';
 
@@ -1544,13 +1916,11 @@ function _renderizarDOMPreviewRenomeacoes() {
             oldCol.appendChild(idChip);
         }
 
-        // Coluna 3: Seta
         const arrowSpan = document.createElement('span');
         arrowSpan.className = 'acervo-rename-arrow';
         arrowSpan.setAttribute('aria-hidden', 'true');
         arrowSpan.textContent = '➔';
 
-        // Coluna 4: Input Editável + Badges de Aviso/Erro
         const newCol = document.createElement('div');
         newCol.className = 'acervo-rename-new-col';
 
@@ -1597,10 +1967,6 @@ function _popularBadgesFeedbackItem(containerEl, item) {
     containerEl.appendChild(badge);
 }
 
-/**
- * Atualiza classes de conflito, checkboxes e contadores sem destruir os elementos <input>,
- * preservando o foco e a posição do cursor durante a digitação.
- */
 function _sincronizarLinhasExistentesSemReflow() {
     const listaEl = document.getElementById('lista-preview-renomeacoes');
     if (!listaEl) return;
@@ -1634,15 +2000,19 @@ function _sincronizarLinhasExistentesSemReflow() {
     _atualizarResumoEBotaoConfirmarUI();
 }
 
+window.atualizarResumoHomologacaoLoteUI = function() {
+    _atualizarResumoEBotaoConfirmarUI();
+};
+
 function _atualizarResumoEBotaoConfirmarUI() {
     const resumoEl = document.getElementById('resumo-preview-renomeacoes');
     const btnConfirmar = document.getElementById('btn-confirmar-renomeacoes-lote');
+    const boxPreview = document.getElementById('box-preview-renomeacoes');
+    const boxHomologar = document.getElementById('box-homologar-lote-aprovados');
+    const chkHomologar = document.getElementById('chk-homologar-aprovados-lote');
+    const tituloHomologar = document.getElementById('titulo-homologar-aprovados');
 
-    let qtdPronto = 0;
-    let qtdConferir = 0;
-    let qtdInalterado = 0;
-    let qtdNaoEncontrado = 0;
-    let qtdSelecionadosValidos = 0;
+    let qtdPronto = 0, qtdConferir = 0, qtdInalterado = 0, qtdNaoEncontrado = 0, qtdRenomeacoesSelecionadas = 0;
 
     _itensRenomeacaoIA.forEach(item => {
         if (item.statusEfetivo === 'pronto') qtdPronto++;
@@ -1653,9 +2023,30 @@ function _atualizarResumoEBotaoConfirmarUI() {
         const nomeValido = item.novoNome && item.novoNome.trim() !== '';
         const mudou = _normalizarTituloComparacao(item.novoNome) !== _normalizarTituloComparacao(item.nomeOriginalBanco);
         if (item.modeloId && item.selecionado && nomeValido && mudou) {
-            qtdSelecionadosValidos++;
+            qtdRenomeacoesSelecionadas++;
         }
     });
+
+    if (boxPreview) {
+        boxPreview.style.display = _itensRenomeacaoIA.length > 0 ? 'flex' : 'none';
+    }
+
+    const qtdAprovadosExplicitos = _blocoDelimitadoCompleto ? _itensHomologacaoExplicitaIA.length : 0;
+    if (boxHomologar && tituloHomologar) {
+        if (qtdAprovadosExplicitos > 0) {
+            boxHomologar.style.display = 'block';
+            const sufixoLote = _loteVerificadoComSucesso
+                ? `deste lote (${_loteIdDetectadoNoTexto})`
+                : '(lote não verificado — confira a lista abaixo e marque manualmente se confirmar)';
+            tituloHomologar.textContent = `✔ Homologar também ${qtdAprovadosExplicitos} modelo(s) aprovados explicitamente pela IA (<OK>) ${sufixoLote}`;
+        } else {
+            boxHomologar.style.display = 'none';
+        }
+    }
+
+    const qtdHomologarAtiva = (qtdAprovadosExplicitos > 0 && chkHomologar && chkHomologar.checked)
+        ? qtdAprovadosExplicitos
+        : 0;
 
     if (resumoEl) {
         resumoEl.textContent = '';
@@ -1665,7 +2056,6 @@ function _atualizarResumoEBotaoConfirmarUI() {
             pill.textContent = texto;
             return pill;
         };
-
         resumoEl.appendChild(criarPill(`✔ ${qtdPronto} pronto(s)`, 'pronto'));
         if (qtdConferir > 0) resumoEl.appendChild(criarPill(`⚠️ ${qtdConferir} p/ conferir`, 'conferir'));
         if (qtdInalterado > 0) resumoEl.appendChild(criarPill(`＝ ${qtdInalterado} sem alteração`, 'inalterado'));
@@ -1673,10 +2063,18 @@ function _atualizarResumoEBotaoConfirmarUI() {
     }
 
     if (btnConfirmar) {
-        btnConfirmar.disabled = (qtdSelecionadosValidos === 0);
-        btnConfirmar.textContent = qtdSelecionadosValidos > 0
-            ? `✔ Aplicar ${qtdSelecionadosValidos} Atualização(ões)`
-            : '✔ Aplicar Atualizações Selecionadas';
+        const totalOperacoes = qtdRenomeacoesSelecionadas + qtdHomologarAtiva;
+        btnConfirmar.disabled = (totalOperacoes === 0);
+
+        if (qtdRenomeacoesSelecionadas > 0 && qtdHomologarAtiva > 0) {
+            btnConfirmar.textContent = `✔ Renomear ${qtdRenomeacoesSelecionadas} e Homologar +${qtdHomologarAtiva} Aprovado(s)`;
+        } else if (qtdRenomeacoesSelecionadas > 0) {
+            btnConfirmar.textContent = `✔ Aplicar ${qtdRenomeacoesSelecionadas} Renomeação(ões)`;
+        } else if (qtdHomologarAtiva > 0) {
+            btnConfirmar.textContent = `✔ Homologar ${qtdHomologarAtiva} Modelo(s) Aprovado(s)`;
+        } else {
+            btnConfirmar.textContent = '✔ Aplicar Atualizações Selecionadas';
+        }
     }
 }
 
@@ -1728,7 +2126,6 @@ window.alternarSelecaoTodasRenomeacoes = function(marcarProntos) {
             item.selecionado = false;
             return;
         }
-        // "Marcar prontos" seleciona apenas os itens sem conflito/divergência; o usuário marca manualmente os "conferir" se desejar
         item.selecionado = marcarProntos ? (item.statusEfetivo === 'pronto') : false;
         _edicoesManuaisRenomeacao.set(item.chaveEstavel, {
             selecionado: item.selecionado,
@@ -1741,13 +2138,17 @@ window.alternarSelecaoTodasRenomeacoes = function(marcarProntos) {
 };
 
 window.executarRenomeacaoEmLoteIA = async function() {
-    const selecionados = _itensRenomeacaoIA.filter(item => {
+    const renomeacoesSelecionadas = _itensRenomeacaoIA.filter(item => {
         const nomeValido = item.novoNome && item.novoNome.trim() !== '';
         const mudou = _normalizarTituloComparacao(item.novoNome) !== _normalizarTituloComparacao(item.nomeOriginalBanco);
         return Boolean(item.modeloId && item.selecionado && nomeValido && mudou);
     });
 
-    if (selecionados.length === 0) return;
+    const chkHomologar = document.getElementById('chk-homologar-aprovados-lote');
+    const homologarAprovados = Boolean(_blocoDelimitadoCompleto && chkHomologar && chkHomologar.checked);
+    const modelosApenasHomologar = homologarAprovados ? _itensHomologacaoExplicitaIA : [];
+
+    if (renomeacoesSelecionadas.length === 0 && modelosApenasHomologar.length === 0) return;
 
     const btnConfirmar = document.getElementById('btn-confirmar-renomeacoes-lote');
     const textoOriginalBtn = btnConfirmar ? btnConfirmar.textContent : '';
@@ -1757,31 +2158,58 @@ window.executarRenomeacaoEmLoteIA = async function() {
     }
 
     try {
-        const payloadFirestore = selecionados.map(item => ({
-            id: item.modeloId,
-            novoNome: item.novoNome.trim()
-        }));
+        const loteIdRef = _loteIdDetectadoNoTexto || 'ia-manual';
+        const operacoesFirestore = [];
+        const snapshotReversao = [];
 
-        const totalGravados = await AcervoManager.renomearModelosEmLote(payloadFirestore);
+        renomeacoesSelecionadas.forEach(item => {
+            const modOriginal = item.modeloRef || _modelosBaseImportacao.find(m => m.id === item.modeloId);
+            const qtdNos = (modOriginal && Array.isArray(modOriginal.nos)) ? modOriginal.nos.length : 0;
+            const novoNomeLimpo = item.novoNome.trim();
 
-        // Armazena espelho inverso para reversão em 1 clique ou download de segurança
-        _ultimoLoteReversaoIA = selecionados.map(item => ({
-            id: item.modeloId,
-            nomeAnterior: item.nomeOriginalBanco,
-            nomeAplicado: item.novoNome.trim()
-        }));
+            operacoesFirestore.push({
+                id: item.modeloId,
+                novoNome: novoNomeLimpo,
+                auditoriaIA: AcervoManager.criarAssinaturaAuditoria(novoNomeLimpo, qtdNos, loteIdRef)
+            });
 
-        // Atualiza a base local do modal caso o usuário permaneça nele
+            snapshotReversao.push({
+                id: item.modeloId,
+                nomeAnterior: item.nomeOriginalBanco,
+                nomeAplicado: novoNomeLimpo,
+                auditoriaAnterior: (modOriginal && modOriginal.auditoriaIA) ? { ...modOriginal.auditoriaIA } : null,
+                foiRenomeado: true
+            });
+        });
+
+        modelosApenasHomologar.forEach(mod => {
+            const qtdNos = Array.isArray(mod.nos) ? mod.nos.length : 0;
+            operacoesFirestore.push({
+                id: mod.id,
+                novoNome: null,
+                auditoriaIA: AcervoManager.criarAssinaturaAuditoria(mod.nome, qtdNos, loteIdRef)
+            });
+
+            snapshotReversao.push({
+                id: mod.id,
+                nomeAnterior: mod.nome,
+                nomeAplicado: mod.nome,
+                auditoriaAnterior: mod.auditoriaIA ? { ...mod.auditoriaIA } : null,
+                foiRenomeado: false
+            });
+        });
+
+        const totalGravados = await AcervoManager.renomearModelosEmLote(operacoesFirestore);
+        _ultimoLoteReversaoIA = snapshotReversao;
+
         _modelosBaseImportacao = await AcervoManager.carregarModelos(true);
         _atualizarBarraReversaoUI();
 
-        exibirToast(`${totalGravados} modelo(s) atualizado(s) com sucesso!`, 'sucesso');
-
-        // Reanalisa o texto atual contra os novos nomes já salvos
-        window.analisarTextoRenomeacoesIA();
+        exibirToast(`${totalGravados} modelo(s) sincronizado(s) com sucesso!`, 'sucesso');
+        await window.analisarTextoRenomeacoesIA();
     } catch (e) {
-        console.error('[AcervoController] Falha ao aplicar renomeações em lote:', e);
-        exibirToast(e.message || 'Erro ao aplicar renomeações na nuvem.', 'erro');
+        console.error('[AcervoController] Falha ao aplicar lote:', e);
+        exibirToast(e.message || 'Erro ao gravar alterações na nuvem.', 'erro');
         if (btnConfirmar) {
             btnConfirmar.disabled = false;
             btnConfirmar.textContent = textoOriginalBtn;
@@ -1792,10 +2220,17 @@ window.executarRenomeacaoEmLoteIA = async function() {
 function _atualizarBarraReversaoUI() {
     const barra = document.getElementById('barra-reversao-renomeacoes');
     const texto = document.getElementById('texto-barra-reversao');
+    const btnBaixarTxt = document.getElementById('btn-baixar-reversao-lote');
     if (!barra || !texto) return;
 
     if (_ultimoLoteReversaoIA && _ultimoLoteReversaoIA.length > 0) {
-        texto.textContent = `✔ Último lote aplicado (${_ultimoLoteReversaoIA.length} modelo(s)). Deseja baixar backup de reversão ou desfazer?`;
+        const qtdRenomeados = _ultimoLoteReversaoIA.filter(i => i.foiRenomeado).length;
+        const qtdHomologados = _ultimoLoteReversaoIA.length - qtdRenomeados;
+
+        texto.textContent = `✔ Último lote aplicado (${qtdRenomeados} renomeado(s), ${qtdHomologados} homologado(s)). Deseja desfazer?`;
+        if (btnBaixarTxt) {
+            btnBaixarTxt.style.display = qtdRenomeados > 0 ? 'inline-block' : 'none';
+        }
         barra.style.display = 'flex';
     } else {
         barra.style.display = 'none';
@@ -1805,8 +2240,13 @@ function _atualizarBarraReversaoUI() {
 window.baixarArquivoReversaoUltimoLote = function() {
     if (!_ultimoLoteReversaoIA || _ultimoLoteReversaoIA.length === 0) return;
 
+    const apenasRenomeados = _ultimoLoteReversaoIA.filter(item => item.foiRenomeado);
+    if (apenasRenomeados.length === 0) {
+        return exibirToast('O último lote teve apenas homologações (sem troca de nomes). Use "Desfazer Último Lote".', 'aviso');
+    }
+
     let conteudo = '<<<JURIS_RENOMEAR>>>\n';
-    _ultimoLoteReversaoIA.forEach(item => {
+    apenasRenomeados.forEach(item => {
         conteudo += `${item.id} ||| ${item.nomeAplicado} ||| ${item.nomeAnterior}\n`;
     });
     conteudo += '<<<FIM_JURIS_RENOMEAR>>>\n';
@@ -1818,22 +2258,23 @@ window.baixarArquivoReversaoUltimoLote = function() {
 
 window.desfazerUltimoLoteRenomeacao = async function() {
     if (!_ultimoLoteReversaoIA || _ultimoLoteReversaoIA.length === 0) return;
-    if (!confirm(`Restaurar o nome anterior de ${_ultimoLoteReversaoIA.length} modelo(s) atualizado(s) no último lote?`)) return;
+    if (!confirm(`Restaurar os nomes e o status de auditoria anteriores de ${_ultimoLoteReversaoIA.length} modelo(s)?`)) return;
 
     try {
-        const payloadReversao = _ultimoLoteReversaoIA.map(item => ({
+        const operacoesReversao = _ultimoLoteReversaoIA.map(item => ({
             id: item.id,
-            novoNome: item.nomeAnterior
+            novoNome: item.foiRenomeado ? item.nomeAnterior : null,
+            auditoriaIA: item.auditoriaAnterior
         }));
 
-        const restaurados = await AcervoManager.renomearModelosEmLote(payloadReversao);
+        const restaurados = await AcervoManager.renomearModelosEmLote(operacoesReversao);
         _ultimoLoteReversaoIA = null;
         _atualizarBarraReversaoUI();
 
         _modelosBaseImportacao = await AcervoManager.carregarModelos(true);
-        window.analisarTextoRenomeacoesIA();
+        await window.analisarTextoRenomeacoesIA();
 
-        exibirToast(`${restaurados} modelo(s) restaurado(s) aos nomes originais!`, 'sucesso');
+        exibirToast(`${restaurados} modelo(s) restaurado(s) ao estado original!`, 'sucesso');
     } catch (e) {
         exibirToast(e.message || 'Erro ao desfazer alterações.', 'erro');
     }

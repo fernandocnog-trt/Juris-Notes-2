@@ -1101,6 +1101,214 @@
     }
 }
 
+/* Indicador Minimalista de Pendência no Card do Acervo (Sem Poluição Visual) */
+.acervo-pending-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background-color: #f59e0b;
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+    margin-right: 6px;
+    flex-shrink: 0;
+}
+
+/* Botão de Alternância Manual de Auditoria no Modal de Edição */
+.acervo-audit-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+}
+
+.acervo-audit-toggle-btn.is-audited {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #86efac;
+}
+.acervo-audit-toggle-btn.is-audited:hover { background: #bbf7d0; }
+
+.acervo-audit-toggle-btn.is-pending {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fde68a;
+}
+.acervo-audit-toggle-btn.is-pending:hover { background: #fde68a; }
+
+/* Painel de Governança e Escalabilidade (Modal de Tags) */
+.acervo-governance-panel {
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--trt-blue);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.acervo-governance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.acervo-governance-title {
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: var(--trt-blue);
+}
+
+.acervo-audit-summary-pill {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: #e2e8f0;
+    color: #334155;
+}
+
+.acervo-export-mode-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.acervo-export-mode-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.76rem;
+    color: #334155;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 5px;
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    line-height: 1.35;
+}
+.acervo-export-mode-label:hover { border-color: var(--trt-blue-mid); }
+.acervo-export-mode-label input[type="radio"] {
+    margin-top: 2px;
+    accent-color: var(--trt-blue);
+    flex-shrink: 0;
+}
+.acervo-export-mode-label span {
+    display: block;
+    color: #64748b;
+    font-size: 0.72rem;
+    margin-top: 2px;
+}
+
+.acervo-batch-limit-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding-top: 6px;
+    border-top: 1px dashed #cbd5e1;
+    flex-wrap: wrap;
+}
+
+/* Alerta de Integridade (Resposta Cortada ou Lote Não Localizado) */
+.acervo-truncation-warning {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-left: 4px solid #d97706;
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-top: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 0.78rem;
+    color: #92400e;
+}
+
+/* Caixa de Homologação Explícita dos Modelos Aprovados */
+.acervo-batch-homologation-box {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-left: 4px solid #16a34a;
+    border-radius: 6px;
+    padding: 9px 12px;
+    margin-top: 6px;
+}
+
+.acervo-batch-homologation-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    cursor: pointer;
+    font-size: 0.8rem;
+    color: #166534;
+    line-height: 1.4;
+}
+.acervo-batch-homologation-label input[type="checkbox"] {
+    margin-top: 3px;
+    width: 16px;
+    height: 16px;
+    accent-color: #16a34a;
+    flex-shrink: 0;
+    cursor: pointer;
+}
+.acervo-batch-homologation-label p {
+    margin: 2px 0 0 0;
+    font-size: 0.73rem;
+    color: #15803d;
+}
+
+.acervo-homologation-details {
+    margin-top: 6px;
+    margin-left: 26px;
+    font-size: 0.75rem;
+    color: #166534;
+}
+
+.acervo-homologation-details summary {
+    cursor: pointer;
+    font-weight: 700;
+    user-select: none;
+    color: #15803d;
+}
+
+.acervo-homologation-list {
+    margin-top: 6px;
+    max-height: 130px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #bbf7d0;
+    border-radius: 4px;
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.acervo-homologation-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.74rem;
+    color: #334155;
+    border-bottom: 1px dashed #e2e8f0;
+    padding-bottom: 3px;
+}
+.acervo-homologation-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
 /* ================================================
    8. CUSTOMIZAÇÃO DE WORKSPACE (CONTEXTO)
    ================================================ */
