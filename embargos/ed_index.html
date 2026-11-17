@@ -171,6 +171,23 @@
                         <line x1="12" y1="4" x2="12" y2="20"></line>
                     </svg>
                 </button>
+
+                <!-- BOTÃO HOT-SWAP (RETORNO DE DILIGÊNCIA) -->
+                <button type="button" class="icon-btn" id="btn-atualizar-pdf"
+                        onclick="document.getElementById('pdf-update-upload').click()"
+                        title="Atualizar PDF (Retorno de Diligência)&#10;Substitui o PDF mantendo todas as anotações"
+                        aria-label="Atualizar PDF do processo mantendo anotações"
+                        disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                        <polyline points="14 2 14 8 20 8"></polyline>
+                        <path d="M9 15a3 3 0 0 1 5.12-2.12L15.5 14"></path>
+                        <polyline points="15.5 10.5 15.5 14 12 14"></polyline>
+                        <path d="M15 15a3 3 0 0 1-5.12 2.12L8.5 16"></path>
+                        <polyline points="8.5 19.5 8.5 16 12 16"></polyline>
+                    </svg>
+                </button>
+                <input type="file" id="pdf-update-upload" accept="application/pdf,.pdf" style="display:none;" onchange="substituirPdfSessaoAtiva(event)">
                 
                 <button class="icon-btn" id="btn-encerrar-sessao" onclick="encerrarSessao()" title="Encerrar Sessão" disabled>
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -461,7 +478,7 @@
                 // PASSO 2: Fila ordenada de scripts locais da aplicação ED
                 const scriptsParaCarregar = [
                     "js/ed_store.js",
-                    "js/ed_backup-manager.js",
+                    "js/ed_backup-manager.js?v=3.2.2",
                     "js/ed_topics-manager.js?v=3.2.1",
                     "js/ed_document-views.js",
                     "js/ed_balanca-manager.js",
@@ -470,10 +487,10 @@
                     "js/ed_annotation-actions.js",
                     "js/ed_juris-editor.js",
                     "js/ed_export-manager.js",
-                    "js/ed_pdf-engine.js",
+                    "js/ed_pdf-engine.js?v=3.2.2",
                     "js/ed_pje-parser.js",
                     "js/ed_recommendation-service.js",
-                    "js/ed_app-core.js",
+                    "js/ed_app-core.js?v=3.2.2",
                     "js/ed_acervo-controller.js"
                 ];
 
