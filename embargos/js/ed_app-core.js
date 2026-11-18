@@ -761,10 +761,11 @@ document.addEventListener("DOMContentLoaded", () => {
             exibirToast: exibirToast,
             atualizarDisplayPaginador: atualizarDisplayPaginador,
             validarPdf: (buffer) => BackupManager.validarPdf(buffer),
-            iniciarSessaoBackup: (name, buffer) => BackupManager.iniciarSessao(name, buffer),
+            compararPdf: (buffer) => BackupManager.compararPdf(buffer),
+            resolverDivergenciaPdf: resolverDivergenciaPdf,
+            iniciarSessaoBackup: (name, opcoesOuBuffer) => BackupManager.iniciarSessao(name, opcoesOuBuffer),
             habilitarFerramentas: habilitarFerramentasDeTrabalho,
             onProcessoIdentificado: (numeroCurto) => {
-                // Atualiza o DOM (Interface)
                 const tagProcesso = document.getElementById('tag-numero-processo');
                 if (tagProcesso) {
                     tagProcesso.textContent = numeroCurto;
@@ -772,17 +773,14 @@ document.addEventListener("DOMContentLoaded", () => {
                     tagProcesso.title = 'Clique para copiar';
                     tagProcesso.classList.add('tag-clicavel-copia');
 
-                    // Clone profundo para prevenir vazamento de memória com listeners acumulados
                     const novaTag = tagProcesso.cloneNode(true);
                     tagProcesso.parentNode.replaceChild(novaTag, tagProcesso);
 
-                    // Evento de clique com Fallback de Clipboard
                     novaTag.addEventListener('click', async () => {
                         try {
                             if (navigator.clipboard && window.isSecureContext) {
                                 await navigator.clipboard.writeText(numeroCurto);
                             } else {
-                                // Fallback para ambientes sem contexto seguro (ex: file://)
                                 const textArea = document.createElement("textarea");
                                 textArea.value = numeroCurto;
                                 textArea.style.position = "fixed";
@@ -801,43 +799,88 @@ document.addEventListener("DOMContentLoaded", () => {
                         }
                     });
                 }
-                // Define o nome de backup padrão ED SEM o sufixo arbitrário "_backup"
                 window._nomeArquivoSugerido = `ED_${numeroCurto}.json`;
             },
-            onPdfCarregado: async (isRetomada) => {
-                if (isRetomada) {
+            onPdfCarregado: async (modoOuFlag, info = {}) => {
+                const modo = info.modo || (modoOuFlag === 'substituicao' ? 'substituicao' : (modoOuFlag ? 'retomada' : 'novo'));
+
+                if (modo === 'substituicao') {
+                    BackupManager.confirmarAtualizacaoPdf({
+                        numPaginas: info.numPaginas,
+                        processoCnj: info.numeroCnj,
+                        ultimaPaginaHash: info.ultimaPaginaHash
+                    });
+                    if (typeof salvarBackupAutomatico === 'function') {
+                        await salvarBackupAutomatico();
+                    }
+                    return;
+                }
+
+                if (modo === 'retomada') {
                     modoRetomada = false;
+                    const confirmouNovoPdf = BackupManager.confirmarAtualizacaoPdf({
+                        numPaginas: info.numPaginas,
+                        processoCnj: info.numeroCnj,
+                        ultimaPaginaHash: info.ultimaPaginaHash
+                    });
+
+                    // Se era um backup legado (sem hash/numPaginas) ou primeira validação completa, promove os metadados
+                    const promoveuLegado = BackupManager.registrarMetadadosPdf({
+                        hash: info.hash,
+                        numPaginas: info.numPaginas,
+                        processoCnj: info.numeroCnj,
+                        ultimaPaginaHash: info.ultimaPaginaHash
+                    });
+
+                    if ((confirmouNovoPdf || promoveuLegado) && typeof salvarBackupAutomatico === 'function') {
+                        await salvarBackupAutomatico();
+                    }
+
                     trocarAba('leitura');
-                    exibirToast('PDF validado e carregado. Sessão retomada com sucesso. ✓');
+                    exibirToast(
+                        confirmouNovoPdf
+                            ? 'PDF atualizado (Diligência) e vinculado ao backup com sucesso! ✓'
+                            : 'PDF validado e carregado. Sessão retomada com sucesso. ✓',
+                        'sucesso'
+                    );
                     
                     if (_sessaoPossuiAudio && typeof window.AudioManager?.prepararRetomada === 'function') {
                         window.AudioManager.prepararRetomada();
                     }
-                } else {
-                    trocarAba('leitura');
-                    console.log("[JURIS LOG] PDF renderizado. Exibindo modal de backup.");
-                    document.getElementById('backup-modal-backdrop').style.display = 'block';
-                    document.getElementById('modal-ativar-backup').style.display = 'flex';
+                    return;
+                }
 
-                    if (window.PjeParser && window.PdfEngine && PdfEngine.getPdfDoc()) {
-                        exibirToast('Analisando sumário do processo em segundo plano...', 'aviso');
-                        PjeParser.mapearAtalhos(PdfEngine.getPdfDoc())
-                            .then(async (atalhos) => {
-                                if (atalhos.sentenca) {
-                                    window.ShortcutManager.setState({
-                                        acordao: atalhos.sentenca || null // O Parser acha a "Sentença", nós mapeamos para "Acórdão" no ED.
-                                    });
-                                    window.ShortcutManager.toggleVisibility(true);
-                                    if (typeof salvarBackupAutomatico === 'function') {
-                                        await salvarBackupAutomatico();
-                                    }
-                                    exibirToast('Atalho do Acórdão Embargado preenchido automaticamente!', 'sucesso');
-                                } else {
-                                    exibirToast('Análise concluída: Sumário padrão não encontrado.', 'aviso');
+                // Ramo 'novo'
+                BackupManager.registrarMetadadosPdf({
+                    hash: info.hash,
+                    numPaginas: info.numPaginas,
+                    processoCnj: info.numeroCnj,
+                    ultimaPaginaHash: info.ultimaPaginaHash
+                });
+
+                trocarAba('leitura');
+                console.log("[JURIS LOG] PDF renderizado. Exibindo modal de backup.");
+                document.getElementById('backup-modal-backdrop').style.display = 'block';
+                document.getElementById('modal-ativar-backup').style.display = 'flex';
+
+                if (window.PjeParser && window.PdfEngine && PdfEngine.getPdfDoc()) {
+                    exibirToast('Analisando sumário do processo em segundo plano...', 'aviso');
+                    PjeParser.mapearAtalhos(PdfEngine.getPdfDoc())
+                        .then(async (atalhos) => {
+                            if (atalhos.sentenca) {
+                                window.ShortcutManager.setState({
+                                    acordao: atalhos.sentenca || null
+                                });
+                                window.ShortcutManager.toggleVisibility(true);
+                                if (typeof salvarBackupAutomatico === 'function') {
+                                    await salvarBackupAutomatico();
                                 }
-                            })
-                            .catch(e => console.warn('[Juris Notes] Erro não-bloqueante no Parser PJe:', e));
-                    }
+                                exibirToast('Atalho do Acórdão Embargado preenchido automaticamente!', 'sucesso');
+                            } else {
+                                exibirToast('Análise concluída: Sumário padrão não encontrado.', 'aviso');
+                            }
+                        })
+                        .catch(e => console.warn('[Juris Notes] Erro não-bloqueante no Parser PJe:', e));
                 }
             }
         });
