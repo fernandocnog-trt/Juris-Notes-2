@@ -980,20 +980,31 @@ window.ExportManager = (function () {
             );
 
             // Injeção objetiva dos dados do Contrato de Trabalho (quando preenchidos no Painel ED)
+            // Consome EXCLUSIVAMENTE getDados() (Parâmetros Oficiais); jamais lê getConfronto()
             if (window.ContratoManager) {
                 const dadosContrato = window.ContratoManager.getDados();
-                if (dadosContrato && (dadosContrato.admissao || dadosContrato.demissao || dadosContrato.funcao)) {
+                const admissao = dadosContrato ? (dadosContrato.inicio || dadosContrato.admissao || '') : '';
+                const demissao = dadosContrato ? (dadosContrato.fim || dadosContrato.demissao || '') : '';
+                const ajuizamento = dadosContrato ? (dadosContrato.ajuizamento || '') : '';
+                const funcao = dadosContrato ? (dadosContrato.funcao || '') : '';
+
+                if (admissao || demissao || ajuizamento || funcao) {
+                    const formatarIsoBr = (iso) => {
+                        const arr = String(iso).split('-');
+                        return arr.length === 3 ? `${arr[2]}/${arr[1]}/${arr[0]}` : iso;
+                    };
                     const contratoLinhas = ['<contexto_fatico_vinculo_empregaticio>'];
-                    if (dadosContrato.funcao) {
-                        contratoLinhas.push(`  [Função Exercida]: ${_safeMD(dadosContrato.funcao, ' ')}`);
+                    if (funcao) {
+                        contratoLinhas.push(`  [Função Exercida]: ${_safeMD(funcao, ' ')}`);
                     }
-                    if (dadosContrato.admissao) {
-                        const admArr = dadosContrato.admissao.split('-');
-                        contratoLinhas.push(`  [Data de Admissão]: ${admArr.length === 3 ? `${admArr[2]}/${admArr[1]}/${admArr[0]}` : dadosContrato.admissao}`);
+                    if (admissao) {
+                        contratoLinhas.push(`  [Data de Admissão]: ${formatarIsoBr(admissao)}`);
                     }
-                    if (dadosContrato.demissao) {
-                        const demArr = dadosContrato.demissao.split('-');
-                        contratoLinhas.push(`  [Data de Demissão]: ${demArr.length === 3 ? `${demArr[2]}/${demArr[1]}/${demArr[0]}` : dadosContrato.demissao}`);
+                    if (demissao) {
+                        contratoLinhas.push(`  [Data de Demissão]: ${formatarIsoBr(demissao)}`);
+                    }
+                    if (ajuizamento) {
+                        contratoLinhas.push(`  [Data de Ajuizamento da Ação]: ${formatarIsoBr(ajuizamento)}`);
                     }
                     contratoLinhas.push('</contexto_fatico_vinculo_empregaticio>\n');
                     partesDoc.push(contratoLinhas.join('\n'));

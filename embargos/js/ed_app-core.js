@@ -646,53 +646,8 @@ window.ShortcutManager = (function() {
 
 /* ================================================
    MÓDULO DE CONTRATO DE TRABALHO
+   Modularizado em: js/ed_contrato-manager.js (v2.2)
    ================================================ */
-window.ContratoManager = (function() {
-    let dadosContrato = {
-        admissao: '',
-        demissao: '',
-        funcao: ''
-    };
-
-    function abrirModal() {
-        const backdrop = document.getElementById('contrato-modal-backdrop');
-        const modal = document.getElementById('modal-contrato-trabalho');
-        if (!backdrop || !modal) return;
-
-        document.getElementById('input-contrato-admissao').value = dadosContrato.admissao;
-        document.getElementById('input-contrato-demissao').value = dadosContrato.demissao;
-        document.getElementById('input-contrato-funcao').value = dadosContrato.funcao;
-
-        backdrop.style.display = 'block';
-        modal.style.display = 'flex';
-    }
-
-    function fecharModal() {
-        document.getElementById('contrato-modal-backdrop').style.display = 'none';
-        document.getElementById('modal-contrato-trabalho').style.display = 'none';
-    }
-
-    function salvarContrato() {
-        dadosContrato.admissao = document.getElementById('input-contrato-admissao').value;
-        dadosContrato.demissao = document.getElementById('input-contrato-demissao').value;
-        dadosContrato.funcao = document.getElementById('input-contrato-funcao').value.trim();
-
-        const btnContrato = document.getElementById('btn-contrato-trabalho');
-        if (btnContrato) {
-            if (dadosContrato.admissao || dadosContrato.demissao || dadosContrato.funcao) {
-                btnContrato.classList.add('has-data');
-            } else {
-                btnContrato.classList.remove('has-data');
-            }
-        }
-
-        fecharModal();
-        if (typeof exibirToast === 'function') exibirToast('Parâmetros do contrato atualizados.', 'sucesso');
-        if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
-    }
-
-    return { abrirModal, fecharModal, salvarContrato, getDados: () => dadosContrato };
-})();
 
 /* ================================================
    MÓDULO DE LAYOUT ERGONÔMICO (FAB LAYOUT MANAGER)
@@ -1125,6 +1080,11 @@ function encerrarSessao() {
     
     if (window.PdfEngine) window.PdfEngine.encerrar();
     BackupManager.encerrar();
+    if (window.ContratoManager) {
+        if (typeof window.ContratoManager.fecharModal === 'function') window.ContratoManager.fecharModal({ silencioso: true });
+        if (typeof window.ContratoManager.setDados === 'function') window.ContratoManager.setDados(null);
+        if (typeof window.ContratoManager.setConfronto === 'function') window.ContratoManager.setConfronto(null);
+    }
     if (window.ShortcutManager) window.ShortcutManager.reset();
 
     if (window.BalancaManager) {
@@ -1238,7 +1198,12 @@ async function novoProcesso(event) {
         }
         if (window.AudioManager) window.AudioManager.encerrar();
         topicos = [];
-        BackupManager.encerrar(); 
+        BackupManager.encerrar();
+        if (window.ContratoManager) {
+            if (typeof window.ContratoManager.fecharModal === 'function') window.ContratoManager.fecharModal({ silencioso: true });
+            if (typeof window.ContratoManager.setDados === 'function') window.ContratoManager.setDados(null);
+            if (typeof window.ContratoManager.setConfronto === 'function') window.ContratoManager.setConfronto(null);
+        }
         if (window.ShortcutManager) window.ShortcutManager.reset();
         renderizarTopicos();
         atualizarStatusBackup('Aguardando...');
@@ -1815,6 +1780,7 @@ document.addEventListener('keydown', function (e) {
                 if (modal.id === 'modal-tarefas' && window.TaskManager) TaskManager.fecharModal();
                 if (modal.id === 'modal-notas-ocultas' && window.TopicsManager) TopicsManager.fecharModalNotasOcultas();
                 if (modal.id === 'modal-editar-tese' && typeof fecharModalTese === 'function') fecharModalTese();
+                if (modal.id === 'modal-contrato-config' && window.ContratoManager) ContratoManager.fecharModal();
                 
                 // NOVO: Delegar o fechamento ao TopicsManager (Tesoura e Trânsito entre Volumes)
                 if (modal.id === 'modal-predivisao' && window.TopicsManager) TopicsManager.fecharModalPreDivisao();
