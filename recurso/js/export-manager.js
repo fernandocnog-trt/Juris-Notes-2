@@ -120,19 +120,12 @@ window.ExportManager = (function () {
             '- [REGIME: CONTEXTO_VALIDADO]: fato já validado pelo assistente para integrar o raciocínio.',
             '',
             'BLINDAGEM ANTI-ALUCINAÇÃO E MINUTA LIMPA (OBRIGATÓRIO):',
-            '- PROIBIDO inventar ou citar qualquer súmula, OJ, tema vinculante, ementa ou precedente jurisprudencial que não conste expressamente em um Nó de Ideia.',
-            '- PROIBIDO inserir marcadores ou avisos inline no corpo da minuta (tais como "[CONFERIR]", "[VERIFICAR]", "[ATENÇÃO]" ou notas entre colchetes). O texto da minuta deve sair 100% limpo e pronto para uso.'
+            '- PROIBIDO inventar ou citar de memória qualquer ementa, número de precedente, súmula ou OJ fora dos Nós de Ideia.',
+            '- PROIBIDO criar ou inserir avisos editoriais no corpo da minuta ("[CONFERIR]", "[VERIFICAR]", "[ERRO PRESCRICIONAL...]", "[DADO INSUFICIENTE...]"). Preserve intactos apenas colchetes originais de citações literais ("[...]", "[sic]") e o marcador "[DADO PESSOAL OCULTADO - LGPD]".',
+            (isCompleto && auditoriaAtiva)
+                ? '- Exceção controlada (sem avisos inline): admite-se referenciar (a) artigo basilar vigente (CLT/CPC/CF) ou já aplicado na sentença sem transcrever redação de memória, ou (b) Súmula/OJ/artigo verificado em fonte normativa oficial anexa ao ambiente (ex.: CLT/TST no NotebookLM) convergente com o Nó de Ideia — listando obrigatoriamente cada item na seção final de Auditoria com a origem e as primeiras 6 a 8 palavras do parágrafo onde aparece.'
+                : '- Auditoria desativada (ou modo enxuto): utilize EXCLUSIVAMENTE as normas e julgados fornecidos nos Nós de Ideia; ficam vedadas citações normativas externas sem trilha de conferência.'
         ];
-
-        if (isCompleto && auditoriaAtiva) {
-            linhas.push(
-                '- Caso invoque autonomamente algum dispositivo legal (artigo de lei) não listado nos Nós de Ideia, redija a minuta limpa e liste esse dispositivo na seção final de Auditoria indicando o início do parágrafo onde ele aparece.'
-            );
-        } else {
-            linhas.push(
-                '- Evite invocar dispositivos legais não fornecidos nos Nós de Ideia, restringindo-se apenas a artigos basilares inequívocos (CLT/CPC/CF) estritamente indispensáveis à fundamentação, sempre sem avisos inline.'
-            );
-        }
 
         linhas.push('', 'REGRAS DE PRECEDÊNCIA EM CASO DE CONFLITO:');
 
@@ -235,18 +228,18 @@ window.ExportManager = (function () {
 
         const campos = [
             {
-                chave: 'alegacoes',
-                tag: 'razoes_recursais',
-                posicao: 'ABERTURA_RELATORIO',
-                notaFixo: 'Redação já revisada pelo assistente para abertura do tópico. Reproduza o texto fielmente, ciente de que expressa a pretensão do RECORRENTE (não a convicção do Relator).',
-                notaAberto: 'Campo não preenchido: sintetize as razões recursais a partir dos cartões de contexto do recurso.'
-            },
-            {
                 chave: 'fundamentos',
                 tag: 'fundamentos_da_origem',
                 posicao: 'ABERTURA_RELATORIO',
                 notaFixo: 'Redação já revisada pelo assistente para síntese da sentença. Reproduza o texto fielmente como relato do julgado de origem (não vincula o mérito do 2º Grau).',
                 notaAberto: 'Campo não preenchido: sintetize os fundamentos da origem a partir dos cartões da sentença/decisão recorrida.'
+            },
+            {
+                chave: 'alegacoes',
+                tag: 'razoes_recursais',
+                posicao: 'ABERTURA_RELATORIO',
+                notaFixo: 'Redação já revisada pelo assistente para abertura do tópico. Reproduza o texto fielmente, ciente de que expressa a pretensão do RECORRENTE (não a convicção do Relator).',
+                notaAberto: 'Campo não preenchido: sintetize as razões recursais a partir dos cartões de contexto do recurso.'
             },
             {
                 chave: 'veredito',
@@ -725,22 +718,23 @@ window.ExportManager = (function () {
         const linhas = [
             '\n<fechamento_editorial_e_controle>',
             'CHECKLIST DE EXECUÇÃO (RECENCY GUARD):',
-            '1. RIGIDEZ: Preserve literalmente o Preâmbulo preenchido, [TEXTO FIXO], [JURISPRUDÊNCIA EXATA] e [DEGRAVAÇÃO CURADA] (nestes dois últimos, ordene livremente e redija transições fluidas). O Veredito nunca pode ser contrariado.',
+            '1. RIGIDEZ: Preserve literalmente o Preâmbulo preenchido (1º Fundamentos da Origem; 2º Razões Recursais; ao fim, Veredito), [TEXTO FIXO], [JURISPRUDÊNCIA EXATA] e [DEGRAVAÇÃO CURADA] (nestes dois últimos, ordene livremente e redija transições fluidas). O Veredito nunca pode ser contrariado.',
             '2. LIBERDADE: NÃO copie mecanicamente [PREMISSA LÓGICA], [REFUTAÇÃO] nem [FILTRO / PREJUDICIAL] — desenvolva argumentação jurídica coesa, reordenando trechos se melhorar a lógica do acórdão, e integre [LEI SECA] como pano de fundo.',
             '3. CONTEXTO: Jamais adote alegações de <contexto_processual> / <contexto_processual_nao_vinculante> como convicção do Relator.',
-            '4. ANTI-ALUCINAÇÃO E MINUTA LIMPA: NUNCA invente súmula, OJ, tema vinculante ou precedente fora dos Nós de Ideia. NUNCA insira "[CONFERIR]" ou qualquer aviso editorial inline no corpo da minuta.'
+            '4. ANTI-ALUCINAÇÃO E MINUTA LIMPA: NUNCA invente ou cite de memória súmula, OJ, ementa ou precedente fora dos Nós de Ideia. NUNCA crie avisos editoriais inline ("[CONFERIR]", "[VERIFICAR]", "[ERRO PRESCRICIONAL...]"). Preserve intactos apenas colchetes originais de citações literais ("[...]", "[sic]") e o marcador "[DADO PESSOAL OCULTADO - LGPD]".'
         ];
 
         if (auditoriaAtiva) {
             linhas.push(
                 '',
+                '<auditoria_critica ativa="true">',
                 `OBRIGATÓRIO — APÓS CONCLUIR A MINUTA LIMPA${possuiCheckpointSaida ? ' (E ANTES DO CHECKPOINT DE CONTINUIDADE)' : ''}:`,
-                `Crie uma seção final isolada com o título exato: "${TITULO_SECAO_AUDITORIA}" (uso interno — não integrar ao acórdão).`,
-                'Atue como revisor jurídico crítico independente, sempre citando o nº da Ideia (conforme a numeração acima) e a folha (fl.) quando aplicável:',
+                `Crie uma seção final isolada (após linha divisória ---) com o título exato: "${TITULO_SECAO_AUDITORIA}" (uso interno — não integrar ao acórdão).`,
+                'Atue como revisor jurídico crítico independente, sempre citando o nº da Ideia (conforme a numeração acima), Id. e folha (fl.) quando aplicável:',
                 '1. LASTRO FÁTICO — Distinga expressamente entre: (a) ponto "NÃO LOCALIZADO NOS RECORTES FORNECIDOS" (pode constar em páginas não recortadas) e (b) ponto "CONTRARIADO POR ELEMENTO FORNECIDO" (contradição direta com prova/peça presente no contexto);',
                 '2. CONFLITOS ENTRE DIRETRIZES — Se detectou conflito entre nós ou entre nó (mesmo literal) e Veredito, reporte o conflito indicando o nº da Ideia afetada;',
-                '3. LIMITES DA LIDE E VÍCIOS PROCESSUAIS — Alerte sobre matéria não arguida (extra/ultra/citra petita), cerceamento de defesa, nulidade, ausência de interesse recursal, inovação recursal, falta de dialeticidade, preclusão, prescrição ou erro material;',
-                '4. NORMAS INVOCADAS AUTONOMAMENTE — Liste cada artigo de lei citado por sua iniciativa fora dos Nós de Ideia seguido das primeiras 6 a 8 palavras do parágrafo em que ele aparece (ex.: "Art. 818, II, da CLT — parágrafo iniciado por: \'Quanto ao ônus probatório...\'") para localização rápida sem poluir a minuta;'
+                '3. VÍCIOS PROCESSUAIS, LIMITES DA LIDE E PRESCRIÇÃO — Alerte sobre matéria não arguida (extra/ultra/citra petita), cerceamento de defesa, nulidade, ausência de interesse recursal, inovação recursal, falta de dialeticidade, preclusão, inversão de polos, reformatio in pejus, prescrição bienal/quinquenal (ou ausência de dados contratuais suficientes para aferi-la) e erro material;',
+                '4. NORMAS INVOCADAS FORA DOS NÓS — Liste eventuais artigos de lei autônomos ou súmulas/OJs de fonte normativa oficial anexa citados na minuta, indicando a origem ("lei seca autônoma" ou "fonte oficial anexa") e as primeiras 6 a 8 palavras do parágrafo onde aparecem (ex.: "Art. 818, II, da CLT [lei seca autônoma] — parágrafo iniciado por: \'Quanto ao ônus probatório...\'");'
             );
 
             if (vereditoDelegado) {
@@ -749,7 +743,15 @@ window.ExportManager = (function () {
                 );
             }
 
-            linhas.push('Se nenhuma inconsistência ou norma autônoma for identificada, declare isso brevemente.');
+            linhas.push(
+                'Se não houver anomalia, conflito, norma autônoma nem veredito delegado a justificar, escreva exatamente: "Nenhuma inconsistência material, processual ou prescricional detectada."',
+                '</auditoria_critica>'
+            );
+        } else {
+            linhas.push(
+                '5. AUDITORIA DESATIVADA: utilize EXCLUSIVAMENTE as normas e julgados fornecidos nos Nós de Ideia; ficam vedadas citações normativas externas.',
+                '<auditoria_critica ativa="false" />'
+            );
         }
 
         linhas.push('</fechamento_editorial_e_controle>\n');
@@ -984,7 +986,9 @@ window.ExportManager = (function () {
             const dadosContrato = window.ContratoManager ? window.ContratoManager.getDados() : null;
             if (dadosContrato && (dadosContrato.inicio || dadosContrato.fim)) {
                 const formatarData = (d) => d ? d.split('-').reverse().join('/') : 'Não informado';
-                const temAjuizamento = !!dadosContrato.ajuizamento;
+                const instrucaoPrescricaoContrato = auditoriaAtiva
+                    ? `Use estes marcos objetivos para aferir prescrição bienal (2 anos do término) e quinquenal (5 anos retroativos do ajuizamento, somente se a data de ajuizamento foi informada). JAMAIS insira tags ou avisos prescricionais no corpo da minuta; se faltar a data de ajuizamento ou houver erro prescricional evidente, registre o alerta EXCLUSIVAMENTE na seção final "${TITULO_SECAO_AUDITORIA}".`
+                    : 'Referência fática objetiva do vínculo contratual (subordinada aos Nós de Ideia). Não insira avisos editoriais ou marcadores prescricionais no corpo da minuta.';
 
                 const contratoLinhas = [
                     '<parametros_contratuais>',
@@ -995,33 +999,10 @@ window.ExportManager = (function () {
                     `- Data de ajuizamento da ação: ${formatarData(dadosContrato.ajuizamento)}`,
                     `- Função(ões): ${_safeMD(dadosContrato.funcao || 'Não informada', ' ')}`,
                     '',
-                    'INSTRUÇÃO PRESCRICIONAL:',
-                    '- PRESCRIÇÃO BIENAL: verifique se a "Data de ajuizamento" está a mais de 2 anos do "Término do contrato". Se estiver, todo o direito de ação está prescrito.'
+                    `INSTRUÇÃO: ${instrucaoPrescricaoContrato}`,
+                    '</parametros_contratuais>\n'
                 ];
 
-                if (temAjuizamento) {
-                    contratoLinhas.push(
-                        '- PRESCRIÇÃO QUINQUENAL: são inexigíveis parcelas vencidas há mais de 5 anos contados retroativamente da "Data de ajuizamento" informada acima.'
-                    );
-                } else {
-                    contratoLinhas.push(
-                        auditoriaAtiva
-                            ? `- PRESCRIÇÃO QUINQUENAL: a "Data de ajuizamento" não foi informada — NÃO calcule o marco quinquenal; caso essa análise seja relevante ao tópico, reporte a ausência do dado na seção "${TITULO_SECAO_AUDITORIA}" (sem inserir avisos inline na minuta).`
-                            : '- PRESCRIÇÃO QUINQUENAL: a "Data de ajuizamento" não foi informada — NÃO calcule o marco quinquenal.'
-                    );
-                }
-
-                if (auditoriaAtiva) {
-                    contratoLinhas.push(
-                        `Se identificar parcela deferida por diretriz do assistente fora de qualquer um destes limites, mantenha a diretriz na minuta limpa e reporte o risco prescricional na seção final "${TITULO_SECAO_AUDITORIA}", explicando o motivo.`
-                    );
-                } else {
-                    contratoLinhas.push(
-                        'Observe rigorosamente os marcos prescricionais acima sem inserir marcações ou avisos inline no corpo da minuta.'
-                    );
-                }
-
-                contratoLinhas.push('</parametros_contratuais>\n');
                 partesDoc.push(contratoLinhas.join('\n'));
             }
 
