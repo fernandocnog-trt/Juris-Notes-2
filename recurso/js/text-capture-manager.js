@@ -10,16 +10,35 @@ window.TextCaptureManager = (function () {
     let _trechos = [];
     let _ocupado = false;
     let _avisouRetornoComRascunho = false;
+    let _inicializado = false;
 
     let _deps = {
-        setTempHighlightState: () => {},
-        exibirToast: () => {},
-        abrirPopupClassificacao: () => {},
-        sincronizarHighlights: () => {}
+        setTempHighlightState: ({ rects, paginaFisica }) => {
+            if (typeof _tempHighlightState !== 'undefined') {
+                _tempHighlightState.rects = rects;
+                _tempHighlightState.paginaFisica = paginaFisica;
+            }
+        },
+        exibirToast: (msg, tipo) => {
+            if (typeof exibirToast === 'function') exibirToast(msg, tipo);
+        },
+        abrirPopupClassificacao: (tipo, conteudo) => {
+            if (typeof exibirPopupClassificacao === 'function') {
+                exibirPopupClassificacao(tipo, conteudo);
+            } else {
+                console.error('[TextCaptureManager] exibirPopupClassificacao não encontrada.');
+            }
+        },
+        sincronizarHighlights: () => {
+            if (typeof window.sincronizarHighlightsGerais === 'function') {
+                window.sincronizarHighlightsGerais();
+            }
+        }
     };
 
     function init(dependencies) {
         _deps = { ..._deps, ...dependencies };
+        _inicializado = true;
         _atualizarUI();
     }
 

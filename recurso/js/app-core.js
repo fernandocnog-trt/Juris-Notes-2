@@ -702,6 +702,24 @@ document.addEventListener("DOMContentLoaded", () => {
     if (window.FabLayoutManager) {
         FabLayoutManager.init();
     }
+
+    if (window.TextCaptureManager) {
+        TextCaptureManager.init({
+            setTempHighlightState: ({ rects, paginaFisica }) => {
+                _tempHighlightState.rects = rects;
+                _tempHighlightState.paginaFisica = paginaFisica;
+            },
+            exibirToast: exibirToast,
+            abrirPopupClassificacao: (tipo, conteudo) => {
+                if (typeof exibirPopupClassificacao === 'function') {
+                    exibirPopupClassificacao(tipo, conteudo);
+                }
+            },
+            sincronizarHighlights: () => {
+                if (window.sincronizarHighlightsGerais) window.sincronizarHighlightsGerais();
+            }
+        });
+    }
     
     if (window.PdfEngine) {
         PdfEngine.init({
