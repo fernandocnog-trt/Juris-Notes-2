@@ -1834,18 +1834,108 @@ MINI PLAYER DE ÁUDIO — MODAL FOCADO (AI CONTEXT)
 }
 
 .epistemic-stats-badge {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
     font-size: 0.69rem;
     font-weight: 600;
     color: #15803d;
     background: rgba(255, 255, 255, 0.75);
     border: 1px dashed #86efac;
     border-radius: 4px;
-    padding: 3px 6px;
+    padding: 6px;
     line-height: 1.3;
 }
 
 .epistemic-stats-badge.has-warning {
     color: #9a3412;
-    background: #fff7ed;
-    border-color: #fdba74;
+    border-color: #f59e0b;
+    background-color: #fffbeb;
 }
+
+/* =========================================================================
+   PROTOCOLO EDITORIAL JN-5.0 — DIAGNÓSTICO, HUB E VERIFICADOR LITERAL (AI)
+   ========================================================================= */
+.epistemic-tiers-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.epistemic-tier-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    line-height: 1.2;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+
+.epistemic-tier-pill--literal  { background: #e3f2fd; color: #0d47a1; border-color: #bbdefb; }
+.epistemic-tier-pill--order    { background: #ffebee; color: #b71c1c; border-color: #ffcdd2; }
+.epistemic-tier-pill--flexible { background: #f3e5f5; color: #6a1b9a; border-color: #e1bee7; }
+.epistemic-tier-pill--open     { background: #fff3e0; color: #e65100; border-color: #ffcc80; }
+.epistemic-tier-pill--context  { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+
+.epistemic-warning-note {
+    font-size: 0.72rem;
+    color: #b45309;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.export-editorial-bar {
+    margin-top: 12px;
+    padding: 10px 12px;
+    background-color: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--trt-blue);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.export-editorial-hint {
+    margin: 0;
+    font-size: 0.75rem;
+    line-height: 1.45;
+    color: #475569;
+}
+
+.literal-check-btn {
+    background: none;
+    border: none;
+    padding: 2px 6px;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: var(--trt-blue);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.literal-check-btn:hover,
+.literal-check-btn:focus-visible {
+    background-color: #e3f2fd;
+    color: #0d47a1;
+    outline: none;
+}
+
+.literal-check-result {
+    margin-top: 6px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 0.76rem;
+    line-height: 1.4;
+    border: 1px solid transparent;
+}
+
+.literal-check-result.is-ok      { background: #e8f5e9; color: #1b5e20; border-color: #a5d6a7; }
+.literal-check-result.is-neutral { background: #f1f5f9; color: #475569; border-color: #cbd5e1; }
+.literal-check-result.is-alert   { background: #fff8e1; color: #b45309; border-color: #fcd34d; }
+.literal-check-result ul         { margin: 4px 0 0 16px; padding: 0; }
