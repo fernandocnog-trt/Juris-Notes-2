@@ -872,9 +872,15 @@ window.PdfEngine = (function () {
             });
         }, { root: document.getElementById('pdf-container'), rootMargin: '800px 0px', threshold: 0 });
 
+        // Raiz oculta (ex.: #pdf-stage em display:none na aba Anotações):
+        // Usa o snapshot imutável da própria entrada (sem race condition em trocas rápidas de aba)
+        const raizOculta = (entry) =>
+            !entry.rootBounds || entry.rootBounds.width === 0 || entry.rootBounds.height === 0;
+
         // Observer de Destruição Agressiva (cobre 'true' e 'loading' para impedir vazamento de VRAM)
         _pdfDestroyObserver = new IntersectionObserver((entries) => {
             entries.forEach(entry => {
+                if (raizOculta(entry)) return;
                 const container = entry.target;
                 if (entry.isIntersecting) {
                     _activePages.add(container);
