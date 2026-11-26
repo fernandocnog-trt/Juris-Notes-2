@@ -76,7 +76,17 @@ const DropdownManager = (function() {
         _eventosGlobaisRegistrados = true;
     }
 
-    function abrirPortal(triggerEl, topicosArray, selectNativo, onSelectCallback) {
+    function _renderizarItemHtml(item) {
+        const icone = item.iconHtml
+            ? item.iconHtml
+            : `<div class="jcs-color-dot" style="background-color: ${item.cor};"></div>`;
+        const nomeSeguro = (window.TopicsManager && typeof TopicsManager.escaparHTML === 'function')
+            ? TopicsManager.escaparHTML(item.nome)
+            : item.nome;
+        return `${icone} <span>${nomeSeguro}</span>`;
+    }
+
+    function abrirPortal(triggerEl, itensLista, selectNativo, onSelectCallback, qtdFixos = 0) {
         fecharAtivo(); 
         
         _activeTrigger = triggerEl;
@@ -87,6 +97,7 @@ const DropdownManager = (function() {
         _activePortal = document.createElement('div');
         _activePortal.className = 'jcs-options-portal';
         _activePortal.setAttribute('role', 'listbox');
+        _activePortal.setAttribute('data-ignore-outside', 'true');
         
         const desiredWidth = Math.max(rect.width, 380);
         _activePortal.style.width = `${desiredWidth}px`;
@@ -102,11 +113,18 @@ const DropdownManager = (function() {
         let focusedIndex = -1;
         const optionsNodes = [];
 
-        topicosArray.forEach((t, index) => {
+        itensLista.forEach((t, index) => {
+            if (qtdFixos > 0 && index === qtdFixos) {
+                const sep = document.createElement('div');
+                sep.className = 'jcs-separator';
+                sep.setAttribute('role', 'separator');
+                _activePortal.appendChild(sep);
+            }
+
             const opt = document.createElement('div');
-            opt.className = 'jcs-option';
+            opt.className = t.optionClass ? `jcs-option ${t.optionClass}` : 'jcs-option';
             opt.setAttribute('role', 'option');
-            opt.innerHTML = `<div class="jcs-color-dot" style="background-color: ${t.cor};"></div> <span>${t.nome}</span>`;
+            opt.innerHTML = _renderizarItemHtml(t);
             
             const selecionarOpcao = () => {
                 selectNativo.value = t.id;
@@ -155,15 +173,19 @@ const DropdownManager = (function() {
         _activePortal.focus(); 
     }
 
-    function renderizar(selectId, topicosArray, preSelecionadoId = null, onSelectCallback = null) {
+    function renderizar(selectId, topicosArray, preSelecionadoId = null, onSelectCallback = null, opcoes = {}) {
         registrarEventosGerais();
         
         const selectNativo = document.getElementById(selectId);
         if (!selectNativo) return;
 
-        const topicosOrdenados = [...topicosArray].reverse();
+        // Mantém 'Selecione o Tópico...' como padrão para não afetar crop-topic-select e seletor-topico
+        const placeholder = opcoes.placeholder || 'Selecione o Tópico...';
+        const fixosNoTopo = Array.isArray(opcoes.fixosNoTopo) ? opcoes.fixosNoTopo : [];
+        const topicosOrdenados = [...fixosNoTopo, ...[...topicosArray].reverse()];
 
-        selectNativo.innerHTML = '<option value="">Selecione o Tópico...</option>';
+        selectNativo.innerHTML = '';
+        selectNativo.appendChild(new Option(placeholder, ''));
         topicosOrdenados.forEach(t => selectNativo.appendChild(new Option(t.nome, t.id)));
         if (preSelecionadoId) selectNativo.value = preSelecionadoId;
         
@@ -177,10 +199,13 @@ const DropdownManager = (function() {
         const wrapper = document.createElement('div');
         wrapper.className = 'juris-custom-select';
         
-        const topicoInicial = topicosOrdenados.find(t => t.id === preSelecionadoId);
-        const triggerHtml = topicoInicial 
-            ? `<div class="jcs-color-dot" style="background-color: ${topicoInicial.cor};"></div> <span>${topicoInicial.nome}</span>`
-            : `<span class="jcs-placeholder-text">Selecione o Tópico...</span>`;
+        const itemInicial = topicosOrdenados.find(t => t.id === preSelecionadoId);
+        const placeholderSeguro = (window.TopicsManager && typeof TopicsManager.escaparHTML === 'function')
+            ? TopicsManager.escaparHTML(placeholder)
+            : placeholder;
+        const triggerHtml = itemInicial 
+            ? _renderizarItemHtml(itemInicial)
+            : `<span class="jcs-placeholder-text">${placeholderSeguro}</span>`;
 
         wrapper.innerHTML = `
             <div class="jcs-trigger" tabindex="0" role="combobox" aria-haspopup="listbox" aria-expanded="false">
@@ -196,7 +221,7 @@ const DropdownManager = (function() {
         const abrir = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            abrirPortal(triggerBtn, topicosOrdenados, selectNativo, onSelectCallback);
+            abrirPortal(triggerBtn, topicosOrdenados, selectNativo, onSelectCallback, fixosNoTopo.length);
         };
 
         triggerBtn.addEventListener('click', abrir);
@@ -790,8 +815,8 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.iniciarMarcadorExtracao = function() {
-    if (topicos.length === 0) {
-        exibirToast('Crie uma análise de vício recursal primeiro.', 'aviso'); return;
+    if (!window.PdfEngine || !PdfEngine.getPdfDoc()) {
+        exibirToast('Carregue um PDF primeiro.', 'aviso'); return;
     }
     if (modoRecorteAtivo) desativarOverlayRecorte(); 
     
@@ -805,7 +830,12 @@ window.iniciarMarcadorExtracao = function() {
 };
 
 window.salvarMarcadorExtracao = function() {
-    const topicoId = document.getElementById('extrator-topic-select').value;
+    const destinoId = document.getElementById('extrator-topic-select').value;
+    if (!destinoId) {
+        exibirToast('Selecione "Peças Gerais" ou um Tópico de Embargos.', 'aviso');
+        return;
+    }
+
     const selectValue = document.getElementById('extrator-doc-select').value;
     const fronteira = document.getElementById('extrator-fronteira-select').value;
     
@@ -832,24 +862,40 @@ window.salvarMarcadorExtracao = function() {
     const poloEl = document.querySelector('input[name="extrator_polo"]:checked');
     const poloSelecionado = poloEl ? poloEl.value : 'Comum';
     
-    const topico = topicos.find(t => t.id === topicoId);
-    if (!topico.marcosExtracao) topico.marcosExtracao = [];
-    
-    // 2. Prevenção de Duplicidade ciente de Polo (Evita sobrescrever embargos de partes distintas)
-    topico.marcosExtracao = topico.marcosExtracao.filter(m => 
-        !(m.docTipo === docTipo && m.fronteira === fronteira && (m.polo || 'Comum') === poloSelecionado)
-    );
-    
-    // 3. Persistência
     const payload = { ...extratorTempState, docTipo, fronteira, polo: poloSelecionado };
     if (docLabel) payload.docLabel = docLabel;
-    topico.marcosExtracao.push(payload);
 
-    cancelarMarcadorExtracao();
-    exibirToast(`Marco de ${fronteira} definido com sucesso!`, 'sucesso');
+    if (window.GeneralPinsManager && destinoId === GeneralPinsManager.GENERAL_ID) {
+        GeneralPinsManager.salvarMarco(payload);
+        GeneralPinsManager.registrarUltimoMarcoSalvo(destinoId, docTipo, docLabel, fronteira, poloSelecionado);
+        cancelarMarcadorExtracao();
+        exibirToast(`Marco de ${fronteira} salvo em "Peças Gerais"!`, 'sucesso');
+    } else {
+        const topico = topicos.find(t => t.id === destinoId);
+        if (!topico) {
+            exibirToast('Tópico de destino não encontrado.', 'erro');
+            return;
+        }
+        if (!topico.marcosExtracao) topico.marcosExtracao = [];
+        
+        // 2. Prevenção de Duplicidade ciente de Polo (Evita sobrescrever embargos de partes distintas)
+        topico.marcosExtracao = topico.marcosExtracao.filter(m => 
+            !(m.docTipo === docTipo && m.fronteira === fronteira && (m.polo || 'Comum') === poloSelecionado)
+        );
+        
+        // 3. Persistência
+        topico.marcosExtracao.push(payload);
+
+        if (window.GeneralPinsManager) {
+            GeneralPinsManager.registrarUltimoMarcoSalvo(destinoId, docTipo, docLabel, fronteira, poloSelecionado);
+        }
+
+        cancelarMarcadorExtracao();
+        exibirToast(`Marco de ${fronteira} definido com sucesso!`, 'sucesso');
+    }
     
-    if(window.sincronizarHighlightsGerais) window.sincronizarHighlightsGerais();
-    if(typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
+    if (window.sincronizarHighlightsGerais) window.sincronizarHighlightsGerais();
+    if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
     
     // Valida o botão imediatamente após salvar um novo marco
     if (window.atualizarStatusBotaoExtrator) window.atualizarStatusBotaoExtrator();
@@ -915,7 +961,44 @@ overlay.addEventListener('mousedown', function (e) {
         overlay.style.display = 'none';
 
         const activeTabId = (typeof TopicsManager !== 'undefined') ? TopicsManager.getActiveTabId() : null;
-        DropdownManager.renderizar('extrator-topic-select', topicos, activeTabId);
+        const sugestao = window.GeneralPinsManager
+            ? GeneralPinsManager.consumirSugestaoProximaMarcacao(topicos, activeTabId)
+            : { destinoId: activeTabId, docTipo: null, docLabel: null, polo: 'Comum', fronteira: 'inicio' };
+
+        DropdownManager.renderizar(
+            'extrator-topic-select',
+            topicos,
+            sugestao.destinoId,
+            null,
+            {
+                placeholder: 'Selecione o Destino...',
+                fixosNoTopo: window.GeneralPinsManager ? [GeneralPinsManager.VIRTUAL_TOPIC] : []
+            }
+        );
+
+        const selectDoc = document.getElementById('extrator-doc-select');
+        const inputCustom = document.getElementById('extrator-doc-custom');
+        const selectFronteira = document.getElementById('extrator-fronteira-select');
+
+        if (selectDoc && sugestao.docTipo) {
+            const existeOpcao = Array.from(selectDoc.options).some(opt => opt.value === sugestao.docTipo);
+            if (existeOpcao) {
+                selectDoc.value = sugestao.docTipo;
+                if (inputCustom) { inputCustom.setAttribute('hidden', ''); inputCustom.value = ''; }
+            } else if (sugestao.docLabel && inputCustom) {
+                selectDoc.value = 'custom';
+                inputCustom.removeAttribute('hidden');
+                inputCustom.value = sugestao.docLabel;
+            }
+        }
+        if (selectFronteira) {
+            selectFronteira.value = sugestao.fronteira || 'inicio';
+        }
+
+        const poloAlvo = sugestao.polo || 'Comum';
+        const radiosPolo = Array.from(document.querySelectorAll('input[name="extrator_polo"]'));
+        const radioPoloAlvo = radiosPolo.find(r => r.value === poloAlvo) || radiosPolo.find(r => r.value === 'Comum');
+        if (radioPoloAlvo) radioPoloAlvo.checked = true;
         
         document.getElementById('extrator-modal-backdrop').style.display = 'block';
         document.getElementById('extrator-wizard-popup').style.display = 'flex';
@@ -1490,12 +1573,18 @@ window.QuickRedactManager = (function() {
 
 /* --- NOVA FUNÇÃO DE LIMPEZA MANUAL --- */
 window.limparAreaInternaLGPD = function() {
-    document.getElementById('ctx-teor-decisao').value = '';
-    document.getElementById('ctx-teor-embargos').value = '';
-    document.getElementById('ctx-teor-confronto').value = '';
+    const elDec = document.getElementById('ctx-teor-decisao');
+    const elEmb = document.getElementById('ctx-teor-embargos');
+    const elConf = document.getElementById('ctx-teor-confronto');
+
+    if (elDec) elDec.value = '';
+    if (elEmb) elEmb.value = '';
+    if (elConf) elConf.value = '';
+
     sessionStorage.removeItem('juris_ed_ctx_decisao');
     sessionStorage.removeItem('juris_ed_ctx_embargos');
     sessionStorage.removeItem('juris_ed_ctx_confronto');
+    sessionStorage.removeItem('juris_ed_ctx_topico_ref');
     exibirToast('Área restrita limpa.', 'info');
 };
 
@@ -1622,27 +1711,28 @@ window.limparAreaInternaLGPD = function() {
     }
 })();
 
-/* --- ATUALIZAÇÃO DO AUTO-SAVE COM INJEÇÃO DE HASH DO PROCESSO --- */
+/* --- ATUALIZAÇÃO DO AUTO-SAVE COM INJEÇÃO DE HASH DO PROCESSO E TÓPICO --- */
 window.salvarRascunhoContextoDebounced = _debounce(function() {
     try {
-        const minuta = document.getElementById('ctx-minuta-anterior').value;
-        const rascunho = document.getElementById('ctx-rascunho-ia').value;
-        const decisao = document.getElementById('ctx-teor-decisao').value;
-        const embargos = document.getElementById('ctx-teor-embargos').value;
-        const confronto = document.getElementById('ctx-teor-confronto').value;
+        const minuta = document.getElementById('ctx-minuta-anterior')?.value || '';
+        const rascunho = document.getElementById('ctx-rascunho-ia')?.value || '';
+        const decisao = document.getElementById('ctx-teor-decisao')?.value || '';
+        const embargos = document.getElementById('ctx-teor-embargos')?.value || '';
+        const confronto = document.getElementById('ctx-teor-confronto')?.value || '';
         
-        // Captura o processo atual como ID de Segurança
+        // Captura o processo e o tópico atuais como IDs de Segurança (evita vazamento entre tópicos)
         const tagProcesso = document.getElementById('tag-numero-processo');
         const numProcesso = tagProcesso ? tagProcesso.textContent.trim() : 'sem-processo';
+        const activeTabId = typeof TopicsManager !== 'undefined' ? (TopicsManager.getActiveTabId() || '') : '';
         
         sessionStorage.setItem('juris_ed_ctx_minuta', minuta);
         sessionStorage.setItem('juris_ed_ctx_rascunho', rascunho);
-        
-        // Só salva o sigilo se houver dados, amarrado ao ID do processo atual
         sessionStorage.setItem('juris_ed_ctx_decisao', decisao);
         sessionStorage.setItem('juris_ed_ctx_embargos', embargos);
-        sessionStorage.setItem('juris_ed_ctx_confronto', confronto);
+        if (confronto.trim()) sessionStorage.setItem('juris_ed_ctx_confronto', confronto);
+        else sessionStorage.removeItem('juris_ed_ctx_confronto');
         sessionStorage.setItem('juris_ed_ctx_processo_ref', numProcesso);
+        sessionStorage.setItem('juris_ed_ctx_topico_ref', activeTabId);
     } catch (e) {
         console.warn('Falha ao acessar sessionStorage:', e);
     }
@@ -1882,6 +1972,11 @@ window.abrirModalGeradorContexto = async function() {
         return;
     }
 
+    if (typeof window.ExportManager?.isExporting === 'function' && ExportManager.isExporting()) {
+        exibirToast('Aguarde a exportação de PDF em andamento terminar.', 'aviso');
+        return;
+    }
+
     // 1. UI UNBLOCKING: Feedback visual imediato antes da operação pesada
     const btnGerador = document.getElementById('btn-gerador-contexto');
     const originalHTML = btnGerador.innerHTML;
@@ -1892,90 +1987,65 @@ window.abrirModalGeradorContexto = async function() {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
-        // 2. EXTRAÇÃO ASSÍNCRONA DINÂMICA (Baseada nos Pinos)
-        const topicoBruto = topicos.find(t => t.id === TopicsManager.getActiveTabId());
+        // 2. ESCOPO DE SESSÃO (PROCESSO + TÓPICO) + EXTRAÇÃO ASSÍNCRONA UNIFICADA
+        const activeTabId = typeof TopicsManager !== 'undefined' ? TopicsManager.getActiveTabId() : null;
+        const topicoBruto = topicos.find(t => t.id === activeTabId);
         _atualizarBadgeDiagnosticoEpistemologico(topicoBruto);
-        
-        if (topicoBruto && topicoBruto.marcosExtracao && topicoBruto.marcosExtracao.length > 0) {
-            // Agrupar marcos pareados por tipo de documento e polo
-            const agrupados = topicoBruto.marcosExtracao.reduce((acc, curr) => {
-                // 1. Chave Composta Blindada
-                const poloSufixo = (curr.polo && curr.polo !== 'Comum') ? curr.polo : 'Comum';
-                const compositeKey = `${curr.docTipo}|${poloSufixo}`;
-                
-                if(!acc[compositeKey]) acc[compositeKey] = {};
-                acc[compositeKey][curr.fronteira] = curr;
-                return acc;
-            }, {});
 
-            let decisaoXML = "";
-            let embargosXML = "";
-            let confrontoXML = "";
-
-            for (const [compositeKey, limites] of Object.entries(agrupados)) {
-                if (limites.inicio && limites.fim) {
-                    // Desmembra a chave
-                    const [docTipo, poloDaPeca] = compositeKey.split('|');
-                    const pInicio = Math.min(limites.inicio.pagina, limites.fim.pagina);
-                    const pFim = Math.max(limites.inicio.pagina, limites.fim.pagina);
-                    const amostrasMap = new Map();
-
-                    // EXTRAÇÃO COM COLETA DE AMOSTRAGEM (necessária para a camada automática de ruído)
-                    const textoBruto = await window.PdfEngine.extrairTextoPorRegiao(
-                        limites.inicio,
-                        limites.fim,
-                        null, // onProgress — não usado neste fluxo
-                        (pageNum, rawText) => {
-                            if (pageNum === pInicio + 1 || pageNum === pInicio + 2 || pageNum === pFim - 1) {
-                                amostrasMap.set(pageNum, rawText);
-                            }
-                        }
-                    );
-
-                    let textoLimpo = window.JurisUtils.limparTextoPDF(textoBruto);
-
-                    // DELEGAÇÃO INTEGRAL DA SANITIZAÇÃO (mesma função usada na exportação TXT)
-                    if (typeof window.ExportManager?.aplicarFiltrosAvancados === 'function') {
-                        textoLimpo = window.ExportManager.aplicarFiltrosAvancados(textoLimpo, docTipo, amostrasMap, pInicio, pFim);
-                    }
-
-                    // 2. ENVELOPAMENTO EPISTEMOLÓGICO TOKENIZADO (com preservação de polo)
-                    const blocoEnvelopado = typeof window.ExportManager?.enveloparTeorIntegral === 'function'
-                        ? window.ExportManager.enveloparTeorIntegral(docTipo, textoLimpo, poloDaPeca)
-                        : `<${docTipo.toUpperCase()}${poloDaPeca !== 'Comum' ? ` polo="${poloDaPeca.replace(/\s+/g, '_')}"` : ''}>\n${textoLimpo}\n</${docTipo.toUpperCase()}>`;
-                    const xml = `\n${blocoEnvelopado}\n`;
-
-                    if (docTipo === 'decisao') decisaoXML += xml;
-                    else if (docTipo === 'embargos') embargosXML += xml;
-                    else confrontoXML += xml;
-                }
-            }
-
-            // Injeta nas textareas protegidas por LGPD
-            if (decisaoXML) sessionStorage.setItem('juris_ed_ctx_decisao', decisaoXML.trim());
-            if (embargosXML) sessionStorage.setItem('juris_ed_ctx_embargos', embargosXML.trim());
-            if (confrontoXML) sessionStorage.setItem('juris_ed_ctx_confronto', confrontoXML.trim());
-        }
-
-        // 3. FLUXO ORIGINAL DE ABERTURA DO MODAL
         const tagProcesso = document.getElementById('tag-numero-processo');
         const numProcessoAtual = tagProcesso ? (tagProcesso.textContent.trim() || 'Não informado') : 'Não informado';
-        
+        const processoSalvoRef = sessionStorage.getItem('juris_ed_ctx_processo_ref');
+        const topicoSalvoRef = sessionStorage.getItem('juris_ed_ctx_topico_ref');
+        const mudouProcesso = Boolean(processoSalvoRef && processoSalvoRef !== numProcessoAtual);
+        const mudouTopico = Boolean(topicoSalvoRef && activeTabId && topicoSalvoRef !== activeTabId);
+
+        if (mudouProcesso || mudouTopico) {
+            sessionStorage.removeItem('juris_ed_ctx_decisao');
+            sessionStorage.removeItem('juris_ed_ctx_embargos');
+            sessionStorage.removeItem('juris_ed_ctx_confronto');
+        }
+
+        const totalPaginasPdf = window.PdfEngine?.getPdfDoc?.()?.numPages || null;
+        const marcosGerais = window.GeneralPinsManager ? GeneralPinsManager.getMarcos() : [];
+        const pecasEfetivas = (topicoBruto && window.JurisPecas)
+            ? JurisPecas.obterMarcosEfetivos(topicoBruto, marcosGerais, totalPaginasPdf).filter(p => p.completa && !p.invalida)
+            : [];
+
+        if (pecasEfetivas.length > 0 && window.ExportManager?.extrairTeoresIntegrais) {
+            const extraidos = await ExportManager.extrairTeoresIntegrais(pecasEfetivas);
+
+            let decisaoXML = '';
+            let embargosXML = '';
+            let confrontoXML = '';
+
+            extraidos.forEach(item => {
+                const bloco = `\n${item.envelopado}\n`;
+                if (item.categoria === 'decisao') decisaoXML += bloco;
+                else if (item.categoria === 'embargos') embargosXML += bloco;
+                else confrontoXML += bloco; // 'resposta' (contraminuta/contrarrazões) e 'confronto' (RO/inicial/laudos/custom_*)
+            });
+
+            if (decisaoXML) sessionStorage.setItem('juris_ed_ctx_decisao', decisaoXML.trim());
+            else if (mudouTopico) sessionStorage.removeItem('juris_ed_ctx_decisao');
+
+            if (embargosXML) sessionStorage.setItem('juris_ed_ctx_embargos', embargosXML.trim());
+            else if (mudouTopico) sessionStorage.removeItem('juris_ed_ctx_embargos');
+
+            if (confrontoXML) sessionStorage.setItem('juris_ed_ctx_confronto', confrontoXML.trim());
+            else sessionStorage.removeItem('juris_ed_ctx_confronto');
+        }
+
+        sessionStorage.setItem('juris_ed_ctx_processo_ref', numProcessoAtual);
+        sessionStorage.setItem('juris_ed_ctx_topico_ref', activeTabId || '');
+
+        // 3. POPULAÇÃO DOS CAMPOS E ABERTURA DO MODAL
         document.getElementById('ctx-metadados').value = `Processo: ${numProcessoAtual}\nVício Analisado: ${dadosTopico.nome}`;
         document.getElementById('ctx-diretrizes').value = dadosTopico.markdown;
-        
         document.getElementById('ctx-minuta-anterior').value = sessionStorage.getItem('juris_ed_ctx_minuta') || '';
         document.getElementById('ctx-rascunho-ia').value = sessionStorage.getItem('juris_ed_ctx_rascunho') || '';
-        
-        const processoSalvoRef = sessionStorage.getItem('juris_ed_ctx_processo_ref');
-        if (processoSalvoRef && processoSalvoRef !== numProcessoAtual) {
-            window.limparAreaInternaLGPD();
-            sessionStorage.setItem('juris_ed_ctx_processo_ref', numProcessoAtual);
-        } else {
-            document.getElementById('ctx-teor-decisao').value = sessionStorage.getItem('juris_ed_ctx_decisao') || '';
-            document.getElementById('ctx-teor-embargos').value = sessionStorage.getItem('juris_ed_ctx_embargos') || '';
-            document.getElementById('ctx-teor-confronto').value = sessionStorage.getItem('juris_ed_ctx_confronto') || '';
-        }
+        document.getElementById('ctx-teor-decisao').value = sessionStorage.getItem('juris_ed_ctx_decisao') || '';
+        document.getElementById('ctx-teor-embargos').value = sessionStorage.getItem('juris_ed_ctx_embargos') || '';
+        document.getElementById('ctx-teor-confronto').value = sessionStorage.getItem('juris_ed_ctx_confronto') || '';
 
         const painelPdf = document.getElementById('pdf-container');
         const painelAnotacoes = document.getElementById('history-container');
@@ -1991,8 +2061,12 @@ window.abrirModalGeradorContexto = async function() {
         document.getElementById('modal-gerador-contexto').style.display = 'flex';
 
     } catch (error) {
-        console.error("Erro na compilação do contexto:", error);
-        exibirToast("Erro ao processar os trechos. Tente marcar novamente.", "erro");
+        if (error && error.message === 'EXPORT_BUSY') {
+            exibirToast('Aguarde a exportação em andamento terminar antes de abrir o Gerador.', 'aviso');
+        } else {
+            console.error("Erro na compilação do contexto:", error);
+            exibirToast("Erro ao processar os trechos. Tente marcar novamente.", "erro");
+        }
     } finally {
         btnGerador.innerHTML = originalHTML;
         btnGerador.style.pointerEvents = "auto";
@@ -2185,24 +2259,31 @@ document.addEventListener('mouseover', (e) => {
     const docTipo = pin.dataset.tooltipDoc;
     const topicoNome = pin.dataset.tooltipTopico;
 
-    // Resolução segura de exibição: prioriza o docLabel, faz fallback pro ExportManager, e último fallback humanizando o slug
-    const rawName = pin.dataset.tooltipDocLabel || (window.ExportManager ? window.ExportManager.getDocLabel(docTipo) : null) || (docTipo ? docTipo.replace(/^custom_/, '').toUpperCase() : 'DESCONHECIDO');
+    // Resolução segura de exibição via JurisPecas (SSOT) com fallback para ExportManager e slug humanizado
+    const rawName = window.JurisPecas
+        ? JurisPecas.resolverNome(docTipo, pin.dataset.tooltipDocLabel)
+        : (pin.dataset.tooltipDocLabel || (window.ExportManager ? window.ExportManager.getDocLabel(docTipo) : null) || (docTipo ? docTipo.replace(/^custom_/, '').toUpperCase() : 'DESCONHECIDO'));
     const nomeBonito = window.TopicsManager ? window.TopicsManager.escaparHTML(rawName) : rawName;
     
     const safeTopicoNome = window.TopicsManager ? window.TopicsManager.escaparHTML(topicoNome) : topicoNome;
 
     const corFronteira = fronteira === 'INÍCIO' ? '#34db98' : '#e74c3c';
 
-    // Montagem do balão informativo com o polo
+    // Montagem do balão informativo com polo e contagem de vínculos gerais (com escape anti-XSS)
     const polo = pin.dataset.tooltipPolo || 'Comum';
-    const badgePolo = polo !== 'Comum' ? `<br><b>Polo:</b> <span style="color: #fff;">${polo}</span>` : '';
+    const safePolo = window.TopicsManager ? window.TopicsManager.escaparHTML(polo) : polo;
+    const badgePolo = polo !== 'Comum' ? `<br><b>Polo:</b> <span style="color: #fff;">${safePolo}</span>` : '';
+    const qtdVinculos = parseInt(pin.dataset.tooltipVinculos || '0', 10);
+    const linhaVinculos = pin.classList.contains('pdf-extrator-pin--geral')
+        ? `<br><b>Vínculos:</b> ${qtdVinculos > 0 ? `Vinculada a ${qtdVinculos} tópico(s)` : 'Sem tópicos vinculados ainda'}`
+        : '';
 
     // 2. DOM MUTATION: Injeta o novo conteúdo e semântica de cores (com escape anti-XSS)
     _cachedTooltip.innerHTML = `
         <strong style="color: ${corFronteira};">📍 MARCO DE ${fronteira}</strong>
         <span style="display:block; margin-top:4px; font-size: 0.8rem; color:#ecf0f1;">
             <b>Doc:</b> ${nomeBonito}<br>
-            <b>Tópico:</b> ${safeTopicoNome}${badgePolo}
+            <b>Tópico:</b> ${safeTopicoNome}${badgePolo}${linhaVinculos}
         </span>
     `;
 

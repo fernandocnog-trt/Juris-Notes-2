@@ -68,14 +68,16 @@ window.BackupManager = (function () {
                 historicoPdf:      _historicoPdf,
                 possuiAudio:       possuiAudio,
                 balancaHtml:       window.BalancaManager ? window.BalancaManager.getHtmlState() : null,
-                versaoApp:         '7.2',
-                ultimaAtualizacao: Date.now(),
-                atalhosPdf:        atalhosCapturados,
-                contrato:          window.ContratoManager ? window.ContratoManager.getDados() : null,
-                contratoConfronto: window.ContratoManager && typeof window.ContratoManager.getConfronto === 'function'
-                                       ? window.ContratoManager.getConfronto()
-                                       : null,
-                tarefas:           window.TaskManager ? window.TaskManager.getTarefasState() : []
+                versaoApp:               '7.5',
+                ultimaAtualizacao:       Date.now(),
+                atalhosPdf:              atalhosCapturados,
+                contrato:                window.ContratoManager ? window.ContratoManager.getDados() : null,
+                contratoConfronto:       window.ContratoManager && typeof window.ContratoManager.getConfronto === 'function'
+                                             ? window.ContratoManager.getConfronto()
+                                             : null,
+                tarefas:                 window.TaskManager ? window.TaskManager.getTarefasState() : [],
+                marcosExtracaoGerais:    window.GeneralPinsManager ? window.GeneralPinsManager.getMarcos() : [],
+                pecasGeraisAutoVincular: window.GeneralPinsManager ? window.GeneralPinsManager.getAutoVincular() : []
             },
             dados: topicos
         }, null, 2);
@@ -294,6 +296,11 @@ window.BackupManager = (function () {
             }
         });
 
+        // MUDANÇA ARQUITETURAL: Normalização retrocompatível de Vínculos com Peças Gerais (v7.5)
+        pacote.dados.forEach(topico => {
+            if (!Array.isArray(topico.vinculosGerais)) topico.vinculosGerais = [];
+        });
+
         return pacote;
     }
 
@@ -366,6 +373,11 @@ window.BackupManager = (function () {
 
         if (window.TaskManager) {
             window.TaskManager.setTarefasState(pacote.metadata.tarefas || []);
+        }
+
+        if (window.GeneralPinsManager) {
+            window.GeneralPinsManager.setMarcos(pacote.metadata.marcosExtracaoGerais || []);
+            window.GeneralPinsManager.setAutoVincular(pacote.metadata.pecasGeraisAutoVincular || []);
         }
 
         return pacote;

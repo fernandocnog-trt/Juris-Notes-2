@@ -1094,138 +1094,367 @@ window.ExportManager = (function () {
 
     // ─── HUB DE EXPORTAÇÃO RAG (ED) ─────────────────────────────────────────
     let _documentosParaExtracaoCache = {};
-    let _isExporting = false; // Trava de concorrência global da exportação
+    let _isExporting = false; // Trava de concorrência global (Hub, Geral e Gerador de Contexto)
+    let _filtroOnAfterSave = null;
 
-    function abrirPainelExportacao() {
-        const activeId = _deps.getActiveTabId();
-        if (!activeId) {
-            _deps.exibirToast('Selecione um tópico antes de exportar.', 'aviso');
-            return;
+    function temRegraFiltro(chaveOuDocTipo, docTipoFallback = null) {
+        const regras = _carregarRegrasFiltro();
+        if (!regras || !chaveOuDocTipo) return false;
+        if (regras[chaveOuDocTipo]) return true;
+        if (docTipoFallback && regras[docTipoFallback]) return true;
+        if (typeof chaveOuDocTipo === 'string' && chaveOuDocTipo.includes('|')) {
+            const [docTipoBase] = chaveOuDocTipo.split('|');
+            return Boolean(regras[docTipoBase]);
         }
+        return false;
+    }
 
-        const topico = _deps.getTopicos().find(t => t.id === activeId);
-        if (!topico || topico.anotacoes.length === 0) {
-            _deps.exibirToast('O tópico está vazio ou inválido.', 'aviso');
-            return;
-        }
+    function isExporting() {
+        return _isExporting;
+    }
 
-        const container = document.getElementById('export-options-container');
-        _documentosParaExtracaoCache = {};
+    /**
+     * Motor interno de extração (NÃO manipula `_isExporting` — gerenciado pelos chamadores públicos
+     * para impedir auto-deadlock em `gerarExportacaoPersonalizada` e `gerarExportacaoGeral`).
+     */
+    async function _executarExtracaoInterna(listaPares, opts = {}) {
+        const { onProgress = null } = opts;
+        const resultados = [];
 
-        const htmlBuffer = [];
+        for (let idx = 0; idx < listaPares.length; idx++) {
+            const par = listaPares[idx];
+            if (!par || !par.inicio || !par.fim || par.invalida) continue;
 
-        htmlBuffer.push(`
-            <label class="export-option-card matriz-destaque-ro">
-                <input type="checkbox" id="checkbox-matriz-export" class="export-control-checkbox" checked>
-                <div class="export-option-details">
-                    <span class="export-option-title">Matriz de Embargos (Juris Notes) + Imagens Anexas</span>
-                    <span class="export-option-subtitle">Auditoria estrita de vícios e download das provas demarcadas.</span>
-                </div>
-            </label>
-        `);
+            const docTipo = par.docTipo;
+            const poloDaPeca = (par.polo && par.polo !== 'Comum') ? par.polo : 'Comum';
+            const tagName = String(docTipo || 'DOCUMENTO').toUpperCase();
 
-        if (topico.marcosExtracao && topico.marcosExtracao.length > 0) {
-            const agrupados = topico.marcosExtracao.reduce((acc, curr) => {
-                const poloSufixo = (curr.polo && curr.polo !== 'Comum') ? curr.polo : 'Comum';
-                const compositeKey = `${curr.docTipo}|${poloSufixo}`;
-                if(!acc[compositeKey]) acc[compositeKey] = {};
-                acc[compositeKey][curr.fronteira] = curr;
-                return acc;
-            }, {});
+            try {
+                const pInicio = Math.min(par.inicio.pagina, par.fim.pagina);
+                const pFim = Math.max(par.inicio.pagina, par.fim.pagina);
+                const amostrasMap = new Map();
 
-            const svgPin = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11.78L20.24 16H13v6l-1 2-1-2v-6H3.76L8 11.78V4h1V2h6v2h1v7.78z"></path></svg>`;
+                const textoBruto = await window.PdfEngine.extrairTextoPorRegiao(
+                    par.inicio,
+                    par.fim,
+                    (atual, totalPagsDoc) => {
+                        if (typeof onProgress === 'function') {
+                            onProgress(idx + 1, listaPares.length, atual, totalPagsDoc, par);
+                        }
+                    },
+                    (pageNum, rawText) => {
+                        if (pageNum === pInicio + 1 || pageNum === pInicio + 2 || pageNum === pFim - 1) {
+                            amostrasMap.set(pageNum, rawText);
+                        }
+                    }
+                );
 
-            for (const [compositeKey, limites] of Object.entries(agrupados)) {
-                const [docTipo, poloDaPeca] = compositeKey.split('|');
-                const hasInicio = !!limites.inicio;
-                const hasFim = !!limites.fim;
-                const isCompleto = hasInicio && hasFim;
-                
-                if (isCompleto) _documentosParaExtracaoCache[compositeKey] = limites;
-                
-                let nomeF = getDocLabel(docTipo);
-                if (poloDaPeca !== 'Comum') nomeF += ` (${poloDaPeca})`;
-                
-                const regras = _carregarRegrasFiltro();
-                const hasRegra = !!regras[docTipo];
-                
-                const svgEraser = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`;
-                const btnBorracha = `<button type="button" class="pin-eraser-btn trigger-borracha ${hasRegra ? 'is-active' : ''}" data-doc-tipo="${docTipo}" data-doc-nome="${_escapeXmlAttr(nomeF)}" title="Borracha Mágica">${svgEraser}</button>`;
-                
-                const btnInicio = hasInicio 
-                    ? `<button type="button" class="pin-action-btn pin-start-active" onclick="event.preventDefault(); event.stopPropagation(); excluirMarcadorExtracao('${topico.id}', '${docTipo}', 'inicio', '${poloDaPeca}');" title="Excluir Início (Fl. ${limites.inicio.pagina})">${svgPin}</button>`
-                    : `<button type="button" class="pin-action-btn pin-missing" title="Falta Marcador de Início">${svgPin}</button>`;
-                    
-                const btnFim = hasFim 
-                    ? `<button type="button" class="pin-action-btn pin-end-active" onclick="event.preventDefault(); event.stopPropagation(); excluirMarcadorExtracao('${topico.id}', '${docTipo}', 'fim', '${poloDaPeca}');" title="Excluir Fim (Fl. ${limites.fim.pagina})">${svgPin}</button>`
-                    : `<button type="button" class="pin-action-btn pin-missing" title="Falta Marcador de Fim">${svgPin}</button>`;
+                let textoLimpo = (window.JurisUtils && window.JurisUtils.limparTextoPDF)
+                    ? window.JurisUtils.limparTextoPDF(textoBruto)
+                    : textoBruto;
 
-                const statusTexto = isCompleto 
-                    ? `Conteúdo capturado entre as fls. ${limites.inicio.pagina} e ${limites.fim.pagina}.`
-                    : `<span style="color:#c62828; font-weight:700;">⚠️ Extração bloqueada: Faltam marcadores.</span>`;
+                // Passagem ÚNICA de sanitização: Ruído Estrutural + Borracha Inteligente + LGPD
+                textoLimpo = aplicarFiltrosAvancados(textoLimpo, docTipo, amostrasMap, pInicio, pFim, poloDaPeca);
 
-                htmlBuffer.push(`
-                    <label class="export-option-card ${!isCompleto ? 'locked-option' : ''}">
-                        <input type="checkbox" value="${compositeKey}" class="extra-doc-checkbox export-control-checkbox" ${isCompleto ? 'checked' : 'disabled'}>
-                        <div class="export-option-details">
-                            <span class="export-option-title">Teor Integral: ${nomeF}</span>
-                            <span class="export-option-subtitle">${statusTexto}</span>
-                        </div>
-                        <div class="export-pin-controls">
-                            ${btnBorracha}
-                            ${btnInicio}
-                            ${btnFim}
-                        </div>
-                    </label>
-                `);
+                resultados.push({
+                    chave: par.chave || `${docTipo}|${poloDaPeca}`,
+                    docTipo,
+                    polo: poloDaPeca,
+                    nome: par.nome || getDocLabel(docTipo),
+                    categoria: par.categoria || (window.JurisPecas ? JurisPecas.classificarPeca(docTipo) : 'confronto'),
+                    pInicio,
+                    pFim,
+                    envelopado: enveloparTeorIntegral(docTipo, textoLimpo, poloDaPeca)
+                });
+            } catch (extraError) {
+                if (extraError.message && extraError.message.includes('CONCURRENCY_VIOLATION')) {
+                    throw extraError;
+                }
+                console.warn(`[ExportManager ED] Falha ao extrair ${docTipo} (${poloDaPeca}):`, extraError);
+                resultados.push({
+                    chave: par.chave || `${docTipo}|${poloDaPeca}`,
+                    docTipo,
+                    polo: poloDaPeca,
+                    nome: par.nome || getDocLabel(docTipo),
+                    categoria: par.categoria || 'confronto',
+                    pInicio: par.inicio.pagina,
+                    pFim: par.fim.pagina,
+                    envelopado: `<${tagName}>\n[AVISO DE SISTEMA: Falha na extração deste documento no PDF. Possível página corrompida.]\n</${tagName}>`
+                });
             }
         }
 
-        // Injeção Única no DOM (Alta Performance)
-        container.innerHTML = htmlBuffer.join('');
+        return resultados;
+    }
 
-        const chkExport = document.getElementById('chk-export-auditoria-critica');
-        if (chkExport) chkExport.checked = isAuditoriaCriticaAtiva();
+    /**
+     * Fachada pública protegida pela trava global `_isExporting` (consumida pelo Gerador de Contexto).
+     */
+    async function extrairTeoresIntegrais(listaPares, opts = {}) {
+        if (_isExporting) {
+            throw new Error('EXPORT_BUSY');
+        }
+        _isExporting = true;
+        try {
+            return await _executarExtracaoInterna(listaPares, opts);
+        } finally {
+            _isExporting = false;
+        }
+    }
 
-        if (container.dataset.exportEventsBound !== 'true') {
-            container.addEventListener('click', function(e) {
-                const btnBorrachaTarget = e.target.closest('.trigger-borracha');
-                if (btnBorrachaTarget) {
-                    e.preventDefault();
-                    const docTipo = btnBorrachaTarget.getAttribute('data-doc-tipo');
-                    const docNome = btnBorrachaTarget.getAttribute('data-doc-nome');
-                    abrirModalFiltro(docTipo, docNome);
+    /**
+     * Exportação direta das Peças Gerais (.txt) compartilhando a trava `_isExporting`.
+     */
+    async function gerarExportacaoGeral(chavesSelecionadas) {
+        if (_isExporting) {
+            _deps.exibirToast('Uma exportação já está em andamento. Aguarde.', 'aviso');
+            return;
+        }
+        if (!window.PdfEngine || !PdfEngine.getPdfDoc()) {
+            _deps.exibirToast('Carregue o PDF do processo para extrair as peças.', 'aviso');
+            return;
+        }
+        if (!window.GeneralPinsManager || !Array.isArray(chavesSelecionadas) || chavesSelecionadas.length === 0) {
+            _deps.exibirToast('Selecione ao menos uma peça pronta para exportar.', 'aviso');
+            return;
+        }
+
+        const pecasGerais = GeneralPinsManager.obterPecasAgrupadas();
+        const mapaPorChave = new Map(pecasGerais.map(p => [p.chave, p]));
+        const paresSelecionados = chavesSelecionadas
+            .map(ch => mapaPorChave.get(ch))
+            .filter(p => p && p.completa && !p.invalida);
+
+        if (paresSelecionados.length === 0) {
+            _deps.exibirToast('Nenhuma peça válida e completa selecionada.', 'aviso');
+            return;
+        }
+
+        _isExporting = true;
+        _deps.exibirToast('⏳ Iniciando extração de Peças Gerais em segundo plano...', 'info');
+
+        try {
+            const extraidos = await _executarExtracaoInterna(paresSelecionados, {
+                onProgress: (docNum, totalDocs, atual, totalPags) => {
+                    _deps.exibirToast(`⏳ Peça Geral ${docNum}/${totalDocs} (Pág ${atual} de ${totalPags})...`, 'info');
                 }
             });
 
-            container.addEventListener('change', function(e) {
+            const tagDom = document.getElementById('tag-numero-processo');
+            const numProcesso = tagDom && tagDom.style.display !== 'none' ? tagDom.textContent.trim() : '';
+            const prefixoStr = numProcesso ? `${ESQUEMAS_CONTEXTO['ED'].prefixoArquivo}${numProcesso}_` : ESQUEMAS_CONTEXTO['ED'].prefixoArquivo;
+
+            const indiceResumo = extraidos.map(item => {
+                const flIni = PdfEngine.getDisplayLabel(item.pInicio);
+                const flFim = PdfEngine.getDisplayLabel(item.pFim);
+                return `- ${item.nome} (fl. ${flIni} a fl. ${flFim})`;
+            });
+
+            const conteudoFinal = [
+                '====================================================================',
+                'JURIS NOTES (ED) — EXPORTAÇÃO DE PEÇAS ESSENCIAIS DO PROCESSO (GERAL)',
+                `Processo: ${numProcesso || (window.BackupManager?.getProcessoId?.() || 'Não identificado')}`,
+                `Peças incluídas:\n${indiceResumo.join('\n')}`,
+                '====================================================================',
+                '',
+                extraidos.map(i => i.envelopado).join('\n\n')
+            ].join('\n');
+
+            _downloadArquivo(`${prefixoStr}pecas_gerais_TEOR_INTEGRAL.txt`, conteudoFinal, 'text/plain;charset=utf-8;');
+            _deps.exibirToast(`✅ Arquivo com ${extraidos.length} Peça(s) Geral(is) gerado com sucesso!`, 'sucesso');
+
+            if (window.TaskManager && typeof window.TaskManager.sinalizarTarefasPendentes === 'function') {
+                window.TaskManager.sinalizarTarefasPendentes();
+            }
+        } catch (error) {
+            console.error('[ExportManager ED] Erro na exportação de Peças Gerais:', error);
+            if (error.message && error.message.includes('CONCURRENCY_VIOLATION')) {
+                _deps.exibirToast('Exportação abortada: O documento PDF foi alterado.', 'erro');
+            } else {
+                _deps.exibirToast('Erro crítico ao extrair Peças Gerais. Verifique o console.', 'erro');
+            }
+        } finally {
+            _isExporting = false;
+        }
+    }
+
+    function _sincronizarHubExportacaoAoAbrir() {
+        const chkExport = document.getElementById('chk-export-auditoria-critica');
+        if (chkExport) chkExport.checked = isAuditoriaCriticaAtiva();
+
+        const container = document.getElementById('export-options-container');
+        if (container && container.dataset.exportEventsBound !== 'true') {
+            container.addEventListener('click', function (e) {
+                const btnBorrachaTarget = e.target.closest('.trigger-borracha');
+                if (btnBorrachaTarget) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    abrirModalFiltro(
+                        btnBorrachaTarget.dataset.docTipo,
+                        btnBorrachaTarget.dataset.docNome
+                    );
+                    return;
+                }
+
+                const btnDesvincular = e.target.closest('[data-export-action="desvincular-geral"]');
+                if (btnDesvincular) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.GeneralPinsManager?.desvincularDoTopico(
+                        btnDesvincular.dataset.topicoId,
+                        btnDesvincular.dataset.pecaChave
+                    );
+                    return;
+                }
+
+                const btnExcluirProprio = e.target.closest('[data-export-action="excluir-proprio"]');
+                if (btnExcluirProprio) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.excluirMarcadorExtracao?.(
+                        btnExcluirProprio.dataset.topicoId,
+                        btnExcluirProprio.dataset.docTipo,
+                        btnExcluirProprio.dataset.fronteira,
+                        btnExcluirProprio.dataset.polo || 'Comum'
+                    );
+                }
+            });
+
+            container.addEventListener('change', function (e) {
                 if (e.target && e.target.classList.contains('export-control-checkbox')) {
                     const btnAtual = document.getElementById('btn-gerar-arquivo-exportacao');
                     if (!btnAtual) return;
                     const totalChecked = container.querySelectorAll('.export-control-checkbox:checked').length;
-                    if (totalChecked === 0) {
-                        btnAtual.disabled = true;
-                        btnAtual.style.opacity = '0.4';
-                        btnAtual.style.cursor = 'not-allowed';
-                    } else {
-                        btnAtual.disabled = false;
-                        btnAtual.style.opacity = '1';
-                        btnAtual.style.cursor = 'pointer';
-                    }
+                    btnAtual.disabled = totalChecked === 0;
+                    btnAtual.style.opacity = totalChecked === 0 ? '0.4' : '1';
+                    btnAtual.style.cursor = totalChecked === 0 ? 'not-allowed' : 'pointer';
                 }
             });
 
             container.dataset.exportEventsBound = 'true';
         }
+    }
+
+    function abrirPainelExportacao() {
+        const activeId = _deps.getActiveTabId();
+        if (!activeId) {
+            if (window.GeneralPinsManager) {
+                GeneralPinsManager.abrirModal();
+                return;
+            }
+            _deps.exibirToast('Selecione um tópico antes de exportar.', 'aviso');
+            return;
+        }
+
+        const topico = _deps.getTopicos().find(t => t.id === activeId);
+        if (!topico) {
+            _deps.exibirToast('Tópico inválido ou não encontrado.', 'aviso');
+            return;
+        }
+
+        const container = document.getElementById('export-options-container');
+        _documentosParaExtracaoCache = {};
+        const htmlBuffer = [];
+
+        const temAnotacoes = Array.isArray(topico.anotacoes) && topico.anotacoes.length > 0;
+        const totalPaginasPdf = window.PdfEngine?.getPdfDoc?.()?.numPages || null;
+        const marcosGerais = window.GeneralPinsManager ? GeneralPinsManager.getMarcos() : [];
+        const pecasEfetivas = window.JurisPecas
+            ? JurisPecas.obterMarcosEfetivos(topico, marcosGerais, totalPaginasPdf)
+            : [];
+
+        htmlBuffer.push(`
+            <label class="export-option-card matriz-destaque-ro ${temAnotacoes ? '' : 'locked-option'}">
+                <input type="checkbox" id="checkbox-matriz-export" class="export-control-checkbox" ${temAnotacoes ? 'checked' : 'disabled'}>
+                <div class="export-option-details">
+                    <span class="export-option-title">Matriz de Embargos (Juris Notes) + Imagens Anexas</span>
+                    <span class="export-option-subtitle">${temAnotacoes
+                        ? 'Auditoria estrita de vícios e download das provas demarcadas.'
+                        : 'Tópico ainda sem anotações. Você pode exportar apenas peças vinculadas ou abrir "Peças Gerais" acima.'}</span>
+                </div>
+            </label>
+        `);
+
+        const svgPin = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11.78L20.24 16H13v6l-1 2-1-2v-6H3.76L8 11.78V4h1V2h6v2h1v7.78z"></path></svg>`;
+        const svgEraser = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`;
+
+        pecasEfetivas.forEach(peca => {
+            const isExportavel = peca.completa && !peca.invalida;
+            if (isExportavel) _documentosParaExtracaoCache[peca.chave] = peca;
+
+            const nomeSeguro = _escapeXmlAttr(peca.nome);
+            const chaveAttr = _escapeXmlAttr(peca.chave);
+            const docTipoAttr = _escapeXmlAttr(peca.docTipo);
+            const poloAttr = _escapeXmlAttr(peca.polo || 'Comum');
+            const topicoIdAttr = _escapeXmlAttr(topico.id);
+            const hasRegra = temRegraFiltro(peca.chave, peca.docTipo);
+            const isGeral = peca.origem === 'geral';
+
+            const btnBorracha = `<button type="button" class="pin-eraser-btn trigger-borracha ${hasRegra ? 'is-active' : ''}" data-doc-tipo="${chaveAttr}" data-doc-nome="${nomeSeguro}" title="Borracha Inteligente">${svgEraser}</button>`;
+
+            let controlesPin = '';
+            if (isGeral) {
+                controlesPin = `<button type="button" class="btn-desvincular-geral" data-export-action="desvincular-geral" data-topico-id="${topicoIdAttr}" data-peca-chave="${chaveAttr}" title="Desvincular deste tópico (mantém salva em Peças Gerais)">✕ Desvincular</button>`;
+            } else {
+                const flIniPin = peca.inicio ? (window.PdfEngine?.getDisplayLabel?.(peca.inicio.pagina) ?? peca.inicio.pagina) : '';
+                const flFimPin = peca.fim ? (window.PdfEngine?.getDisplayLabel?.(peca.fim.pagina) ?? peca.fim.pagina) : '';
+
+                const btnInicio = peca.inicio
+                    ? `<button type="button" class="pin-action-btn pin-start-active" data-export-action="excluir-proprio" data-topico-id="${topicoIdAttr}" data-doc-tipo="${docTipoAttr}" data-fronteira="inicio" data-polo="${poloAttr}" title="Excluir Início (Fl. ${flIniPin})">${svgPin}</button>`
+                    : `<button type="button" class="pin-action-btn pin-missing" title="Falta Marcador de Início" disabled>${svgPin}</button>`;
+
+                const btnFim = peca.fim
+                    ? `<button type="button" class="pin-action-btn pin-end-active" data-export-action="excluir-proprio" data-topico-id="${topicoIdAttr}" data-doc-tipo="${docTipoAttr}" data-fronteira="fim" data-polo="${poloAttr}" title="Excluir Fim (Fl. ${flFimPin})">${svgPin}</button>`
+                    : `<button type="button" class="pin-action-btn pin-missing" title="Falta Marcador de Fim" disabled>${svgPin}</button>`;
+
+                controlesPin = `${btnInicio}${btnFim}`;
+            }
+
+            let statusTexto = '';
+            if (peca.invalida) {
+                statusTexto = `<span style="color:#c62828; font-weight:700;">⚠️ ${_escapeXmlAttr(peca.motivoInvalida)}</span>`;
+            } else if (peca.completa) {
+                const flIni = window.PdfEngine?.getDisplayLabel?.(peca.inicio.pagina) ?? peca.inicio.pagina;
+                const flFim = window.PdfEngine?.getDisplayLabel?.(peca.fim.pagina) ?? peca.fim.pagina;
+                statusTexto = `Conteúdo capturado entre as fls. ${flIni} e ${flFim}.`;
+            } else {
+                statusTexto = `<span style="color:#c62828; font-weight:700;">⚠️ Extração bloqueada: Faltam marcadores.</span>`;
+            }
+
+            const originBadge = isGeral
+                ? `<span class="export-origin-pill" title="Vínculo vivo com Peças Gerais">🔗 Peça Geral</span>`
+                : '';
+
+            htmlBuffer.push(`
+                <label class="export-option-card ${!isExportavel ? 'locked-option' : ''} ${isGeral ? 'is-linked-from-geral' : ''}">
+                    <input type="checkbox" value="${chaveAttr}" class="extra-doc-checkbox export-control-checkbox" ${isExportavel ? 'checked' : 'disabled'}>
+                    <div class="export-option-details">
+                        <span class="export-option-title">Teor Integral: ${nomeSeguro}${originBadge}</span>
+                        <span class="export-option-subtitle">${statusTexto}</span>
+                    </div>
+                    <div class="export-pin-controls">
+                        ${btnBorracha}
+                        ${controlesPin}
+                    </div>
+                </label>
+            `);
+        });
+
+        // Injeção Única no DOM (Alta Performance)
+        container.innerHTML = htmlBuffer.join('');
+        _sincronizarHubExportacaoAoAbrir();
+
+        if (window.GeneralPinsManager) GeneralPinsManager.atualizarIndicadoresUI();
 
         document.getElementById('export-avancado-backdrop').style.display = 'block';
         document.getElementById('modal-exportacao-avancada').style.display = 'block';
 
         const btnExportar = document.getElementById('btn-gerar-arquivo-exportacao');
         if (btnExportar) {
-            btnExportar.disabled = false;
-            btnExportar.style.opacity = '1';
-            btnExportar.style.cursor = 'pointer';
+            const totalChecked = container.querySelectorAll('.export-control-checkbox:checked').length;
+            btnExportar.disabled = totalChecked === 0;
+            btnExportar.style.opacity = totalChecked === 0 ? '0.4' : '1';
+            btnExportar.style.cursor = totalChecked === 0 ? 'not-allowed' : 'pointer';
         }
     }
 
@@ -1234,18 +1463,26 @@ window.ExportManager = (function () {
         document.getElementById('modal-exportacao-avancada').style.display = 'none';
     }
 
-    function abrirModalFiltro(docTipo, nomeDocAmigavel) {
+    function abrirModalFiltro(chaveOuDocTipo, nomeDocAmigavel, opcoes = {}) {
+        _filtroOnAfterSave = typeof opcoes.onAfterSave === 'function' ? opcoes.onAfterSave : null;
         const regras = _carregarRegrasFiltro();
-        document.getElementById('hidden-doc-tipo-filtro').value = docTipo;
+        let valorAtual = regras[chaveOuDocTipo] || '';
+        if (!valorAtual && typeof chaveOuDocTipo === 'string' && chaveOuDocTipo.includes('|')) {
+            const [docTipoBase] = chaveOuDocTipo.split('|');
+            valorAtual = regras[docTipoBase] || '';
+        }
+
+        document.getElementById('hidden-doc-tipo-filtro').value = chaveOuDocTipo;
         document.getElementById('label-doc-filtro').textContent = nomeDocAmigavel;
-        document.getElementById('textarea-filtro-repeticao').value = regras[docTipo] || '';
+        document.getElementById('textarea-filtro-repeticao').value = valorAtual;
         validarTamanhoFiltro();
-        
+
         document.getElementById('filtro-repeticao-backdrop').style.display = 'block';
         document.getElementById('modal-filtro-repeticao').style.display = 'block';
     }
 
     function fecharModalFiltro() {
+        _filtroOnAfterSave = null;
         document.getElementById('filtro-repeticao-backdrop').style.display = 'none';
         document.getElementById('modal-filtro-repeticao').style.display = 'none';
     }
@@ -1254,7 +1491,7 @@ window.ExportManager = (function () {
         const texto = document.getElementById('textarea-filtro-repeticao').value.trim();
         const btnSalvar = document.getElementById('btn-salvar-filtro');
         const aviso = document.getElementById('aviso-tamanho-filtro');
-        
+
         if (texto.length > 0 && texto.length < 20) {
             btnSalvar.disabled = true;
             btnSalvar.style.opacity = '0.5';
@@ -1267,22 +1504,29 @@ window.ExportManager = (function () {
     }
 
     function salvarFiltro() {
-        const docTipo = document.getElementById('hidden-doc-tipo-filtro').value;
+        const chaveFiltro = document.getElementById('hidden-doc-tipo-filtro').value;
         const texto = document.getElementById('textarea-filtro-repeticao').value.trim();
         const regras = _carregarRegrasFiltro();
-        
+
         if (texto.length >= 20) {
-            regras[docTipo] = texto;
+            regras[chaveFiltro] = texto;
             _salvarRegrasFiltro();
             _deps.exibirToast('Regra de limpeza salva para esta peça!', 'sucesso');
         } else if (texto.length === 0) {
-            delete regras[docTipo];
+            delete regras[chaveFiltro];
+            if (typeof chaveFiltro === 'string' && chaveFiltro.includes('|')) {
+                const [docTipoBase] = chaveFiltro.split('|');
+                delete regras[docTipoBase];
+            }
             _salvarRegrasFiltro();
             _deps.exibirToast('Regra desativada.', 'info');
         }
-        
+
+        const cb = _filtroOnAfterSave;
         fecharModalFiltro();
-        abrirPainelExportacao();
+
+        if (cb) cb();
+        else abrirPainelExportacao();
     }
 
     function limparFiltro() {
@@ -1305,22 +1549,29 @@ window.ExportManager = (function () {
         _deps.exibirToast('⏳ Iniciando extração de dados em segundo plano...', 'info');
 
         try {
+            if (!topico) return;
+
             let conteudoFinal = "";
             const elMatriz = document.getElementById('checkbox-matriz-export');
-            const incluirMatriz = elMatriz && elMatriz.checked;
+            const temAnotacoes = Array.isArray(topico.anotacoes) && topico.anotacoes.length > 0;
+            const incluirMatriz = Boolean(elMatriz && elMatriz.checked && temAnotacoes);
+            const elAuditHub = document.getElementById('chk-export-auditoria-critica');
+            const auditoriaHub = elAuditHub ? elAuditHub.checked : isAuditoriaCriticaAtiva();
             const checkboxesDocsExtra = Array.from(document.querySelectorAll('.extra-doc-checkbox:checked'));
             const config = ESQUEMAS_CONTEXTO['ED'];
 
             // 1. Injeção de Contexto (Obrigatório para o LLM não se perder)
             if (incluirMatriz) {
-                conteudoFinal += _gerarMarkdown(topico) + "\n\n";
+                conteudoFinal += _gerarMarkdown(topico, { auditoria: auditoriaHub }) + "\n\n";
             } else {
                 const nomeTopicoFormatado = (topico.nome || 'Não Nomeado').toUpperCase();
-                conteudoFinal += `# ${config.tituloTopico}: **${nomeTopicoFormatado}**\n`;
-                conteudoFinal += `[AVISO DE SISTEMA]: O usuário optou por não enviar a matriz de embargos. Use os documentos integrais abaixo para análise.\n\n`;
+                const avisoSemMatriz = temAnotacoes
+                    ? '[AVISO DE SISTEMA]: O usuário optou por não enviar a matriz de embargos. Use os documentos integrais abaixo para análise.'
+                    : '[AVISO DE SISTEMA]: Tópico composto apenas por peças integrais (não há matriz de embargos cadastrada até o momento). Use os documentos integrais abaixo para análise.';
+                conteudoFinal += `# ${config.tituloTopico}: **${nomeTopicoFormatado}**\n${avisoSemMatriz}\n\n`;
             }
 
-            // 2. Anexação dos Documentos Complementares
+            // 2. Anexação dos Documentos Complementares (Motor único protegido por _isExporting)
             if (checkboxesDocsExtra.length > 0) {
                 conteudoFinal += "<!-- ==========================================\n";
                 conteudoFinal += incluirMatriz 
@@ -1328,53 +1579,23 @@ window.ExportManager = (function () {
                     : "     TEOR INTEGRAL DE PEÇAS E DOCUMENTOS\n";
                 conteudoFinal += "     ========================================== -->\n\n";
 
-                // Orquestração da fila de documentos com progresso
-                for (let idx = 0; idx < checkboxesDocsExtra.length; idx++) {
-                    const cb = checkboxesDocsExtra[idx];
-                    const compositeKey = cb.value;
-                    const [docTipo, poloDaPeca] = compositeKey.split('|');
-                    const limites = _documentosParaExtracaoCache[compositeKey];
-                    
-                    try {
-                        const pInicio = Math.min(limites.inicio.pagina, limites.fim.pagina);
-                        const pFim = Math.max(limites.inicio.pagina, limites.fim.pagina);
-                        const amostrasMap = new Map();
+                const paresSelecionados = checkboxesDocsExtra
+                    .map(cb => _documentosParaExtracaoCache[cb.value])
+                    .filter(Boolean);
 
-                        const textoBruto = await window.PdfEngine.extrairTextoPorRegiao(
-                            limites.inicio, 
-                            limites.fim,
-                            (atual, totalPagsDoc) => {
-                                const docNumber = idx + 1;
-                                _deps.exibirToast(`⏳ Processando Peça ${docNumber}/${checkboxesDocsExtra.length} (Pág ${atual} de ${totalPagsDoc})...`, 'info');
-                            },
-                            (pageNum, rawText) => {
-                                if (pageNum === pInicio + 1 || pageNum === pInicio + 2 || pageNum === pFim - 1) {
-                                    amostrasMap.set(pageNum, rawText);
-                                }
-                            }
-                        );
-                        
-                        let textoLimpo = (window.JurisUtils && window.JurisUtils.limparTextoPDF) 
-                            ? window.JurisUtils.limparTextoPDF(textoBruto) 
-                            : textoBruto;
-
-                        // SANITIZAÇÃO DELEGADA — fonte única, compartilhada com o Gerador de Contexto IA
-                        textoLimpo = aplicarFiltrosAvancados(textoLimpo, docTipo, amostrasMap, pInicio, pFim);
-
-                        conteudoFinal += enveloparTeorIntegral(docTipo, textoLimpo, poloDaPeca) + "\n\n";
-                    } catch (extraError) {
-                        if (extraError.message && extraError.message.includes("CONCURRENCY_VIOLATION")) {
-                            throw extraError; // Repassa erro fatal abortando a exportação
-                        }
-                        console.warn(`[ExportManager ED] Falha ao extrair ${docTipo}:`, extraError);
-                        const tagNameError = docTipo.toUpperCase();
-                        conteudoFinal += `<${tagNameError}>\n[AVISO DE SISTEMA: Falha na extração deste documento no PDF. Possível página corrompida.]\n</${tagNameError}>\n\n`;
+                const extraidos = await _executarExtracaoInterna(paresSelecionados, {
+                    onProgress: (docNumber, totalDocs, atual, totalPagsDoc) => {
+                        _deps.exibirToast(`⏳ Processando Peça ${docNumber}/${totalDocs} (Pág ${atual} de ${totalPagsDoc})...`, 'info');
                     }
-                }
+                });
+
+                extraidos.forEach(item => {
+                    conteudoFinal += item.envelopado + "\n\n";
+                });
             }
 
             if (incluirMatriz) {
-                conteudoFinal += gerarLembreteFinalHierarquia(topico);
+                conteudoFinal += gerarLembreteFinalHierarquia(topico, { auditoria: auditoriaHub });
             }
 
             // 3. Fila de Downloads Visuais (Restrita à Matriz — sincronizada com mapa visual)
@@ -1437,7 +1658,7 @@ window.ExportManager = (function () {
      *   1. Automática — remove ruído estrutural repetido entre páginas (cabeçalhos/rodapés).
      *   2. Manual — aplica a regra fuzzy cadastrada pelo usuário na Borracha Mágica.
      */
-    function aplicarFiltrosAvancados(textoLimpo, docTipo, amostrasMap, pInicio, pFim) {
+    function aplicarFiltrosAvancados(textoLimpo, docTipo, amostrasMap, pInicio, pFim, polo = 'Comum') {
         let textoProcessado = textoLimpo;
 
         // 1. CAMADA AUTOMÁTICA (Ruído Estrutural)
@@ -1456,10 +1677,13 @@ window.ExportManager = (function () {
             }
         }
 
-        // 2. CAMADA MANUAL (Regras da Borracha Mágica — LGPD)
+        // 2. CAMADA MANUAL (Regras da Borracha Inteligente — chave composta ciente de polo + fallback legado)
         const regras = _carregarRegrasFiltro();
-        if (regras[docTipo] && window.JurisUtils && window.JurisUtils.removerTrechoFuzzy) {
-            textoProcessado = window.JurisUtils.removerTrechoFuzzy(textoProcessado, regras[docTipo], MARCADOR_OFICIAL_LGPD, false);
+        const poloNorm = (polo && polo !== 'Comum') ? polo : 'Comum';
+        const chaveComposta = `${docTipo}|${poloNorm}`;
+        const regraManual = regras[chaveComposta] || regras[docTipo];
+        if (regraManual && window.JurisUtils && window.JurisUtils.removerTrechoFuzzy) {
+            textoProcessado = window.JurisUtils.removerTrechoFuzzy(textoProcessado, regraManual, MARCADOR_OFICIAL_LGPD, false);
         }
 
         // 3. CAMADA DE TERMOS CURTOS (LGPD) — Consome a função pura sem acoplamento com o DOM do modal
@@ -1589,6 +1813,10 @@ window.ExportManager = (function () {
         verificarAncorasLiteraisNoRascunho,
         isAuditoriaCriticaAtiva,
         setAuditoriaCriticaAtiva,
+        isExporting,
+        extrairTeoresIntegrais,
+        gerarExportacaoGeral,
+        temRegraFiltro,
         abrirPainelExportacao, 
         fecharPainelExportacao, 
         gerarExportacaoPersonalizada,
