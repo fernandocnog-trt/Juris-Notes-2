@@ -80,18 +80,20 @@ window.BackupManager = (function () {
         const atalhosCapturados = window.ShortcutManager ? window.ShortcutManager.getState() : null;
         return JSON.stringify({
             metadata: {
-                processoId:        _processoId,
-                pdfHash:           _pdfHash,
-                possuiAudio:       possuiAudio,
-                balancaHtml:       window.BalancaManager ? window.BalancaManager.getHtmlState() : null,
-                versaoApp:         '7.2', // ATUALIZADO: Adição do salvamento de Tarefas
-                ultimaAtualizacao: Date.now(),
-                atalhosPdf:        atalhosCapturados,
-                contrato:          window.ContratoManager ? window.ContratoManager.getDados() : null,
-                contratoConfronto: window.ContratoManager && typeof window.ContratoManager.getConfronto === 'function'
-                                       ? window.ContratoManager.getConfronto()
-                                       : null,
-                tarefas:           window.TaskManager ? window.TaskManager.getTarefasState() : []
+                processoId:              _processoId,
+                pdfHash:                 _pdfHash,
+                possuiAudio:             possuiAudio,
+                balancaHtml:             window.BalancaManager ? window.BalancaManager.getHtmlState() : null,
+                versaoApp:               '7.3', // ATUALIZADO: Repositório de Peças Gerais e auto-vínculos
+                ultimaAtualizacao:       Date.now(),
+                atalhosPdf:              atalhosCapturados,
+                contrato:                window.ContratoManager ? window.ContratoManager.getDados() : null,
+                contratoConfronto:       window.ContratoManager && typeof window.ContratoManager.getConfronto === 'function'
+                                             ? window.ContratoManager.getConfronto()
+                                             : null,
+                tarefas:                 window.TaskManager ? window.TaskManager.getTarefasState() : [],
+                marcosExtracaoGerais:    window.GeneralPinsManager ? window.GeneralPinsManager.getMarcos() : [],
+                pecasGeraisAutoVincular: window.GeneralPinsManager ? window.GeneralPinsManager.getAutoVincular() : []
             },
             dados: topicos
         }, null, 2);
@@ -316,6 +318,11 @@ window.BackupManager = (function () {
             }
         });
 
+        // Normalização retrocompatível de vínculos vivos com Peças Gerais (v7.3)
+        pacote.dados.forEach(topico => {
+            if (!Array.isArray(topico.vinculosGerais)) topico.vinculosGerais = [];
+        });
+
         return pacote;
     }
 
@@ -379,6 +386,12 @@ window.BackupManager = (function () {
         // Restaura as tarefas na interface (Lida com backups legados via fallback para [])
         if (window.TaskManager) {
             window.TaskManager.setTarefasState(pacote.metadata.tarefas || []);
+        }
+
+        // Restaura o repositório de Peças Gerais e auto-vínculos (v7.3)
+        if (window.GeneralPinsManager) {
+            window.GeneralPinsManager.setMarcos(pacote.metadata.marcosExtracaoGerais || []);
+            window.GeneralPinsManager.setAutoVincular(pacote.metadata.pecasGeraisAutoVincular || []);
         }
 
         return pacote;

@@ -1176,116 +1176,287 @@ window.ExportManager = (function () {
     // ─── HUB DE EXPORTAÇÃO RAG ──────────────────────────────────────────────
     let _documentosParaExtracaoCache = {};
     let _isExporting = false; // Trava de concorrência global da exportação
+    let _filtroOnAfterSave = null;
+
+    function temRegraFiltro(docTipo) {
+        const regras = _carregarRegrasFiltro();
+        return Boolean(regras && regras[docTipo]);
+    }
+
+    function isExporting() {
+        return _isExporting;
+    }
+
+    /**
+     * Motor interno de extração (NÃO manipula `_isExporting` — gerenciado pelos chamadores públicos
+     * para impedir auto-deadlock em `gerarExportacaoPersonalizada` e `gerarExportacaoGeral`).
+     */
+    async function _executarExtracaoInterna(listaPares, opts = {}) {
+        const { onProgress = null } = opts;
+        const resultados = [];
+
+        for (let idx = 0; idx < listaPares.length; idx++) {
+            const par = listaPares[idx];
+            if (!par || !par.inicio || !par.fim || par.invalida) continue;
+
+            const docTipo = par.docTipo;
+            const tagName = String(docTipo || 'DOCUMENTO').toUpperCase();
+
+            try {
+                const pInicio = Math.min(par.inicio.pagina, par.fim.pagina);
+                const pFim = Math.max(par.inicio.pagina, par.fim.pagina);
+                const amostrasMap = new Map();
+
+                const textoBruto = await window.PdfEngine.extrairTextoPorRegiao(
+                    par.inicio,
+                    par.fim,
+                    (atual, totalPagsDoc) => {
+                        if (typeof onProgress === 'function') {
+                            onProgress(idx + 1, listaPares.length, atual, totalPagsDoc, par);
+                        }
+                    },
+                    (pageNum, rawText) => {
+                        if (pageNum === pInicio + 1 || pageNum === pInicio + 2 || pageNum === pFim - 1) {
+                            amostrasMap.set(pageNum, rawText);
+                        }
+                    }
+                );
+
+                let textoLimpo = (window.JurisUtils && window.JurisUtils.limparTextoPDF)
+                    ? window.JurisUtils.limparTextoPDF(textoBruto)
+                    : textoBruto;
+
+                // Passagem ÚNICA de sanitização: Ruído Estrutural + Borracha Mágica + LGPD
+                textoLimpo = aplicarFiltrosAvancados(textoLimpo, docTipo, amostrasMap, pInicio, pFim);
+
+                resultados.push({
+                    docTipo,
+                    nome: par.nome || docTipo,
+                    categoria: par.categoria || (window.JurisPecas ? JurisPecas.classificarPeca(docTipo) : 'outra'),
+                    pInicio,
+                    pFim,
+                    envelopado: enveloparTeorIntegral(docTipo, textoLimpo)
+                });
+            } catch (extraError) {
+                if (extraError.message && extraError.message.includes('CONCURRENCY_VIOLATION')) {
+                    throw extraError;
+                }
+                console.warn(`[ExportManager] Falha ao extrair ${docTipo}:`, extraError);
+                resultados.push({
+                    docTipo,
+                    nome: par.nome || docTipo,
+                    categoria: par.categoria || 'outra',
+                    pInicio: par.inicio.pagina,
+                    pFim: par.fim.pagina,
+                    envelopado: `<${tagName}>\n[AVISO DE SISTEMA: Falha na extração. Possível página corrompida.]\n</${tagName}>`
+                });
+            }
+        }
+
+        return resultados;
+    }
+
+    /**
+     * Fachada pública protegida pela trava global `_isExporting` (consumida pelo Gerador de Contexto).
+     */
+    async function extrairTeoresIntegrais(listaPares, opts = {}) {
+        if (_isExporting) {
+            throw new Error('EXPORT_BUSY');
+        }
+        _isExporting = true;
+        try {
+            return await _executarExtracaoInterna(listaPares, opts);
+        } finally {
+            _isExporting = false;
+        }
+    }
+
+    /**
+     * Exportação direta das Peças Gerais (.txt) compartilhando a trava `_isExporting`.
+     */
+    async function gerarExportacaoGeral(docTiposSelecionados) {
+        if (_isExporting) {
+            _deps.exibirToast('Uma exportação já está em andamento. Aguarde.', 'aviso');
+            return;
+        }
+        if (!window.PdfEngine || !PdfEngine.getPdfDoc()) {
+            _deps.exibirToast('Carregue o PDF do processo para extrair as peças.', 'aviso');
+            return;
+        }
+        if (!window.GeneralPinsManager || !Array.isArray(docTiposSelecionados) || docTiposSelecionados.length === 0) {
+            _deps.exibirToast('Selecione ao menos uma peça pronta para exportar.', 'aviso');
+            return;
+        }
+
+        const mapaPecas = new Map(GeneralPinsManager.obterPecasAgrupadas().map(p => [p.docTipo, p]));
+        const paresSelecionados = docTiposSelecionados
+            .map(dt => mapaPecas.get(dt))
+            .filter(p => p && p.completa && !p.invalida);
+
+        if (paresSelecionados.length === 0) {
+            _deps.exibirToast('Nenhuma peça válida e completa selecionada.', 'aviso');
+            return;
+        }
+
+        _isExporting = true;
+        _deps.exibirToast('⏳ Iniciando extração de Peças Gerais em segundo plano...', 'info');
+
+        try {
+            const extraidos = await _executarExtracaoInterna(paresSelecionados, {
+                onProgress: (docNum, totalDocs, atual, totalPags) => {
+                    _deps.exibirToast(`⏳ Peça Geral ${docNum}/${totalDocs} (Pág ${atual} de ${totalPags})...`, 'info');
+                }
+            });
+
+            const tagDom = document.getElementById('tag-numero-processo');
+            const numProcesso = tagDom && tagDom.style.display !== 'none' ? tagDom.textContent.trim() : '';
+            const prefixoStr = numProcesso ? `${numProcesso}_` : '';
+
+            const indiceResumo = extraidos.map(item => {
+                const flIni = PdfEngine.getDisplayLabel(item.pInicio);
+                const flFim = PdfEngine.getDisplayLabel(item.pFim);
+                return `- ${item.nome} (fl. ${flIni} a fl. ${flFim})`;
+            });
+
+            const conteudoFinal = [
+                '====================================================================',
+                'JURIS NOTES — EXPORTAÇÃO DE PEÇAS ESSENCIAIS DO PROCESSO (GERAL)',
+                `Processo: ${numProcesso || (window.BackupManager?.getProcessoId?.() || 'Não identificado')}`,
+                `Peças incluídas:\n${indiceResumo.join('\n')}`,
+                '====================================================================',
+                '',
+                extraidos.map(i => i.envelopado).join('\n\n')
+            ].join('\n');
+
+            _downloadArquivo(`${prefixoStr}pecas_gerais_TEOR_INTEGRAL.txt`, conteudoFinal, 'text/plain;charset=utf-8;');
+            _deps.exibirToast(`✅ Arquivo com ${extraidos.length} Peça(s) Geral(is) gerado com sucesso!`, 'sucesso');
+        } catch (error) {
+            console.error('[ExportManager] Erro na exportação de Peças Gerais:', error);
+            if (error.message && error.message.includes('CONCURRENCY_VIOLATION')) {
+                _deps.exibirToast('Exportação abortada: O documento PDF foi alterado.', 'erro');
+            } else {
+                _deps.exibirToast('Erro crítico ao extrair Peças Gerais. Verifique o console.', 'erro');
+            }
+        } finally {
+            _isExporting = false;
+        }
+    }
 
     function abrirPainelExportacao() {
         const activeId = _deps.getActiveTabId();
         if (!activeId) {
+            if (window.GeneralPinsManager) {
+                GeneralPinsManager.abrirModal();
+                return;
+            }
             _deps.exibirToast('Selecione um tópico antes de exportar.', 'aviso');
             return;
         }
 
         const topico = _deps.getTopicos().find(t => t.id === activeId);
-        if (!topico || topico.anotacoes.length === 0) {
-            _deps.exibirToast('O tópico está vazio ou inválido.', 'aviso');
+        if (!topico) {
+            _deps.exibirToast('Tópico inválido ou não encontrado.', 'aviso');
             return;
         }
 
         const container = document.getElementById('export-options-container');
         _documentosParaExtracaoCache = {};
-
         const htmlBuffer = [];
 
+        const temAnotacoes = Array.isArray(topico.anotacoes) && topico.anotacoes.length > 0;
+        const totalPaginasPdf = window.PdfEngine?.getPdfDoc?.()?.numPages || null;
+        const marcosGerais = window.GeneralPinsManager ? GeneralPinsManager.getMarcos() : [];
+        const pecasEfetivas = window.JurisPecas
+            ? JurisPecas.obterMarcosEfetivos(topico, marcosGerais, totalPaginasPdf)
+            : [];
+
         htmlBuffer.push(`
-            <label class="export-option-card matriz-destaque-ro">
-                <input type="checkbox" id="checkbox-matriz-export" class="export-control-checkbox" checked>
+            <label class="export-option-card matriz-destaque-ro ${temAnotacoes ? '' : 'locked-option'}">
+                <input type="checkbox" id="checkbox-matriz-export" class="export-control-checkbox" ${temAnotacoes ? 'checked' : 'disabled'}>
                 <div class="export-option-details">
                     <span class="export-option-title">Matriz Probatória (Juris Notes) + Imagens Anexas</span>
-                    <span class="export-option-subtitle">Teses, diretrizes e o download das provas visuais demarcadas.</span>
+                    <span class="export-option-subtitle">${temAnotacoes
+                        ? 'Teses, diretrizes e o download das provas visuais demarcadas.'
+                        : 'Tópico ainda sem anotações. Você pode exportar apenas peças vinculadas ou abrir "Peças Gerais" acima.'}</span>
                 </div>
             </label>
         `);
 
-        if (topico.marcosExtracao && topico.marcosExtracao.length > 0) {
-            const agrupados = topico.marcosExtracao.reduce((acc, curr) => {
-                if(!acc[curr.docTipo]) acc[curr.docTipo] = {};
-                acc[curr.docTipo][curr.fronteira] = curr;
-                return acc;
-            }, {});
+        const regras = _carregarRegrasFiltro();
+        const svgPin = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11.78L20.24 16H13v6l-1 2-1-2v-6H3.76L8 11.78V4h1V2h6v2h1v7.78z"></path></svg>`;
+        const svgEraser = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`;
 
-            const docNomes = {
-                sentenca: "Sentença / Decisão", 
-                agravo_peticao_exequente: "Agravo de Petição (Exequente)",
-                agravo_peticao_executada: "Agravo de Petição (Executada)",
-                agravo_peticao_terceiro: "Agravo de Petição (Terceiro)",
-                contraminuta_agravo: "Contraminuta (ao Agravo)",
-                recurso_autora: "Recurso (Autora)", 
-                recurso_re: "Recurso (Ré)",
-                contrarrazões_autora: "Contrarrazões (Autora)", 
-                contrarrazões_re: "Contrarrazões (Ré)",
-                inicial: "Petição Inicial", 
-                contestacao: "Contestação"
-            };
+        pecasEfetivas.forEach(peca => {
+            const isExportavel = peca.completa && !peca.invalida;
+            if (isExportavel) _documentosParaExtracaoCache[peca.docTipo] = peca;
 
-            const svgPin = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 11.78L20.24 16H13v6l-1 2-1-2v-6H3.76L8 11.78V4h1V2h6v2h1v7.78z"></path></svg>`;
+            const nomeSeguro = _escapeXmlAttr(peca.nome);
+            const docTipoAttr = _escapeXmlAttr(peca.docTipo);
+            const topicoIdAttr = _escapeXmlAttr(topico.id);
+            const hasRegra = Boolean(regras[peca.docTipo]);
+            const isGeral = peca.origem === 'geral';
 
-            for (const [docTipo, limites] of Object.entries(agrupados)) {
-                const hasInicio = !!limites.inicio;
-                const hasFim = !!limites.fim;
-                const isCompleto = hasInicio && hasFim;
-                
-                // Só salva no cache de extração se estiver completo
-                if (isCompleto) _documentosParaExtracaoCache[docTipo] = limites;
-                
-                const nomeF = docNomes[docTipo] || docTipo.toUpperCase();
-                
-                const regras = _carregarRegrasFiltro();
-                const hasRegra = !!regras[docTipo];
-                
-                const svgEraser = `<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>`;
-                const btnBorracha = `<button type="button" class="pin-eraser-btn trigger-borracha ${hasRegra ? 'is-active' : ''}" data-doc-tipo="${docTipo}" data-doc-nome="${_escapeXmlAttr(nomeF)}" title="Borracha Mágica">${svgEraser}</button>`;
-                
-                // Renderização dos botões de ação isolados (com preventDefault para não engatilhar o checkbox)
-                const btnInicio = hasInicio 
-                    ? `<button type="button" class="pin-action-btn pin-start-active" onclick="event.preventDefault(); event.stopPropagation(); excluirMarcadorExtracao('${topico.id}', '${docTipo}', 'inicio');" title="Excluir Início (Fl. ${limites.inicio.pagina})">${svgPin}</button>`
-                    : `<button type="button" class="pin-action-btn pin-missing" title="Falta Marcador de Início">${svgPin}</button>`;
-                    
-                const btnFim = hasFim 
-                    ? `<button type="button" class="pin-action-btn pin-end-active" onclick="event.preventDefault(); event.stopPropagation(); excluirMarcadorExtracao('${topico.id}', '${docTipo}', 'fim');" title="Excluir Fim (Fl. ${limites.fim.pagina})">${svgPin}</button>`
-                    : `<button type="button" class="pin-action-btn pin-missing" title="Falta Marcador de Fim">${svgPin}</button>`;
+            const btnBorracha = `<button type="button" class="pin-eraser-btn trigger-borracha ${hasRegra ? 'is-active' : ''}" data-doc-tipo="${docTipoAttr}" data-doc-nome="${nomeSeguro}" title="Borracha Mágica">${svgEraser}</button>`;
 
-                const statusTexto = isCompleto 
-                    ? `Conteúdo capturado entre as fls. ${limites.inicio.pagina} e ${limites.fim.pagina}.`
-                    : `<span style="color:#c62828; font-weight:700;">⚠️ Extração bloqueada: Faltam marcadores.</span>`;
+            let controlesPin = '';
+            if (isGeral) {
+                controlesPin = `<button type="button" class="btn-desvincular-geral" data-export-action="desvincular-geral" data-topico-id="${topicoIdAttr}" data-doc-tipo="${docTipoAttr}" title="Desvincular deste tópico (mantém salva em Peças Gerais)">✕ Desvincular</button>`;
+            } else {
+                const btnInicio = peca.inicio
+                    ? `<button type="button" class="pin-action-btn pin-start-active" data-export-action="excluir-proprio" data-topico-id="${topicoIdAttr}" data-doc-tipo="${docTipoAttr}" data-fronteira="inicio" title="Excluir Início (Fl. ${peca.inicio.pagina})">${svgPin}</button>`
+                    : `<button type="button" class="pin-action-btn pin-missing" title="Falta Marcador de Início" disabled>${svgPin}</button>`;
 
-                htmlBuffer.push(`
-                    <label class="export-option-card ${!isCompleto ? 'locked-option' : ''}">
-                        <input type="checkbox" value="${docTipo}" class="extra-doc-checkbox export-control-checkbox" ${isCompleto ? 'checked' : 'disabled'}>
-                        <div class="export-option-details">
-                            <span class="export-option-title">Teor Integral: ${nomeF}</span>
-                            <span class="export-option-subtitle">${statusTexto}</span>
-                        </div>
-                        <div class="export-pin-controls">
-                            ${btnBorracha}
-                            ${btnInicio}
-                            ${btnFim}
-                        </div>
-                    </label>
-                `);
+                const btnFim = peca.fim
+                    ? `<button type="button" class="pin-action-btn pin-end-active" data-export-action="excluir-proprio" data-topico-id="${topicoIdAttr}" data-doc-tipo="${docTipoAttr}" data-fronteira="fim" title="Excluir Fim (Fl. ${peca.fim.pagina})">${svgPin}</button>`
+                    : `<button type="button" class="pin-action-btn pin-missing" title="Falta Marcador de Fim" disabled>${svgPin}</button>`;
+
+                controlesPin = `${btnInicio}${btnFim}`;
             }
-        }
 
-        // Injeção Única no DOM (Alta Performance)
+            let statusTexto = '';
+            if (peca.invalida) {
+                statusTexto = `<span style="color:#c62828; font-weight:700;">⚠️ ${_escapeXmlAttr(peca.motivoInvalida)}</span>`;
+            } else if (peca.completa) {
+                const flIni = window.PdfEngine?.getDisplayLabel?.(peca.inicio.pagina) ?? peca.inicio.pagina;
+                const flFim = window.PdfEngine?.getDisplayLabel?.(peca.fim.pagina) ?? peca.fim.pagina;
+                statusTexto = `Conteúdo capturado entre as fls. ${flIni} e ${flFim}.`;
+            } else {
+                statusTexto = `<span style="color:#c62828; font-weight:700;">⚠️ Extração bloqueada: Faltam marcadores.</span>`;
+            }
+
+            const originBadge = isGeral
+                ? `<span class="export-origin-pill" title="Vínculo vivo com Peças Gerais">🔗 Peça Geral</span>`
+                : '';
+
+            htmlBuffer.push(`
+                <label class="export-option-card ${!isExportavel ? 'locked-option' : ''} ${isGeral ? 'is-linked-from-geral' : ''}">
+                    <input type="checkbox" value="${docTipoAttr}" class="extra-doc-checkbox export-control-checkbox" ${isExportavel ? 'checked' : 'disabled'}>
+                    <div class="export-option-details">
+                        <span class="export-option-title">Teor Integral: ${nomeSeguro}${originBadge}</span>
+                        <span class="export-option-subtitle">${statusTexto}</span>
+                    </div>
+                    <div class="export-pin-controls">
+                        ${btnBorracha}
+                        ${controlesPin}
+                    </div>
+                </label>
+            `);
+        });
+
         container.innerHTML = htmlBuffer.join('');
         _sincronizarHubExportacaoAoAbrir();
+
+        if (window.GeneralPinsManager) GeneralPinsManager.atualizarIndicadoresUI();
 
         document.getElementById('export-avancado-backdrop').style.display = 'block';
         document.getElementById('modal-exportacao-avancada').style.display = 'block';
 
         const btnExportar = document.getElementById('btn-gerar-arquivo-exportacao');
         if (btnExportar) {
-            btnExportar.disabled = false;
-            btnExportar.style.opacity = '1';
-            btnExportar.style.cursor = 'pointer';
+            const totalChecked = container.querySelectorAll('.export-control-checkbox:checked').length;
+            btnExportar.disabled = totalChecked === 0;
+            btnExportar.style.opacity = totalChecked === 0 ? '0.4' : '1';
+            btnExportar.style.cursor = totalChecked === 0 ? 'not-allowed' : 'pointer';
         }
     }
 
@@ -1295,30 +1466,46 @@ window.ExportManager = (function () {
 
         const container = document.getElementById('export-options-container');
         if (container && container.dataset.exportEventsBound !== 'true') {
-            container.addEventListener('click', function(e) {
+            container.addEventListener('click', function (e) {
                 const btnBorrachaTarget = e.target.closest('.trigger-borracha');
                 if (btnBorrachaTarget) {
                     e.preventDefault();
-                    const docTipo = btnBorrachaTarget.getAttribute('data-doc-tipo');
-                    const docNome = btnBorrachaTarget.getAttribute('data-doc-nome');
-                    abrirModalFiltro(docTipo, docNome);
+                    e.stopPropagation();
+                    abrirModalFiltro(btnBorrachaTarget.dataset.docTipo, btnBorrachaTarget.dataset.docNome);
+                    return;
+                }
+
+                const btnDesvincular = e.target.closest('[data-export-action="desvincular-geral"]');
+                if (btnDesvincular) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.GeneralPinsManager?.desvincularDoTopico(
+                        btnDesvincular.dataset.topicoId,
+                        btnDesvincular.dataset.docTipo
+                    );
+                    return;
+                }
+
+                const btnExcluirProprio = e.target.closest('[data-export-action="excluir-proprio"]');
+                if (btnExcluirProprio) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    window.excluirMarcadorExtracao?.(
+                        btnExcluirProprio.dataset.topicoId,
+                        btnExcluirProprio.dataset.docTipo,
+                        btnExcluirProprio.dataset.fronteira
+                    );
                 }
             });
 
-            container.addEventListener('change', function(e) {
+            container.addEventListener('change', function (e) {
                 if (e.target && e.target.classList.contains('export-control-checkbox')) {
                     const btnExportar = document.getElementById('btn-gerar-arquivo-exportacao');
                     if (!btnExportar) return;
                     const totalChecked = container.querySelectorAll('.export-control-checkbox:checked').length;
-                    if (totalChecked === 0) {
-                        btnExportar.disabled = true;
-                        btnExportar.style.opacity = '0.4';
-                        btnExportar.style.cursor = 'not-allowed';
-                    } else {
-                        btnExportar.disabled = false;
-                        btnExportar.style.opacity = '1';
-                        btnExportar.style.cursor = 'pointer';
-                    }
+                    btnExportar.disabled = totalChecked === 0;
+                    btnExportar.style.opacity = totalChecked === 0 ? '0.4' : '1';
+                    btnExportar.style.cursor = totalChecked === 0 ? 'not-allowed' : 'pointer';
                 }
             });
 
@@ -1331,7 +1518,8 @@ window.ExportManager = (function () {
         document.getElementById('modal-exportacao-avancada').style.display = 'none';
     }
 
-    function abrirModalFiltro(docTipo, nomeDocAmigavel) {
+    function abrirModalFiltro(docTipo, nomeDocAmigavel, opcoes = {}) {
+        _filtroOnAfterSave = typeof opcoes.onAfterSave === 'function' ? opcoes.onAfterSave : null;
         const regras = _carregarRegrasFiltro();
         document.getElementById('hidden-doc-tipo-filtro').value = docTipo;
         document.getElementById('label-doc-filtro').textContent = nomeDocAmigavel;
@@ -1343,6 +1531,7 @@ window.ExportManager = (function () {
     }
 
     function fecharModalFiltro() {
+        _filtroOnAfterSave = null;
         document.getElementById('filtro-repeticao-backdrop').style.display = 'none';
         document.getElementById('modal-filtro-repeticao').style.display = 'none';
     }
@@ -1378,8 +1567,12 @@ window.ExportManager = (function () {
             _deps.exibirToast('Regra desativada.', 'info');
         }
         
+        const cb = _filtroOnAfterSave;
+        _filtroOnAfterSave = null;
         fecharModalFiltro();
-        abrirPainelExportacao();
+
+        if (cb) cb();
+        else abrirPainelExportacao();
     }
 
     function limparFiltro() {
@@ -1410,7 +1603,8 @@ window.ExportManager = (function () {
         try {
             let conteudoFinal = "";
             const elMatriz = document.getElementById('checkbox-matriz-export');
-            const incluirMatriz = elMatriz && elMatriz.checked;
+            const temAnotacoes = Array.isArray(topico.anotacoes) && topico.anotacoes.length > 0;
+            const incluirMatriz = Boolean(elMatriz && elMatriz.checked && temAnotacoes);
             const elAuditHub = document.getElementById('chk-export-auditoria-critica');
             const auditoriaHub = elAuditHub ? elAuditHub.checked : isAuditoriaCriticaAtiva();
             const checkboxesDocsExtra = Array.from(document.querySelectorAll('.extra-doc-checkbox:checked'));
@@ -1420,60 +1614,33 @@ window.ExportManager = (function () {
                 conteudoFinal += _gerarMarkdown(topico, { auditoria: auditoriaHub }) + "\n\n";
             } else {
                 const nomeTopicoFormatado = (topico.nome || 'Tópico Sem Nome').toUpperCase();
-                conteudoFinal += `# TÓPICO RECURSAL: **${nomeTopicoFormatado}**\n`;
-                conteudoFinal += `[AVISO DE SISTEMA]: O usuário optou por não enviar a matriz probatória. Use os documentos integrais abaixo para análise.\n\n`;
+                const avisoSemMatriz = temAnotacoes
+                    ? '[AVISO DE SISTEMA]: O usuário optou por não enviar a matriz probatória. Use os documentos integrais abaixo para análise.'
+                    : '[AVISO DE SISTEMA]: Tópico composto apenas por peças integrais (não há matriz probatória cadastrada até o momento). Use os documentos integrais abaixo para análise.';
+                conteudoFinal += `# TÓPICO RECURSAL: **${nomeTopicoFormatado}**\n${avisoSemMatriz}\n\n`;
             }
 
             // 2. Anexação dos Documentos Complementares
             if (checkboxesDocsExtra.length > 0) {
                 conteudoFinal += "<!-- ==========================================\n";
-                conteudoFinal += incluirMatriz 
-                    ? "     DOCUMENTOS COMPLEMENTARES ANEXOS\n" 
+                conteudoFinal += incluirMatriz
+                    ? "     DOCUMENTOS COMPLEMENTARES ANEXOS\n"
                     : "     TEOR INTEGRAL DE PEÇAS E DOCUMENTOS\n";
                 conteudoFinal += "     ========================================== -->\n\n";
 
-                // Orquestração da fila de documentos
-                for (let idx = 0; idx < checkboxesDocsExtra.length; idx++) {
-                    const cb = checkboxesDocsExtra[idx];
-                    const docTipo = cb.value;
-                    const limites = _documentosParaExtracaoCache[docTipo];
-                    const tagName = docTipo.toUpperCase();
-                    
-                    try {
-                        const pInicio = Math.min(limites.inicio.pagina, limites.fim.pagina);
-                        const pFim = Math.max(limites.inicio.pagina, limites.fim.pagina);
-                        const amostrasMap = new Map();
+                const paresSelecionados = checkboxesDocsExtra
+                    .map(cb => _documentosParaExtracaoCache[cb.value])
+                    .filter(Boolean);
 
-                        const textoBruto = await window.PdfEngine.extrairTextoPorRegiao(
-                            limites.inicio, 
-                            limites.fim,
-                            (atual, totalPagsDoc) => {
-                                const docNumber = idx + 1;
-                                _deps.exibirToast(`⏳ Processando Peça ${docNumber}/${checkboxesDocsExtra.length} (Pág ${atual} de ${totalPagsDoc})...`, 'info');
-                            },
-                            (pageNum, rawText) => {
-                                if (pageNum === pInicio + 1 || pageNum === pInicio + 2 || pageNum === pFim - 1) {
-                                    amostrasMap.set(pageNum, rawText);
-                                }
-                            }
-                        );
-                        
-                        let textoLimpo = (window.JurisUtils && window.JurisUtils.limparTextoPDF) 
-                            ? window.JurisUtils.limparTextoPDF(textoBruto) : textoBruto;
-
-                        // SANITIZAÇÃO DELEGADA — fonte única, compartilhada com o Gerador de Contexto IA
-                        textoLimpo = aplicarFiltrosAvancados(textoLimpo, docTipo, amostrasMap, pInicio, pFim);
-
-                        conteudoFinal += enveloparTeorIntegral(docTipo, textoLimpo) + "\n\n";
-                        
-                    } catch (extraError) {
-                        if (extraError.message && extraError.message.includes("CONCURRENCY_VIOLATION")) {
-                            throw extraError; // Repassa erro fatal para cima abortando o processo
-                        }
-                        console.warn(`[ExportManager] Falha ao extrair ${docTipo}:`, extraError);
-                        conteudoFinal += `<${tagName}>\n[AVISO DE SISTEMA: Falha na extração. Possível página corrompida.]\n</${tagName}>\n\n`;
+                const extraidos = await _executarExtracaoInterna(paresSelecionados, {
+                    onProgress: (docNumber, totalDocs, atual, totalPagsDoc) => {
+                        _deps.exibirToast(`⏳ Processando Peça ${docNumber}/${totalDocs} (Pág ${atual} de ${totalPagsDoc})...`, 'info');
                     }
-                }
+                });
+
+                extraidos.forEach(item => {
+                    conteudoFinal += item.envelopado + '\n\n';
+                });
             }
 
             if (incluirMatriz) {
@@ -1694,6 +1861,10 @@ window.ExportManager = (function () {
         abrirPainelExportacao, 
         fecharPainelExportacao, 
         gerarExportacaoPersonalizada,
+        gerarExportacaoGeral,
+        extrairTeoresIntegrais,
+        isExporting,
+        temRegraFiltro,
         abrirModalFiltro,
         fecharModalFiltro,
         validarTamanhoFiltro,
