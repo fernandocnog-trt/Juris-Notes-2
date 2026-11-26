@@ -724,6 +724,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (window.PdfEngine) {
         PdfEngine.init({
             getTopicos: () => topicos,
+            getMarcosGerais: () => window.GeneralPinsManager ? GeneralPinsManager.getMarcos() : [],
+            contarVinculosGeral: (docTipo) => window.GeneralPinsManager ? GeneralPinsManager.contarVinculos(docTipo, topicos) : 0,
             exibirToast: exibirToast,
             atualizarDisplayPaginador: atualizarDisplayPaginador,
             onPageViewStateChange: atualizarControlesVisualizacaoPagina,
@@ -826,6 +828,24 @@ document.addEventListener("DOMContentLoaded", () => {
                             })
                             .catch(e => console.warn('[Juris Notes] Erro não-bloqueante no Parser PJe:', e));
                     }
+                }
+
+                const numPagesAtual = window.PdfEngine?.getPdfDoc?.()?.numPages || 0;
+                if (numPagesAtual > 0 && window.JurisPecas) {
+                    const geraisInvalidos = window.GeneralPinsManager
+                        ? JurisPecas.agruparPares(GeneralPinsManager.getMarcos(), numPagesAtual).filter(p => p.invalida)
+                        : [];
+                    const propriosInvalidos = topicos.flatMap(t =>
+                        JurisPecas.agruparPares(t.marcosExtracao || [], numPagesAtual).filter(p => p.invalida)
+                    );
+                    const totalInvalidos = geraisInvalidos.length + propriosInvalidos.length;
+                    if (totalInvalidos > 0) {
+                        exibirToast(`Atenção: ${totalInvalidos} peça(s) marcada(s) apontam para páginas além do PDF atual (${numPagesAtual} págs.).`, 'aviso');
+                    }
+                }
+
+                if (typeof window.atualizarVisibilidadeBotaoExportar === 'function') {
+                    window.atualizarVisibilidadeBotaoExportar();
                 }
             }
         });
@@ -957,6 +977,44 @@ window.toggleFocoModal = function(ativar) {
     else alvo.classList.remove('pdf-foco-ativo');
 };
 
+window.atualizarVisibilidadeBotaoExportar = function() {
+    const btnExportar = document.getElementById('btn-exportar-topico');
+    if (!btnExportar) return;
+
+    const abaAtual = document.body.dataset.activeTab || 'leitura';
+    const temTopicos = Array.isArray(topicos) && topicos.length > 0;
+    const temMarcosGerais = Boolean(window.GeneralPinsManager && GeneralPinsManager.getMarcos().length > 0);
+    const temPdf = Boolean(window.PdfEngine && PdfEngine.getPdfDoc());
+
+    if (abaAtual === 'historico') {
+        const mostrar = temTopicos || (temPdf && temMarcosGerais);
+        btnExportar.style.display = mostrar ? 'flex' : 'none';
+        btnExportar.classList.toggle('is-geral-shortcut', !temTopicos && temMarcosGerais);
+        btnExportar.title = temTopicos
+            ? 'Exportação Avançada para IA (Hub do Tópico e Peças Gerais)'
+            : 'Abrir Peças Gerais do Processo (Exportar .txt)';
+    } else {
+        const mostrarAtalhoGeral = temPdf && temMarcosGerais;
+        btnExportar.style.display = mostrarAtalhoGeral ? 'flex' : 'none';
+        btnExportar.classList.toggle('is-geral-shortcut', mostrarAtalhoGeral);
+        btnExportar.title = 'Abrir Peças Gerais do Processo (Exportar / Gerenciar)';
+    }
+};
+
+window.abrirHubExportacaoContextual = function() {
+    const abaAtual = document.body.dataset.activeTab || 'leitura';
+    const temTopicos = Array.isArray(topicos) && topicos.length > 0;
+
+    if (abaAtual === 'leitura' || !temTopicos) {
+        if (window.GeneralPinsManager) GeneralPinsManager.abrirModal();
+        return;
+    }
+
+    if (window.ExportManager && typeof ExportManager.abrirPainelExportacao === 'function') {
+        ExportManager.abrirPainelExportacao();
+    }
+};
+
 function trocarAba(aba) {
     document.body.dataset.activeTab = aba;
 
@@ -981,9 +1039,8 @@ function trocarAba(aba) {
         const btnTesoura = document.getElementById('btn-dividir-topico');
         if (btnTesoura) btnTesoura.disabled = !isAnotacoes;
     }
-    
-    const btnExportar = document.getElementById('btn-exportar-topico');
-    if (btnExportar) btnExportar.style.display = isAnotacoes ? 'flex' : 'none';
+
+    window.atualizarVisibilidadeBotaoExportar();
 
     const btnContrato = document.getElementById('btn-contrato-trabalho');
     if (btnContrato) btnContrato.style.display = isAnotacoes ? 'flex' : 'none';
@@ -1141,6 +1198,7 @@ function encerrarSessao() {
     }
     
     if (window.PdfEngine) window.PdfEngine.encerrar();
+    if (window.GeneralPinsManager) window.GeneralPinsManager.reset();
     BackupManager.encerrar();
     if (window.ShortcutManager) window.ShortcutManager.reset();
 
@@ -1155,7 +1213,7 @@ function encerrarSessao() {
     document.getElementById('floating-page-panel').style.display = 'none';
     togglePainelVisualizacaoPagina(false);
     atualizarControlesVisualizacaoPagina({ zoom: 1.0, rotation: 0 });
-    document.getElementById('btn-exportar-topico').style.display = 'none';
+    window.atualizarVisibilidadeBotaoExportar();
     document.getElementById('current-page-display').textContent  = '1';
     document.getElementById('pdf-upload').value = '';
 
@@ -1249,7 +1307,8 @@ async function salvarBackupAutomatico() {
 }
 
 async function novoProcesso(event) {
-    if ((topicos.length > 0 || (window.PdfEngine && PdfEngine.getPdfDoc())) && !modoRetomada) {
+    const temMarcosGeraisAtivos = Boolean(window.GeneralPinsManager && GeneralPinsManager.getMarcos().length > 0);
+    if ((topicos.length > 0 || temMarcosGeraisAtivos || (window.PdfEngine && PdfEngine.getPdfDoc())) && !modoRetomada) {
         const continuar = confirm('Iniciar um novo processo irá apagar as anotações em memória não salvas.\nDeseja continuar?');
         if (!continuar) {
             event.target.value = '';
@@ -1258,6 +1317,7 @@ async function novoProcesso(event) {
         if (window.AudioManager) window.AudioManager.encerrar();
         if (window.TextCaptureManager) TextCaptureManager.limpar(true, true);
         topicos = [];
+        if (window.GeneralPinsManager) window.GeneralPinsManager.reset();
         BackupManager.encerrar(); 
         if (window.ShortcutManager) window.ShortcutManager.reset();
         renderizarTopicos();
@@ -1358,7 +1418,10 @@ async function criarTopicoPrompt() {
 
         const cor = TopicsManager.obterCor(topicos.length);
         const novoTopicoId = 'topico-' + Date.now();
-        topicos.push({ id: novoTopicoId, nome: nomeLimpo, cor, anotacoes: [] });
+        const vinculosIniciais = window.GeneralPinsManager
+            ? GeneralPinsManager.obterVinculosIniciaisParaNovoTopico()
+            : [];
+        topicos.push({ id: novoTopicoId, nome: nomeLimpo, cor, anotacoes: [], vinculosGerais: vinculosIniciais });
 
         // 1. Define o novo tópico como ativo e instrui o Scroll Guard a ir para o topo (y = 0)
         if (window.TopicsManager) {
@@ -1391,6 +1454,7 @@ function renderizarTopicos() {
     TopicsManager.renderizarFichario(topicos);
     // [NOVO] Garante coerência visual após re-renderizações (ex: restauração de backup)
     if (window.atualizarStatusBotaoExtrator) window.atualizarStatusBotaoExtrator();
+    if (typeof window.atualizarVisibilidadeBotaoExportar === 'function') window.atualizarVisibilidadeBotaoExportar();
     
     // NOVO: Broadcast seguro enviando a variável EXPLICITAMENTE (Injeção de Dependência)
     if (window.BalancaManager && typeof window.BalancaManager.sincronizarTopicos === 'function') {
@@ -1488,7 +1552,7 @@ function identificarFaseMetodologica(docNome) {
 /**
  * Exclui um marco de extração com segurança de estado e atualiza a UI.
  */
-window.excluirMarcadorExtracao = function(topicoId, docTipo, fronteira) {
+window.excluirMarcadorExtracao = function(topicoId, docTipo, fronteira, onAfterDelete = null) {
     const fronteiraLabel = fronteira === 'inicio' ? 'INÍCIO' : 'FIM';
     if (!confirm(`Deseja apagar o marcador de ${fronteiraLabel} deste documento?`)) return;
 
@@ -1505,8 +1569,10 @@ window.excluirMarcadorExtracao = function(topicoId, docTipo, fronteira) {
         if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
         if (window.sincronizarHighlightsGerais) window.sincronizarHighlightsGerais();
         if (window.atualizarStatusBotaoExtrator) window.atualizarStatusBotaoExtrator();
-        // Re-renderiza o painel atualizado
-        if (window.ExportManager && typeof window.ExportManager.abrirPainelExportacao === 'function') {
+        // Re-renderiza o painel atualizado ou executa callback customizado
+        if (typeof onAfterDelete === 'function') {
+            onAfterDelete();
+        } else if (window.ExportManager && typeof window.ExportManager.abrirPainelExportacao === 'function') {
             window.ExportManager.abrirPainelExportacao();
         }
     });
@@ -1715,6 +1781,12 @@ document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
         if (typeof fecharPopupClassificacao === 'function') fecharPopupClassificacao();
         if (typeof cancelarRecorteWizard === 'function') cancelarRecorteWizard();
+
+        const modalGeral = document.getElementById('modal-extrator-geral');
+        if (modalGeral && modalGeral.style.display === 'flex' && window.GeneralPinsManager) {
+            GeneralPinsManager.fecharModal();
+            return;
+        }
         
         // NOVO: Delegação genérica para fechamento de modais
         const modaisFechaveis = document.querySelectorAll('.fechavel-por-esc');
@@ -2323,35 +2395,21 @@ window.atualizarStatusBotaoExtrator = function() {
     const btn = document.getElementById('btn-ferramenta-extrator');
     if (!btn) return;
 
-    // Remove o destaque caso não haja aba ativa
     const activeTabId = typeof TopicsManager !== 'undefined' ? TopicsManager.getActiveTabId() : null;
-    if (!activeTabId) {
+    const topico = activeTabId ? topicos.find(t => t.id === activeTabId) : null;
+    if (!topico || !window.JurisPecas) {
         btn.classList.remove('extrator-completo');
         return;
     }
 
-    const topico = topicos.find(t => t.id === activeTabId);
-    if (!topico || !topico.marcosExtracao || topico.marcosExtracao.length === 0) {
-        btn.classList.remove('extrator-completo');
-        return;
-    }
+    const totalPaginasPdf = window.PdfEngine?.getPdfDoc?.()?.numPages || null;
+    const marcosGerais = window.GeneralPinsManager ? GeneralPinsManager.getMarcos() : [];
+    const efetivos = JurisPecas.obterMarcosEfetivos(topico, marcosGerais, totalPaginasPdf);
 
-    // Flags para espelhar a exata regra do gerador de payload da IA
-    let hasSentencaInicio = false, hasSentencaFim = false;
-    let hasRecursoInicio = false, hasRecursoFim = false;
+    const hasDecisaoCompleta = efetivos.some(p => p.categoria === 'decisao' && p.completa && !p.invalida);
+    const hasRecursoCompleto = efetivos.some(p => p.categoria === 'recurso' && p.completa && !p.invalida);
 
-    topico.marcosExtracao.forEach(m => {
-        // A lógica espelha: if (docTipo === 'sentenca') { ... } else { /* é recurso */ }
-        if (m.docTipo === 'sentenca') {
-            if (m.fronteira === 'inicio') hasSentencaInicio = true;
-            if (m.fronteira === 'fim') hasSentencaFim = true;
-        } else {
-            if (m.fronteira === 'inicio') hasRecursoInicio = true;
-            if (m.fronteira === 'fim') hasRecursoFim = true;
-        }
-    });
-
-    if (hasSentencaInicio && hasSentencaFim && hasRecursoInicio && hasRecursoFim) {
+    if (hasDecisaoCompleta && hasRecursoCompleto) {
         btn.classList.add('extrator-completo');
         btn.title = 'Contexto Completo! (Sentença e Recurso mapeados)';
     } else {
