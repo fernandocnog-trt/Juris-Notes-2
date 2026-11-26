@@ -49,6 +49,8 @@
     --z-abas-modal: 4005;
     --z-temas-backdrop: 4006;
     --z-temas-modal: 4007;
+    --z-geral-backdrop: 4014;
+    --z-geral-modal: 4015;
     /* NOVAS VARIÁVEIS */
     --z-outline-backdrop: 4050;
     --z-outline-modal: 4051;
@@ -1248,7 +1250,8 @@ body[data-active-tab="leitura"] #idea-markers-list {
 }
 
 /* Quando o JavaScript ativa a tela, o efeito acende suavemente */
-.modal-backdrop-modern.active {
+.modal-backdrop-modern.active,
+.modal-backdrop-modern.is-visible {
     opacity: 1;
     visibility: visible;
 }

@@ -1619,6 +1619,9 @@ window.TopicsManager = (function () {
         if (typeof window.atualizarStatusBotaoExtrator === 'function') {
             window.atualizarStatusBotaoExtrator();
         }
+        if (typeof window.atualizarVisibilidadeBotaoExportar === 'function') {
+            window.atualizarVisibilidadeBotaoExportar();
+        }
         // Centraliza a atualização dos botões de volume nos 3 pontos de saída de renderizarFichario
         atualizarEstadoFerramentasVolume();
     }
@@ -3320,10 +3323,11 @@ window.TopicsManager = (function () {
             cor: topicoAtual.cor,
             alegacoes: topicoAtual.alegacoes,
             fundamentos: topicoAtual.fundamentos,
-            veredito: topicoAtual.veredito, 
+            veredito: topicoAtual.veredito,
             volumeData: { sequencia: proxVol, anteriorId: topicoAtual.id, chkId: chkId },
             diretrizesGlobais: [],
             diretrizesPorTese: diretrizesPorTeseNovo,
+            vinculosGerais: Array.isArray(topicoAtual.vinculosGerais) ? [...topicoAtual.vinculosGerais] : [],
             anotacoes: [checkpointEntrada, ...anotacoesTransferidas]
         };
 
