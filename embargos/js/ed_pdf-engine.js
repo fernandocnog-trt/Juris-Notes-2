@@ -36,6 +36,8 @@ window.PdfEngine = (function () {
     // Dependências Injetadas pelo ed_app-core.js
     let _deps = {
         getTopicos: () => [],
+        getMarcosGerais: () => [],
+        contarVinculosGeral: () => 0,
         exibirToast: () => {},
         atualizarDisplayPaginador: () => {},
         onPageViewStateChange: () => {},
@@ -596,9 +598,11 @@ window.PdfEngine = (function () {
 
     function _paginaPossuiAlfinetes(pageNum) {
         const listaTopicos = _deps.getTopicos() || [];
-        return listaTopicos.some(t =>
+        const temEmTopicos = listaTopicos.some(t =>
             Array.isArray(t.marcosExtracao) && t.marcosExtracao.some(m => m.pagina === pageNum)
         );
+        const temNoGeral = (_deps.getMarcosGerais() || []).some(m => m.pagina === pageNum);
+        return temEmTopicos || temNoGeral;
     }
 
     function alterarZoomPaginaAtual(direcao) {
@@ -1255,31 +1259,73 @@ window.PdfEngine = (function () {
                 });
             };
             desenharMarcacoes(topico.anotacoes);
-
-            // [NOVO] Renderização dos Alfinetes de Extração (Dumb Components)
-            const { zoom: pageZoom, rotation: pageRot } = getPageViewState(pageNum);
-            if (pageRot === 0 && topico.marcosExtracao && topico.marcosExtracao.length > 0) {
-                topico.marcosExtracao.forEach(marco => {
-                    if (marco.pagina === pageNum) {
-                        const pin = document.createElement('div');
-                        pin.className = 'pdf-extrator-pin'; 
-                        pin.style.top = (marco.offsetY * pageZoom) + 'px';
-                        pin.style.borderColor = topico.cor; 
-                        pin.style.color = topico.cor; 
-                        
-                        // DATA-ATTRIBUTES para a Event Delegation (Performance)
-                        pin.dataset.tooltipFronteira = marco.fronteira;
-                        pin.dataset.tooltipDoc = marco.docTipo;
-                        pin.dataset.tooltipTopico = topico.nome;
-                        pin.dataset.tooltipPolo = marco.polo || 'Comum';
-
-                        pin.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M16 11.78L20.24 16H13v6l-1 2-1-2v-6H3.76L8 11.78V4h1V2h6v2h1v7.78z"></path></svg>`;
-
-                        highlightLayerDiv.appendChild(pin);
-                    }
-                });
-            }
         });
+
+        // Renderização Consolidada dos Alfinetes de Extração (Peças Gerais + Marcos Próprios, sem duplicação)
+        const { zoom: pageZoom, rotation: pageRot } = getPageViewState(pageNum);
+        if (pageRot === 0) {
+            const alfinetesDaPagina = [];
+
+            (_deps.getMarcosGerais() || []).forEach(marco => {
+                if (marco.pagina === pageNum) {
+                    const poloMarco = marco.polo || 'Comum';
+                    alfinetesDaPagina.push({
+                        marco,
+                        cor: '#4f46e5',
+                        nomeTopico: 'Peças Gerais (Processo)',
+                        isGeral: true,
+                        vinculos: _deps.contarVinculosGeral(marco.docTipo, poloMarco)
+                    });
+                }
+            });
+
+            topicos.forEach(topico => {
+                if (Array.isArray(topico.marcosExtracao)) {
+                    topico.marcosExtracao.forEach(marco => {
+                        if (marco.pagina === pageNum) {
+                            alfinetesDaPagina.push({
+                                marco,
+                                cor: topico.cor,
+                                nomeTopico: topico.nome,
+                                isGeral: false,
+                                vinculos: 0
+                            });
+                        }
+                    });
+                }
+            });
+
+            alfinetesDaPagina.sort((a, b) => (a.marco.offsetY || 0) - (b.marco.offsetY || 0));
+
+            const ultimaPosPorColuna = [];
+            alfinetesDaPagina.forEach(({ marco, cor, nomeTopico, isGeral, vinculos }) => {
+                const topPx = marco.offsetY * pageZoom;
+                let coluna = 0;
+                while (ultimaPosPorColuna[coluna] !== undefined && Math.abs(topPx - ultimaPosPorColuna[coluna]) < 22) {
+                    coluna++;
+                }
+                ultimaPosPorColuna[coluna] = topPx;
+
+                const pin = document.createElement('div');
+                pin.className = isGeral ? 'pdf-extrator-pin pdf-extrator-pin--geral' : 'pdf-extrator-pin';
+                pin.style.top = `${topPx}px`;
+                pin.style.left = `${4 + (coluna * 26)}px`;
+                pin.style.borderColor = cor;
+                pin.style.color = cor;
+
+                // DATA-ATTRIBUTES para Event Delegation (Performance)
+                pin.dataset.tooltipFronteira = marco.fronteira;
+                pin.dataset.tooltipDoc = marco.docTipo;
+                if (marco.docLabel) pin.dataset.tooltipDocLabel = marco.docLabel;
+                pin.dataset.tooltipTopico = nomeTopico;
+                pin.dataset.tooltipPolo = marco.polo || 'Comum';
+                if (isGeral) pin.dataset.tooltipVinculos = String(vinculos);
+
+                pin.innerHTML = `<svg viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M16 11.78L20.24 16H13v6l-1 2-1-2v-6H3.76L8 11.78V4h1V2h6v2h1v7.78z"></path></svg>`;
+
+                highlightLayerDiv.appendChild(pin);
+            });
+        }
 
         // Renderização de trechos provisórios da Captura Composta (TextCaptureManager)
         if (window.TextCaptureManager && typeof window.TextCaptureManager.obterHighlightsProvisoriosParaPagina === 'function') {

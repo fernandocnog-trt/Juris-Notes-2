@@ -731,6 +731,14 @@ document.addEventListener("DOMContentLoaded", () => {
     if (window.PdfEngine) {
         PdfEngine.init({
             getTopicos: () => topicos,
+            getMarcosGerais: () => window.GeneralPinsManager ? GeneralPinsManager.getMarcos() : [],
+            contarVinculosGeral: (docTipo, polo = 'Comum') => {
+                if (!window.GeneralPinsManager) return 0;
+                const chave = window.JurisPecas
+                    ? JurisPecas.montarChave(docTipo, polo)
+                    : `${docTipo}|${polo || 'Comum'}`;
+                return GeneralPinsManager.contarVinculos(chave, topicos);
+            },
             exibirToast: exibirToast,
             atualizarDisplayPaginador: atualizarDisplayPaginador,
             onPageViewStateChange: atualizarControlesVisualizacaoPagina,
@@ -777,6 +785,23 @@ document.addEventListener("DOMContentLoaded", () => {
             },
             onPdfCarregado: async (modoOuFlag, info = {}) => {
                 const modo = info.modo || (modoOuFlag === 'substituicao' ? 'substituicao' : (modoOuFlag ? 'retomada' : 'novo'));
+
+                const numPagesAtual = info.numPaginas || window.PdfEngine?.getPdfDoc?.()?.numPages || 0;
+                if (numPagesAtual > 0 && window.JurisPecas) {
+                    const geraisInvalidos = window.GeneralPinsManager
+                        ? JurisPecas.agruparPares(GeneralPinsManager.getMarcos(), numPagesAtual).filter(p => p.invalida)
+                        : [];
+                    const propriosInvalidos = topicos.flatMap(t =>
+                        JurisPecas.agruparPares(t.marcosExtracao || [], numPagesAtual).filter(p => p.invalida)
+                    );
+                    const totalInvalidos = geraisInvalidos.length + propriosInvalidos.length;
+                    if (totalInvalidos > 0) {
+                        exibirToast(`Atenção: ${totalInvalidos} peça(s) marcada(s) apontam para páginas além do PDF atual (${numPagesAtual} págs.).`, 'aviso');
+                    }
+                }
+                if (typeof window.atualizarVisibilidadeBotaoExportar === 'function') {
+                    window.atualizarVisibilidadeBotaoExportar();
+                }
 
                 if (modo === 'substituicao') {
                     BackupManager.confirmarAtualizacaoPdf({
@@ -982,6 +1007,44 @@ window.toggleModoFoco = function(ativar) {
     else pdfWrapper.classList.remove('pdf-foco-ativo');
 };
 
+window.atualizarVisibilidadeBotaoExportar = function() {
+    const btnExportar = document.getElementById('btn-exportar-topico');
+    if (!btnExportar) return;
+
+    const abaAtual = document.body.dataset.activeTab || 'leitura';
+    const temTopicos = Array.isArray(topicos) && topicos.length > 0;
+    const temMarcosGerais = Boolean(window.GeneralPinsManager && GeneralPinsManager.getMarcos().length > 0);
+    const temPdf = Boolean(window.PdfEngine && PdfEngine.getPdfDoc());
+
+    if (abaAtual === 'historico') {
+        const mostrar = temTopicos || (temPdf && temMarcosGerais);
+        btnExportar.style.display = mostrar ? 'flex' : 'none';
+        btnExportar.classList.toggle('is-geral-shortcut', !temTopicos && temMarcosGerais);
+        btnExportar.title = temTopicos
+            ? 'Exportação Avançada para IA (Hub dos Embargos e Peças Gerais)'
+            : 'Abrir Peças Gerais do Processo (Exportar .txt)';
+    } else {
+        const mostrarAtalhoGeral = temPdf && temMarcosGerais;
+        btnExportar.style.display = mostrarAtalhoGeral ? 'flex' : 'none';
+        btnExportar.classList.toggle('is-geral-shortcut', mostrarAtalhoGeral);
+        btnExportar.title = 'Abrir Peças Gerais do Processo (Exportar / Gerenciar)';
+    }
+};
+
+window.abrirHubExportacaoContextual = function() {
+    const abaAtual = document.body.dataset.activeTab || 'leitura';
+    const temTopicos = Array.isArray(topicos) && topicos.length > 0;
+
+    if (abaAtual === 'leitura' || !temTopicos) {
+        if (window.GeneralPinsManager) GeneralPinsManager.abrirModal();
+        return;
+    }
+
+    if (window.ExportManager && typeof ExportManager.abrirPainelExportacao === 'function') {
+        ExportManager.abrirPainelExportacao();
+    }
+};
+
 function trocarAba(aba) {
     document.body.dataset.activeTab = aba;
 
@@ -1002,8 +1065,7 @@ function trocarAba(aba) {
         if (btnTesoura) btnTesoura.disabled = !isAnotacoes;
     }
     
-    const btnExportar = document.getElementById('btn-exportar-topico');
-    if (btnExportar) btnExportar.style.display = isAnotacoes ? 'flex' : 'none';
+    window.atualizarVisibilidadeBotaoExportar();
 
     // GERENCIAMENTO DA VISIBILIDADE DO GERADOR DE CONTEXTO
     const btnGerador = document.getElementById('btn-gerador-contexto');
@@ -1166,6 +1228,7 @@ function encerrarSessao() {
     }
     
     if (window.PdfEngine) window.PdfEngine.encerrar();
+    if (window.GeneralPinsManager) window.GeneralPinsManager.reset();
     BackupManager.encerrar();
     if (window.ContratoManager) {
         if (typeof window.ContratoManager.fecharModal === 'function') window.ContratoManager.fecharModal({ silencioso: true });
@@ -1173,6 +1236,7 @@ function encerrarSessao() {
         if (typeof window.ContratoManager.setConfronto === 'function') window.ContratoManager.setConfronto(null);
     }
     if (window.ShortcutManager) window.ShortcutManager.reset();
+    window.atualizarVisibilidadeBotaoExportar();
 
     if (window.BalancaManager) {
         window.BalancaManager.resetarEstado(); // Limpa iframe, contadores e estilos na aba ED
@@ -1281,7 +1345,8 @@ async function salvarBackupAutomatico() {
 }
 
 async function novoProcesso(event) {
-    if ((topicos.length > 0 || (window.PdfEngine && PdfEngine.getPdfDoc())) && !modoRetomada) {
+    const temMarcosGeraisAtivos = Boolean(window.GeneralPinsManager && GeneralPinsManager.getMarcos().length > 0);
+    if ((topicos.length > 0 || temMarcosGeraisAtivos || (window.PdfEngine && PdfEngine.getPdfDoc())) && !modoRetomada) {
         const continuar = confirm('Iniciar um novo processo irá apagar as anotações em memória não salvas.\nDeseja continuar?');
         if (!continuar) {
             event.target.value = '';
@@ -1289,6 +1354,7 @@ async function novoProcesso(event) {
         }
         if (window.AudioManager) window.AudioManager.encerrar();
         if (window.TextCaptureManager) TextCaptureManager.limpar(true, true);
+        if (window.GeneralPinsManager) window.GeneralPinsManager.reset();
         topicos = [];
         BackupManager.encerrar();
         if (window.ContratoManager) {
@@ -1298,6 +1364,7 @@ async function novoProcesso(event) {
         }
         if (window.ShortcutManager) window.ShortcutManager.reset();
         renderizarTopicos();
+        window.atualizarVisibilidadeBotaoExportar();
         atualizarStatusBackup('Aguardando...');
     }
 
@@ -1431,14 +1498,18 @@ window.confirmarCriacaoTopico = function() {
 
     const cor = TopicsManager.obterCor(topicos.length);
     const novoTopicoId = 'topico-' + Date.now();
+    const vinculosIniciais = window.GeneralPinsManager
+        ? GeneralPinsManager.obterVinculosIniciaisParaNovoTopico()
+        : [];
     
-    // Injeta a variável no "Cérebro" do Tópico (SSOT)
+    // Injeta a variável no "Cérebro" do Tópico (SSOT) + auto-vínculos de Peças Gerais
     topicos.push({ 
         id: novoTopicoId, 
         nome: nomeCompleto, 
         vicio: vicioTipado, 
         cor, 
-        anotacoes: [] 
+        anotacoes: [],
+        vinculosGerais: vinculosIniciais
     });
 
     fecharModalCriarTopico();
@@ -1570,14 +1641,14 @@ function identificarFaseMetodologica(docNome) {
 /**
  * Exclui um marco de extração com segurança de estado e atualiza a UI.
  */
-window.excluirMarcadorExtracao = function(topicoId, docTipo, fronteira, polo = 'Comum') {
+window.excluirMarcadorExtracao = function(topicoId, docTipo, fronteira, polo = 'Comum', onAfterDelete = null) {
     const fronteiraLabel = fronteira === 'inicio' ? 'INÍCIO' : 'FIM';
     if (!confirm(`Deseja apagar o marcador de ${fronteiraLabel} deste documento?`)) return;
 
     const topico = topicos.find(t => t.id === topicoId);
     if (!topico || !topico.marcosExtracao) return;
 
-    // Exclusão estrita via Identity Check Completo
+    // Exclusão estrita via Identity Check Completo (ciente de polo no ED)
     topico.marcosExtracao = topico.marcosExtracao.filter(m => 
         !(m.docTipo === docTipo && m.fronteira === fronteira && (m.polo || 'Comum') === polo)
     );
@@ -1589,8 +1660,9 @@ window.excluirMarcadorExtracao = function(topicoId, docTipo, fronteira, polo = '
         if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
         if (window.sincronizarHighlightsGerais) window.sincronizarHighlightsGerais();
         if (window.atualizarStatusBotaoExtrator) window.atualizarStatusBotaoExtrator();
-        // Re-renderiza o painel atualizado
-        if (window.ExportManager && typeof window.ExportManager.abrirPainelExportacao === 'function') {
+        if (typeof onAfterDelete === 'function') {
+            onAfterDelete();
+        } else if (window.ExportManager && typeof window.ExportManager.abrirPainelExportacao === 'function') {
             window.ExportManager.abrirPainelExportacao();
         }
     });
@@ -1797,6 +1869,18 @@ document.addEventListener('keydown', function (e) {
         // Se a balança estiver aberta, delega o fechamento com salvamento seguro
         if (modalBalanca && modalBalanca.style.display === 'flex') {
             if (window.BalancaManager) window.BalancaManager.fecharPainel();
+            return;
+        }
+
+        const modalFiltro = document.getElementById('modal-filtro-repeticao');
+        if (modalFiltro && modalFiltro.style.display === 'block' && window.ExportManager?.fecharModalFiltro) {
+            ExportManager.fecharModalFiltro();
+            return;
+        }
+
+        const modalGeral = document.getElementById('modal-extrator-geral');
+        if (modalGeral && modalGeral.style.display === 'flex' && window.GeneralPinsManager) {
+            GeneralPinsManager.fecharModal();
             return;
         }
 
@@ -2390,44 +2474,32 @@ window.TimeTrackerManager = (function() {
 })();
 
 /* ================================================
-   [NOVO] Validador de Estado do Extrator (Escopo: Tópico Ativo)
+   Validador de Estado do Extrator (Escopo: Tópico Ativo + Vínculos Gerais — ED)
    ================================================ */
 window.atualizarStatusBotaoExtrator = function() {
     const btn = document.getElementById('btn-ferramenta-extrator');
     if (!btn) return;
 
-    // Remove o destaque caso não haja aba ativa
     const activeTabId = typeof TopicsManager !== 'undefined' ? TopicsManager.getActiveTabId() : null;
-    if (!activeTabId) {
+    const topico = activeTabId ? topicos.find(t => t.id === activeTabId) : null;
+    if (!topico || !window.JurisPecas) {
         btn.classList.remove('extrator-completo');
+        btn.title = 'Alfinete de Extração (Marcar Início/Fim para IA)';
         return;
     }
 
-    const topico = topicos.find(t => t.id === activeTabId);
-    if (!topico || !topico.marcosExtracao || topico.marcosExtracao.length === 0) {
-        btn.classList.remove('extrator-completo');
-        return;
-    }
+    const totalPaginasPdf = window.PdfEngine?.getPdfDoc?.()?.numPages || null;
+    const marcosGerais = window.GeneralPinsManager ? GeneralPinsManager.getMarcos() : [];
+    const efetivos = JurisPecas.obterMarcosEfetivos(topico, marcosGerais, totalPaginasPdf);
 
-    // Flags para espelhar a exata regra do gerador de payload da IA
-    let hasSentencaInicio = false, hasSentencaFim = false;
-    let hasRecursoInicio = false, hasRecursoFim = false;
+    // Exige estritamente Decisão Embargada ('decisao') + Inteiro Teor dos Embargos ('embargos')
+    // Contraminuta, Contrarrazões, Laudo e peças custom_* não disparam falso positivo
+    const hasDecisaoCompleta = efetivos.some(p => p.categoria === 'decisao' && p.completa && !p.invalida);
+    const hasEmbargosCompleto = efetivos.some(p => p.categoria === 'embargos' && p.completa && !p.invalida);
 
-    topico.marcosExtracao.forEach(m => {
-        // A lógica espelha: if (docTipo === 'decisao') { ... } else { /* é embargos */ }
-        // Nota ED: no gerador-contexto do ED (ed_interaction-tools.js), os docs extraídos são 'decisao' e qualquer outro ('embargos').
-        if (m.docTipo === 'decisao') {
-            if (m.fronteira === 'inicio') hasSentencaInicio = true;
-            if (m.fronteira === 'fim') hasSentencaFim = true;
-        } else {
-            if (m.fronteira === 'inicio') hasRecursoInicio = true;
-            if (m.fronteira === 'fim') hasRecursoFim = true;
-        }
-    });
-
-    if (hasSentencaInicio && hasSentencaFim && hasRecursoInicio && hasRecursoFim) {
+    if (hasDecisaoCompleta && hasEmbargosCompleto) {
         btn.classList.add('extrator-completo');
-        btn.title = 'Contexto Completo! (Decisão e Embargos mapeados)';
+        btn.title = 'Contexto Completo! (Decisão Embargada e Embargos mapeados)';
     } else {
         btn.classList.remove('extrator-completo');
         btn.title = 'Alfinete de Extração (Marcar Início/Fim para IA)';
@@ -2742,8 +2814,11 @@ document.addEventListener("DOMContentLoaded", () => {
         const originalAbrirModalGeradorContexto = window.abrirModalGeradorContexto;
         
         window.abrirModalGeradorContexto = function() {
-            // Executa a função original primeiro
-            originalAbrirModalGeradorContexto.apply(this, arguments);
+            const exportacaoOcupada = Boolean(window.ExportManager?.isExporting?.());
+
+            // Executa a função original preservando o retorno da Promise
+            const resultado = originalAbrirModalGeradorContexto.apply(this, arguments);
+            if (exportacaoOcupada) return resultado;
 
             // Guardrail: Alerta se houver notas ocultas pendentes de revisão no processo
             if (window.TopicsManager && typeof TopicsManager.sinalizarNotasOcultasPendentes === 'function') {
@@ -2768,6 +2843,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 }
             }
+
+            return resultado;
         };
     }
 });
@@ -2809,6 +2886,10 @@ function _calcularMaiorPaginaReferenciada() {
                 topico.marcosExtracao.forEach(m => registrar(m?.pagina));
             }
         });
+    }
+
+    if (window.GeneralPinsManager && typeof window.GeneralPinsManager.getMarcos === 'function') {
+        window.GeneralPinsManager.getMarcos().forEach(m => registrar(m?.pagina));
     }
 
     if (window.ShortcutManager && typeof window.ShortcutManager.getState === 'function') {

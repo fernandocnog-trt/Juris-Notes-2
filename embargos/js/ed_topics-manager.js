@@ -1585,6 +1585,9 @@ window.TopicsManager = (function () {
         if (typeof window.atualizarStatusBotaoExtrator === 'function') {
             window.atualizarStatusBotaoExtrator();
         }
+        if (typeof window.atualizarVisibilidadeBotaoExportar === 'function') {
+            window.atualizarVisibilidadeBotaoExportar();
+        }
         // Centraliza a atualização dos botões de volume nos 3 pontos de saída de renderizarFichario
         atualizarEstadoFerramentasVolume();
     }
@@ -3292,7 +3295,7 @@ window.TopicsManager = (function () {
             metaHandoff: { origem: topicoAtual.nome, slug: slugA, versao: volAtual, chkId: chkId }
         };
 
-        // HERANÇA ESPECÍFICA DO ED: Herda também o vício, diretrizesPorVicio e os grupos transferidos
+        // HERANÇA ESPECÍFICA DO ED: Herda vício, diretrizesPorVicio, vínculos gerais vivos e grupos transferidos
         const novoTopico = {
             id: novoId,
             nome: novoNome,
@@ -3303,6 +3306,7 @@ window.TopicsManager = (function () {
             vicio: topicoAtual.vicio,
             diretrizesPorVicio: diretrizesPorVicioNovo,
             diretrizesPorTese: diretrizesPorTeseNovo,
+            vinculosGerais: Array.isArray(topicoAtual.vinculosGerais) ? [...topicoAtual.vinculosGerais] : [],
             volumeData: { sequencia: proxVol, anteriorId: topicoAtual.id, chkId: chkId },
             diretrizesGlobais: [], 
             anotacoes: [checkpointEntrada, ...anotacoesTransferidas]
