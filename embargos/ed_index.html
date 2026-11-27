@@ -563,7 +563,7 @@
     <script>
         (async function AppBootstrapper() {
             try {
-                const APP_VERSION = '3.3.0'; // Incremente esta única constante a cada deploy do módulo ED
+                const APP_VERSION = '3.3.1'; // Incrementado para cache-busting atômico do módulo ED
                 const SHARED_TOOLS_VERSIONS = {
                     relatorio: '1.0.0', // Versionamento independente de ../ferramentas/juris-relatorio.*
                     prompts:   '2.2.0'  // Mantém a mesma URL entre módulos para reaproveitar cache HTTP
@@ -623,6 +623,30 @@
                         script.onerror = () => reject(new Error(`O arquivo não foi encontrado ou foi bloqueado: ${src}`));
                         document.body.appendChild(script);
                     });
+                }
+
+                // PASSO 2.1: Asserção de contratos públicos entre módulos (Fail-Fast não-bloqueante)
+                const CONTRATOS_CRITICOS = [
+                    'JurisPecas.gerarChaveComposta',
+                    'JurisPecas.normalizarChave',
+                    'JurisPecas.agruparPares',
+                    'JurisPecas.obterMarcosEfetivos',
+                    'GeneralPinsManager.getMarcos',
+                    'GeneralPinsManager.contarVinculos',
+                    'PdfEngine.carregarPDF',
+                    'PdfEngine.sincronizarHighlightsGerais'
+                ];
+
+                const contratosAusentes = CONTRATOS_CRITICOS.filter((caminho) => {
+                    const [modulo, metodo] = caminho.split('.');
+                    return !window[modulo] || typeof window[modulo][metodo] !== 'function';
+                });
+
+                if (contratosAusentes.length > 0) {
+                    console.error(
+                        '🚨 [Juris Bootstrapper] Quebra de contrato detectada entre módulos ED:',
+                        contratosAusentes
+                    );
                 }
 
                 // PASSO 3: Disparo de Gatilho de Inicialização (Vital para reviver o Menu)

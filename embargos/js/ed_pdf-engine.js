@@ -9,6 +9,7 @@ window.PdfEngine = (function () {
     const BASE_SCALE = 1.5;
     const ZOOM_STEPS = [0.6, 0.75, 0.9, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5];
     const MAX_CANVAS_PIXELS = 16777216; // Teto 4096x4096 px (proteção de VRAM em telas HiDPI/4K)
+    const EXTERNAL_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 
     // Estado Privado do Motor
     let _pdfDoc = null;
@@ -118,10 +119,38 @@ window.PdfEngine = (function () {
             }
         },
         
-        getDestinationHash: function(dest) { return ''; },
-        getAnchorUrl: function(hash) { return ''; },
+        // _newWindow é intencionalmente ignorado: toda URL externa/mailto abre em nova aba
+        // para preservar a SPA e a sessão em memória (inclusive com webmails via registerProtocolHandler)
+        addLinkAttributes: function(link, url, _newWindow = false) {
+            if (!link) return;
+            if (!this.externalLinkEnabled || !url) {
+                link.removeAttribute('href');
+                return;
+            }
+
+            try {
+                const parsed = new URL(url);
+                const protocolo = parsed.protocol.toLowerCase();
+
+                if (!EXTERNAL_LINK_PROTOCOLS.has(protocolo)) {
+                    link.removeAttribute('href');
+                    return;
+                }
+
+                link.href = parsed.href;
+                link.title = parsed.href;
+                link.target = '_blank';
+                link.rel = this.externalLinkRel || 'noopener noreferrer nofollow';
+            } catch {
+                link.removeAttribute('href');
+            }
+        },
+
+        getDestinationHash: function(dest) { return '#'; },
+        getAnchorUrl: function(hash) { return hash || '#'; },
         setDocument: function(doc) {},
-        executeNamedAction: function(action) {}
+        executeNamedAction: function(action) {},
+        executeSetOCGState: async function(action) {}
     };
 
     /* ================================================
@@ -725,6 +754,18 @@ window.PdfEngine = (function () {
     /* ================================================
        CARREGAMENTO TRANSACIONAL E RENDERIZAÇÃO
        ================================================ */
+    function _obterVerbosityPdfJs() {
+        let debugAtivo = false;
+        try {
+            debugAtivo = window.localStorage?.getItem('juris_debug_pdf') === '1';
+        } catch {
+            debugAtivo = false;
+        }
+        return debugAtivo
+            ? (pdfjsLib.VerbosityLevel?.WARNINGS ?? 1)
+            : (pdfjsLib.VerbosityLevel?.ERRORS ?? 0);
+    }
+
     async function carregarPDF(file, modoOuRetomada = false) {
         if (!file) return { ok: false, motivo: 'arquivo_ausente' };
 
@@ -759,7 +800,10 @@ window.PdfEngine = (function () {
         let novoDoc = null;
         try {
             const typedarray = new Uint8Array(arrayBuffer);
-            novoDoc = await pdfjsLib.getDocument({ data: typedarray }).promise;
+            novoDoc = await pdfjsLib.getDocument({
+                data: typedarray,
+                verbosity: _obterVerbosityPdfJs()
+            }).promise;
         } catch (err) {
             console.error('Erro ao processar estrutura do PDF:', err);
             _deps.exibirToast('Erro ao ler o PDF. Verifique a integridade do arquivo.', 'erro');
@@ -1025,8 +1069,11 @@ window.PdfEngine = (function () {
             viewport: viewport
         });
 
+        let committed = false;
+
         try {
             await container._renderTask.promise;
+            container._renderTask = null;
             if (epoch !== _docEpoch || !_pdfDoc || container._renderSeq !== renderSeq) return;
 
             // 2. Commit Atômico: redimensiona e substitui os filhos num único frame
@@ -1044,6 +1091,7 @@ window.PdfEngine = (function () {
             container.replaceChildren(canvas, textLayer, highlightLayerDiv);
             container.classList.remove('is-page-updating');
             container.dataset.loaded = 'true';
+            committed = true;
 
             // 3. Compensa o scroll em 2D usando a âncora preservada
             const anchor = _scrollAnchors.get(num);
@@ -1077,58 +1125,82 @@ window.PdfEngine = (function () {
                 }
             }
 
-            // 4. Desenha highlights sincronamente
-            _renderizarHighlightsDaPagina(num, highlightLayerDiv);
-
-            // 5. Renderiza TextLayer e AnnotationLayer já conectados ao DOM
-            const textContent = await page.getTextContent();
-            if (epoch !== _docEpoch || !_pdfDoc || container._renderSeq !== renderSeq) return;
-
-            const tl = new pdfjsLib.TextLayer({
-                textContentSource: textContent,
-                container: textLayer,
-                viewport: viewport
-            });
-            await tl.render();
-            if (epoch !== _docEpoch || !_pdfDoc || container._renderSeq !== renderSeq) return;
-
-            if (!_pageMetadataCache.has(num)) {
-                extrairMetadadosDaPagina(num, textContent).then(() => {
-                    if (epoch === _docEpoch) _deps.atualizarDisplayPaginador(num);
-                });
+            // 4. Subcamada isolada: Highlights e Alfinetes (síncrono)
+            try {
+                _renderizarHighlightsDaPagina(num, highlightLayerDiv);
+            } catch (highlightErr) {
+                console.error(`[PdfEngine] Falha isolada ao desenhar highlights da página ${num}:`, highlightErr);
             }
 
-            const annotationData = await page.getAnnotations();
-            if (epoch !== _docEpoch || !_pdfDoc || container._renderSeq !== renderSeq) return;
+            // 5. Subcamada isolada: TextLayer e Metadados (assíncrono)
+            try {
+                const textContent = await page.getTextContent();
+                if (epoch !== _docEpoch || !_pdfDoc || container._renderSeq !== renderSeq) return;
 
-            if (annotationData && annotationData.length > 0 && container.contains(textLayer)) {
-                const annotationLayerDiv = document.createElement('div');
-                annotationLayerDiv.className = 'annotationLayer';
-                annotationLayerDiv.style.setProperty('--scale-factor', viewport.scale);
-                container.appendChild(annotationLayerDiv);
-
-                const annotationLayer = new pdfjsLib.AnnotationLayer({
-                    page: page,
-                    viewport: viewport,
-                    div: annotationLayerDiv,
-                    linkService: jurisLinkService,
-                    renderInteractiveForms: false
+                const tl = new pdfjsLib.TextLayer({
+                    textContentSource: textContent,
+                    container: textLayer,
+                    viewport: viewport
                 });
+                await tl.render();
+                if (epoch !== _docEpoch || !_pdfDoc || container._renderSeq !== renderSeq) return;
 
-                await annotationLayer.render({
-                    annotations: annotationData,
-                    viewport: viewport,
-                    intent: 'display',
-                    linkService: jurisLinkService
-                });
+                if (!_pageMetadataCache.has(num)) {
+                    extrairMetadadosDaPagina(num, textContent).then(() => {
+                        if (epoch === _docEpoch) _deps.atualizarDisplayPaginador(num);
+                    });
+                }
+            } catch (textErr) {
+                if (epoch === _docEpoch && container._renderSeq === renderSeq && textErr?.name !== 'AbortException') {
+                    console.warn(`[PdfEngine] Falha isolada na TextLayer da página ${num}:`, textErr);
+                }
+            }
+
+            // 6. Subcamada isolada: AnnotationLayer (desacoplada da TextLayer)
+            let annotationLayerDiv = null;
+            try {
+                const annotationData = await page.getAnnotations();
+                if (epoch !== _docEpoch || !_pdfDoc || container._renderSeq !== renderSeq) return;
+
+                if (annotationData && annotationData.length > 0 && container.isConnected) {
+                    annotationLayerDiv = document.createElement('div');
+                    annotationLayerDiv.className = 'annotationLayer';
+                    annotationLayerDiv.style.setProperty('--scale-factor', viewport.scale);
+                    container.appendChild(annotationLayerDiv);
+
+                    const annotationLayer = new pdfjsLib.AnnotationLayer({
+                        page: page,
+                        viewport: viewport,
+                        div: annotationLayerDiv,
+                        linkService: jurisLinkService,
+                        renderInteractiveForms: false
+                    });
+
+                    await annotationLayer.render({
+                        annotations: annotationData,
+                        viewport: viewport,
+                        intent: 'display',
+                        linkService: jurisLinkService
+                    });
+                }
+            } catch (annErr) {
+                if (annotationLayerDiv && annotationLayerDiv.isConnected) {
+                    annotationLayerDiv.remove();
+                }
+                if (epoch === _docEpoch && container._renderSeq === renderSeq && annErr?.name !== 'AbortException') {
+                    console.warn(`[PdfEngine] Falha isolada na AnnotationLayer da página ${num}:`, annErr);
+                }
             }
         } catch (err) {
-            if (err.name !== 'RenderingCancelledException' && epoch === _docEpoch) {
+            if (err?.name !== 'RenderingCancelledException' && epoch === _docEpoch) {
                 console.error('Erro ao renderizar página PDF:', err);
             }
             if (epoch === _docEpoch && container._renderSeq === renderSeq) {
                 container.classList.remove('is-page-updating');
-                if (!isReRenderSemFlash) container.dataset.loaded = 'false';
+                // Só reverte data-loaded se a falha ocorreu ANTES do commit do canvas
+                if (!committed && !isReRenderSemFlash) {
+                    container.dataset.loaded = 'false';
+                }
             }
         } finally {
             if (epoch === _docEpoch && container._renderSeq === renderSeq) {

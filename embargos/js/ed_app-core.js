@@ -734,10 +734,7 @@ document.addEventListener("DOMContentLoaded", () => {
             getMarcosGerais: () => window.GeneralPinsManager ? GeneralPinsManager.getMarcos() : [],
             contarVinculosGeral: (docTipo, polo = 'Comum') => {
                 if (!window.GeneralPinsManager) return 0;
-                const chave = window.JurisPecas
-                    ? JurisPecas.montarChave(docTipo, polo)
-                    : `${docTipo}|${polo || 'Comum'}`;
-                return GeneralPinsManager.contarVinculos(chave, topicos);
+                return GeneralPinsManager.contarVinculos(docTipo, polo || 'Comum', topicos);
             },
             exibirToast: exibirToast,
             atualizarDisplayPaginador: atualizarDisplayPaginador,
@@ -902,14 +899,35 @@ document.addEventListener("DOMContentLoaded", () => {
     
     const pdfContainer = document.getElementById('pdf-container');
     if (pdfContainer) {
+        const PROTOCOLOS_EXTERNOS_SEGUROS = new Set(['http:', 'https:', 'mailto:']);
+
         pdfContainer.addEventListener('scroll', checkScrollFabState, { passive: true });
         pdfContainer.addEventListener('click', (e) => {
             const linkAncorado = e.target.closest('.linkAnnotation a');
-            if (linkAncorado && !e.defaultPrevented) {
-                console.error('🔴 ALERTA: O PDF.js rejeitou a vinculação do evento! O clique vazou.');
-                e.preventDefault(); 
+            if (!linkAncorado || e.defaultPrevented) return;
+
+            const rawHref = (linkAncorado.getAttribute('href') || '').trim();
+            if (!rawHref || rawHref === '#') {
+                console.warn('⚠️ [PdfEngine] Link interno do PDF sem tratamento pelo PDF.js bloqueado por segurança.');
+                e.preventDefault();
+                return;
             }
-        }, true);
+
+            // Allowlist (Fail-Closed): só permite navegar sem preventDefault se abrir em nova aba
+            // (protege a SPA inclusive quando mailto: abre webmail via registerProtocolHandler)
+            try {
+                const urlResolvida = new URL(linkAncorado.href, window.location.href);
+                const protocolo = urlResolvida.protocol.toLowerCase();
+                if (PROTOCOLOS_EXTERNOS_SEGUROS.has(protocolo) && linkAncorado.target === '_blank') {
+                    return;
+                }
+            } catch {
+                // URL malformada cai no bloqueio de segurança abaixo
+            }
+
+            console.warn('⚠️ [PdfEngine] Navegação não autorizada em link do PDF bloqueada para preservar a sessão:', rawHref);
+            e.preventDefault();
+        }, false); // Bubble phase: executa APÓS o handler nativo do PDF.js no elemento <a>
     }
 
     SplashScreenManager.hideInitialLoad();
