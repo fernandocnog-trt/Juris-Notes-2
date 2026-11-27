@@ -755,6 +755,10 @@
                 <p class="popup-label" style="color: #e65100;">Inteiro Teor do Recurso:</p>
                 <textarea id="ctx-teor-recurso" class="popup-textarea" style="display: block; min-height: 100px; border-color: #ffcc80;" placeholder="Cole o agravo aqui..." oninput="window.salvarRascunhoContextoDebounced()"></textarea>
             </div>
+            <div id="box-ctx-outras-pecas" style="grid-column: span 2; display: none;">
+                <p class="popup-label" style="color: #e65100;">Outras Peças / Respostas / Provas (Contraminuta, Recurso Trancado, Certidões, Guias):</p>
+                <textarea id="ctx-teor-outras" class="popup-textarea" style="display: block; min-height: 90px; border-color: #ffcc80;" placeholder="Peças complementares extraídas automaticamente..." oninput="window.salvarRascunhoContextoDebounced()"></textarea>
+            </div>
         </div>
         <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 14px;">
             <div style="display: flex; flex-direction: column; gap: 8px;">
@@ -897,7 +901,7 @@
 <div id="extrator-modal-backdrop" class="backdrop-seguro" style="display: none; z-index: 4004;" onclick="cancelarMarcadorExtracao()"></div>
 <div id="extrator-wizard-popup" class="crop-wizard-popup" style="display:none; z-index: 4005;">
     <div class="wizard-header">📍 Definir Limite de Extração</div>
-    <p class="popup-label">Vincular a qual Tópico?</p>
+    <p class="popup-label">Destino do Alfinete:</p>
     <select id="extrator-topic-select" class="topic-select"></select>
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px;">
         <div>
@@ -920,7 +924,17 @@
 
 <div id="export-avancado-backdrop" class="backdrop-seguro" style="display: none; z-index: 4010;" onclick="ExportManager.fecharPainelExportacao()"></div>
 <div id="modal-exportacao-avancada" class="crop-wizard-popup" style="display:none; z-index: 4011; max-width: 600px; width: 90vw;">
-    <div class="wizard-header" style="display: flex; justify-content: space-between; align-items: center;"><span style="display: flex; align-items: center; gap: 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Hub de Exportação de Contexto (IA)</span><button style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #64748b;" onclick="ExportManager.fecharPainelExportacao()">✕</button></div>
+    <div class="wizard-header" style="display: flex; justify-content: space-between; align-items: center; gap: 10px;">
+        <span style="display: flex; align-items: center; gap: 8px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 20px; height: 20px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>Hub de Exportação de Contexto (IA)</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" id="btn-abrir-extrator-geral" class="btn-export-geral-trigger" onclick="GeneralPinsManager.abrirModal()" title="Abrir Peças Gerais do Processo (Exportar ou Vincular neste Tópico)">
+                <svg viewBox="0 0 24 24" aria-hidden="true" style="width: 15px; height: 15px;"><use href="#icon-pecas-gerais"></use></svg>
+                <span>Peças Gerais</span>
+                <span id="badge-count-geral" class="export-geral-badge">0</span>
+            </button>
+            <button type="button" style="background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #64748b;" onclick="ExportManager.fecharPainelExportacao()" aria-label="Fechar">✕</button>
+        </div>
+    </div>
     <p class="popup-label" style="margin-top: 12px;">Selecione os documentos para compor a base de conhecimento:</p>
     <div class="export-editorial-bar">
         <label class="epistemic-guardrail-label" for="chk-export-auditoria-critica">
@@ -933,6 +947,48 @@
     </div>
     <div id="export-options-container" style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px; max-height: 40vh; overflow-y: auto; padding-right: 4px;"></div>
     <div class="wizard-actions" style="margin-top: 16px;"><button class="chip-btn chip-cancelar" onclick="ExportManager.fecharPainelExportacao()">Cancelar</button><button id="btn-gerar-arquivo-exportacao" class="chip-btn chip-autora" style="background: var(--trt-blue); color: white; border: none; padding-left: 24px; padding-right: 24px;" onclick="ExportManager.gerarExportacaoPersonalizada()">📥 Gerar Arquivo Exportação</button></div>
+</div>
+
+<!-- MODAL: PEÇAS GERAIS DO PROCESSO (REPOSITÓRIO OCULTO COMPARTILHADO) -->
+<div id="extrator-geral-backdrop" class="backdrop-seguro extrator-geral-backdrop" style="display: none;" onclick="GeneralPinsManager.fecharModal()"></div>
+<div id="modal-extrator-geral" class="crop-wizard-popup modal-extrator-geral fechavel-por-esc" role="dialog" aria-modal="true" aria-labelledby="extrator-geral-title" style="display: none;">
+    <div class="wizard-header extrator-geral-header">
+        <span id="extrator-geral-title" class="extrator-geral-title">
+            <svg viewBox="0 0 24 24" aria-hidden="true" style="width: 20px; height: 20px;"><use href="#icon-pecas-gerais"></use></svg>
+            Peças Gerais do Processo
+        </span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="btn-geral-marcar-pdf" onclick="GeneralPinsManager.iniciarMarcacaoDireta()" title="Ir ao PDF e fixar novo alfinete em Peças Gerais">
+                + Marcar no PDF
+            </button>
+            <button type="button" class="wizard-header__close-btn" onclick="GeneralPinsManager.fecharModal()" aria-label="Fechar">✕</button>
+        </div>
+    </div>
+
+    <div id="extrator-geral-topic-context" class="extrator-geral-context-banner"></div>
+
+    <div class="extrator-geral-toolbar">
+        <span class="popup-label" style="margin: 0;">Peças marcadas neste processo:</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="btn-safecut-link" onclick="GeneralPinsManager.selecionarTodas(true)">Marcar prontas</button>
+            <span aria-hidden="true" style="color: #cbd5e1;">|</span>
+            <button type="button" class="btn-safecut-link" onclick="GeneralPinsManager.selecionarTodas(false)">Limpar</button>
+        </div>
+    </div>
+
+    <div id="extrator-geral-list" class="extrator-geral-list" role="group" aria-label="Lista de Peças Gerais"></div>
+
+    <div class="wizard-actions extrator-geral-footer">
+        <button type="button" class="chip-btn chip-cancelar" style="width: auto; padding: 8px 14px;" onclick="GeneralPinsManager.fecharModal()">Voltar</button>
+        <div class="extrator-geral-footer-actions">
+            <button type="button" id="btn-exportar-geral-txt" class="chip-btn btn-geral-exportar" onclick="GeneralPinsManager.exportarPecasSelecionadas()" disabled>
+                📥 Exportar Peças Gerais (.txt)
+            </button>
+            <button type="button" id="btn-incorporar-geral-topico" class="chip-btn btn-geral-incorporar" onclick="GeneralPinsManager.vincularNoTopicoAtivo()" disabled>
+                🔗 <span id="btn-incorporar-geral-label">Vincular ao Tópico</span>
+            </button>
+        </div>
+    </div>
 </div>
 
 <!-- FILTRO REPETIÇÃO -->

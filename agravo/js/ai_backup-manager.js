@@ -61,14 +61,16 @@ window.BackupManager = (function () {
         const atalhosCapturados = window.ShortcutManager ? window.ShortcutManager.getState() : null;
         return JSON.stringify({
             metadata: {
-                processoId:        _processoId,
-                pdfHash:           _pdfHash,
-                possuiAudio:       possuiAudio,
-                balancaHtml:       window.BalancaManager ? window.BalancaManager.getHtmlState() : null,
-                versaoApp:         '7.1', // ATUALIZADO: Adição do salvamento de Tarefas no módulo AI
-                ultimaAtualizacao: Date.now(),
-                atalhosPdf:        atalhosCapturados,
-                tarefas:           window.TaskManager ? window.TaskManager.getTarefasState() : []
+                processoId:              _processoId,
+                pdfHash:                 _pdfHash,
+                possuiAudio:             possuiAudio,
+                balancaHtml:             window.BalancaManager ? window.BalancaManager.getHtmlState() : null,
+                versaoApp:               '7.5', // ATUALIZADO: Persistência de Peças Gerais e auto-vínculos no módulo AI
+                ultimaAtualizacao:       Date.now(),
+                atalhosPdf:              atalhosCapturados,
+                tarefas:                 window.TaskManager ? window.TaskManager.getTarefasState() : [],
+                marcosExtracaoGerais:    window.GeneralPinsManager ? window.GeneralPinsManager.getMarcos() : [],
+                pecasGeraisAutoVincular: window.GeneralPinsManager ? window.GeneralPinsManager.getAutoVincular() : []
             },
             dados: topicos
         }, null, 2);
@@ -236,6 +238,9 @@ window.BackupManager = (function () {
                 }
                 topico.diretrizesPorObice = mapaLimpo;
             }
+            if (!Array.isArray(topico.vinculosGerais)) {
+                topico.vinculosGerais = [];
+            }
         });
 
         return pacote;
@@ -290,6 +295,12 @@ window.BackupManager = (function () {
         // Restaura as tarefas na interface (Lida com backups legados via fallback para [])
         if (window.TaskManager) {
             window.TaskManager.setTarefasState(pacote.metadata.tarefas || []);
+        }
+
+        // Restaura o repositório de Peças Gerais e regras de auto-vínculo (retrocompatível com backups anteriores)
+        if (window.GeneralPinsManager) {
+            window.GeneralPinsManager.setMarcos(pacote.metadata.marcosExtracaoGerais || []);
+            window.GeneralPinsManager.setAutoVincular(pacote.metadata.pecasGeraisAutoVincular || []);
         }
 
         return pacote;
