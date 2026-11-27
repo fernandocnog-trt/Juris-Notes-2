@@ -49,6 +49,9 @@
     --z-abas-modal: 4005;
     --z-temas-backdrop: 4006;
     --z-temas-modal: 4007;
+    /* Camada do Repositório de Peças Gerais (acima do Hub 4011 e abaixo da Borracha 4020) */
+    --z-geral-backdrop: 4014;
+    --z-geral-modal: 4015;
     /* Variáveis do Modo de Leitura e Outline */
     --z-reading-backdrop: 4048;
     --z-reading-modal: 4049;

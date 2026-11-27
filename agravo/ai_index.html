@@ -36,10 +36,10 @@
 </script>
     
     <!-- 1. Estilos Base, Variáveis Globais e Estrutura Principal (Core) -->
-<link rel="stylesheet" href="ai_juris-core.css?v=2.0.2">
+<link rel="stylesheet" href="ai_juris-core.css?v=2.0.3">
 
 <!-- 2. Ferramentas Globais, PDF, Áudio e Modais (Ferramentas de Entrada) -->
-<link rel="stylesheet" href="ai_juris-reader-tools.css?v=3.0.4">
+<link rel="stylesheet" href="ai_juris-reader-tools.css?v=3.1.0">
 
 <!-- 3. Fichário, Timeline, Fases Metodológicas e Acervo (Síntese e Saída) -->
 <link rel="stylesheet" href="ai_juris-timeline-cards.css?v=3.2.0">
@@ -93,6 +93,11 @@
         </symbol>
         <symbol id="icon-quick-report" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect><path d="M13 11l-2 4h4l-2 4"></path>
+        </symbol>
+        <symbol id="icon-pecas-gerais" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+            <polyline points="2 17 12 22 22 17"></polyline>
+            <polyline points="2 12 12 17 22 12"></polyline>
         </symbol>
     </svg>
 
@@ -248,7 +253,7 @@
                     </svg>
                 </button>
 
-                <button class="icon-btn" id="btn-exportar-topico" onclick="ExportManager.abrirPainelExportacao()" title="Exportação Avançada para IA" style="display: none;">
+                <button class="icon-btn" id="btn-exportar-topico" onclick="abrirHubExportacaoContextual()" title="Exportação Avançada para IA" style="display: none;">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line>
                     </svg>
@@ -527,20 +532,22 @@
                 // PASSO 2: Fila ordenada de scripts locais da aplicação AI
                 const scriptsParaCarregar = [
                     "js/ai_store.js",
-                    "js/ai_backup-manager.js",
+                    "js/ai_pecas-service.js?v=1.0.0",
+                    "js/ai_backup-manager.js?v=1.1.0",
                     "js/ai_thesis-guard.js",
                     "js/ai_document-views.js",
                     "js/ai_topics-manager.js",
                     "js/ai_balanca-manager.js",
-                    "js/ai_interaction-tools.js?v=1.1.1",
+                    "js/ai_interaction-tools.js?v=1.2.0",
+                    "js/ai_general-pins-manager.js?v=1.1.0",
                     "js/ai_audio-manager.js",
                     "js/ai_juris-editor.js",
                     "js/ai_annotation-actions.js",
-                    "js/ai_export-manager.js",
-                    "js/ai_pdf-engine.js?v=1.1.0",
+                    "js/ai_export-manager.js?v=1.1.0",
+                    "js/ai_pdf-engine.js?v=1.2.0",
                     "js/ai_pje-parser.js",
                     "js/ai_text-capture-manager.js?v=1.0.1",
-                    "js/ai_app-core.js?v=1.2.0",
+                    "js/ai_app-core.js?v=1.3.0",
                     "js/ai_acervo-controller.js",
                     "js/ai_recommendation-service.js"
                 ];
