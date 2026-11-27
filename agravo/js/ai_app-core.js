@@ -753,6 +753,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (window.PdfEngine) {
         PdfEngine.init({
             getTopicos: () => topicos,
+            getMarcosGerais: () => window.GeneralPinsManager ? GeneralPinsManager.getMarcos() : [],
+            contarVinculosGeral: (docTipo) => window.GeneralPinsManager ? GeneralPinsManager.contarVinculos(docTipo, topicos) : 0,
             exibirToast: exibirToast,
             atualizarDisplayPaginador: atualizarDisplayPaginador,
             onPageViewStateChange: atualizarControlesVisualizacaoPagina,
@@ -800,6 +802,23 @@ document.addEventListener("DOMContentLoaded", () => {
                 window._nomeArquivoSugerido = `AI_${numeroCurto}.json`;
             },
             onPdfCarregado: async (isRetomada) => {
+                const numPagesAtual = window.PdfEngine?.getPdfDoc?.()?.numPages || 0;
+                if (numPagesAtual > 0 && window.JurisPecas) {
+                    const geraisInvalidos = window.GeneralPinsManager
+                        ? JurisPecas.agruparPares(GeneralPinsManager.getMarcos(), numPagesAtual).filter(p => p.invalida)
+                        : [];
+                    const propriosInvalidos = topicos.flatMap(t =>
+                        JurisPecas.agruparPares(t.marcosExtracao || [], numPagesAtual).filter(p => p.invalida)
+                    );
+                    const totalInvalidos = geraisInvalidos.length + propriosInvalidos.length;
+                    if (totalInvalidos > 0) {
+                        exibirToast(`Atenção: ${totalInvalidos} peça(s) marcada(s) apontam para páginas além do PDF atual (${numPagesAtual} págs.).`, 'aviso');
+                    }
+                }
+                if (typeof window.atualizarVisibilidadeBotaoExportar === 'function') {
+                    window.atualizarVisibilidadeBotaoExportar();
+                }
+
                 if (isRetomada) {
                     modoRetomada = false;
                     trocarAba('leitura');
@@ -960,6 +979,44 @@ window.toggleModoFoco = function(ativar) {
     else pdfWrapper.classList.remove('pdf-foco-ativo');
 };
 
+window.atualizarVisibilidadeBotaoExportar = function() {
+    const btnExportar = document.getElementById('btn-exportar-topico');
+    if (!btnExportar) return;
+
+    const abaAtual = document.body.dataset.activeTab || 'leitura';
+    const temTopicos = Array.isArray(topicos) && topicos.length > 0;
+    const temMarcosGerais = Boolean(window.GeneralPinsManager && GeneralPinsManager.getMarcos().length > 0);
+    const temPdf = Boolean(window.PdfEngine && PdfEngine.getPdfDoc());
+
+    if (abaAtual === 'historico') {
+        const mostrar = temTopicos || (temPdf && temMarcosGerais);
+        btnExportar.style.display = mostrar ? 'flex' : 'none';
+        btnExportar.classList.toggle('is-geral-shortcut', !temTopicos && temMarcosGerais);
+        btnExportar.title = temTopicos
+            ? 'Exportação Avançada para IA (Hub do Tópico e Peças Gerais)'
+            : 'Abrir Peças Gerais do Processo (Exportar .txt)';
+    } else {
+        const mostrarAtalhoGeral = temPdf && temMarcosGerais;
+        btnExportar.style.display = mostrarAtalhoGeral ? 'flex' : 'none';
+        btnExportar.classList.toggle('is-geral-shortcut', mostrarAtalhoGeral);
+        btnExportar.title = 'Abrir Peças Gerais do Processo (Exportar / Gerenciar)';
+    }
+};
+
+window.abrirHubExportacaoContextual = function() {
+    const abaAtual = document.body.dataset.activeTab || 'leitura';
+    const temTopicos = Array.isArray(topicos) && topicos.length > 0;
+
+    if (abaAtual === 'leitura' || !temTopicos) {
+        if (window.GeneralPinsManager) GeneralPinsManager.abrirModal();
+        return;
+    }
+
+    if (window.ExportManager && typeof ExportManager.abrirPainelExportacao === 'function') {
+        ExportManager.abrirPainelExportacao();
+    }
+};
+
 function trocarAba(aba) {
     document.body.dataset.activeTab = aba;
 
@@ -972,9 +1029,8 @@ function trocarAba(aba) {
 
     const isAnotacoes = (aba === 'historico' && topicos.length > 0);
     const isLeitura   = (aba === 'leitura');
-    
-    const btnExportar = document.getElementById('btn-exportar-topico');
-    if (btnExportar) btnExportar.style.display = isAnotacoes ? 'flex' : 'none';
+
+    window.atualizarVisibilidadeBotaoExportar();
 
     // GERENCIAMENTO DA VISIBILIDADE DO GERADOR DE CONTEXTO
     const btnGerador = document.getElementById('btn-gerador-contexto');
@@ -1126,6 +1182,7 @@ function encerrarSessao() {
     
     if (window.PdfEngine) window.PdfEngine.encerrar();
     BackupManager.encerrar();
+    if (window.GeneralPinsManager) window.GeneralPinsManager.reset();
     if (window.ShortcutManager) window.ShortcutManager.reset();
 
     if (window.BalancaManager) {
@@ -1139,7 +1196,7 @@ function encerrarSessao() {
     document.getElementById('floating-page-panel').style.display = 'none';
     togglePainelVisualizacaoPagina(false);
     atualizarControlesVisualizacaoPagina({ zoom: 1.0, rotation: 0 });
-    document.getElementById('btn-exportar-topico').style.display = 'none';
+    window.atualizarVisibilidadeBotaoExportar();
     document.getElementById('current-page-display').textContent  = '1';
     document.getElementById('pdf-upload').value = '';
 
@@ -1231,7 +1288,8 @@ async function salvarBackupAutomatico() {
 }
 
 async function novoProcesso(event) {
-    if ((topicos.length > 0 || (window.PdfEngine && PdfEngine.getPdfDoc())) && !modoRetomada) {
+    const temMarcosGeraisAtivos = Boolean(window.GeneralPinsManager && GeneralPinsManager.getMarcos().length > 0);
+    if ((topicos.length > 0 || temMarcosGeraisAtivos || (window.PdfEngine && PdfEngine.getPdfDoc())) && !modoRetomada) {
         const continuar = confirm('Iniciar um novo processo irá apagar as anotações em memória não salvas.\nDeseja continuar?');
         if (!continuar) {
             event.target.value = '';
@@ -1239,10 +1297,12 @@ async function novoProcesso(event) {
         }
         if (window.AudioManager) window.AudioManager.encerrar();
         if (window.TextCaptureManager) TextCaptureManager.limpar(true, true);
+        if (window.GeneralPinsManager) window.GeneralPinsManager.reset();
         topicos = [];
-        BackupManager.encerrar(); 
+        BackupManager.encerrar();
         if (window.ShortcutManager) window.ShortcutManager.reset();
         renderizarTopicos();
+        window.atualizarVisibilidadeBotaoExportar();
         atualizarStatusBackup('Aguardando...');
     }
 
@@ -1366,14 +1426,18 @@ window.confirmarCriacaoTopicoAI = function() {
 
     const cor = TopicsManager.obterCor(topicos.length);
     const novoTopicoId = 'topico-' + Date.now();
-    
-    topicos.push({ 
-        id: novoTopicoId, 
-        nome: nomeCompleto, 
-        matrizCalculo: 'admissibilidade', 
-        tipoObice: obiceTipado,           
-        cor, 
-        anotacoes: [] 
+    const vinculosIniciais = window.GeneralPinsManager
+        ? GeneralPinsManager.obterVinculosIniciaisParaNovoTopico()
+        : [];
+
+    topicos.push({
+        id: novoTopicoId,
+        nome: nomeCompleto,
+        matrizCalculo: 'admissibilidade',
+        tipoObice: obiceTipado,
+        cor,
+        anotacoes: [],
+        vinculosGerais: vinculosIniciais
     });
 
     // 1. Define o novo tópico como ativo e instrui o Scroll Guard a ir para o topo (y = 0)
@@ -1402,10 +1466,11 @@ window.confirmarCriacaoTopicoAI = function() {
 
 function renderizarTopicos() {
     TopicsManager.renderizarFichario(topicos);
-    // [NOVO] Garante coerência visual após re-renderizações (ex: restauração de backup)
+    // Garante coerência visual após re-renderizações (ex: restauração de backup ou exclusão de abas)
     if (window.atualizarStatusBotaoExtrator) window.atualizarStatusBotaoExtrator();
-    
-    // NOVO: Broadcast seguro enviando a variável EXPLICITAMENTE (Injeção de Dependência)
+    if (typeof window.atualizarVisibilidadeBotaoExportar === 'function') window.atualizarVisibilidadeBotaoExportar();
+
+    // Broadcast seguro enviando a variável EXPLICITAMENTE (Injeção de Dependência)
     if (window.BalancaManager && typeof window.BalancaManager.sincronizarTopicos === 'function') {
         window.BalancaManager.sincronizarTopicos(topicos);
     }
@@ -1441,7 +1506,7 @@ function identificarFaseMetodologica(docNome) {
 /**
  * Exclui um marco de extração com segurança de estado e atualiza a UI.
  */
-window.excluirMarcadorExtracao = function(topicoId, docTipo, fronteira) {
+window.excluirMarcadorExtracao = function(topicoId, docTipo, fronteira, onAfterDelete = null) {
     const fronteiraLabel = fronteira === 'inicio' ? 'INÍCIO' : 'FIM';
     if (!confirm(`Deseja apagar o marcador de ${fronteiraLabel} deste documento?`)) return;
 
@@ -1452,15 +1517,16 @@ window.excluirMarcadorExtracao = function(topicoId, docTipo, fronteira) {
     topico.marcosExtracao = topico.marcosExtracao.filter(m => !(m.docTipo === docTipo && m.fronteira === fronteira));
 
     exibirToast(`Marcador de ${fronteiraLabel} excluído.`, 'sucesso');
-    
+
     // Atualização em Cascata (Assíncrona para não bloquear a UI)
     requestAnimationFrame(() => {
         if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
         if (window.sincronizarHighlightsGerais) window.sincronizarHighlightsGerais();
         if (window.atualizarStatusBotaoExtrator) window.atualizarStatusBotaoExtrator();
-        // Re-renderiza o painel atualizado
-        if (window.ExportManager && typeof window.ExportManager.abrirPainelExportacao === 'function') {
-            window.ExportManager.abrirPainelExportacao();
+        if (typeof onAfterDelete === 'function') {
+            onAfterDelete();
+        } else if (window.ExportManager && typeof window.ExportManager.abrirPainelExportacao === 'function') {
+            window.ExportManager.abrirPainelExportacao({ pularGuardrail: true });
         }
     });
 };
@@ -1634,10 +1700,16 @@ document.getElementById('goto-page-input')?.addEventListener('keypress', functio
 
 document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
+        const modalGeral = document.getElementById('modal-extrator-geral');
+        if (modalGeral && modalGeral.style.display === 'flex' && window.GeneralPinsManager) {
+            GeneralPinsManager.fecharModal();
+            return;
+        }
+
         if (typeof fecharPopupClassificacao === 'function') fecharPopupClassificacao();
         if (typeof cancelarRecorteWizard === 'function') cancelarRecorteWizard();
-        
-        // NOVO: Delegação genérica para fechamento de modais
+
+        // Delegação genérica para fechamento de modais
         const modaisFechaveis = document.querySelectorAll('.fechavel-por-esc');
         modaisFechaveis.forEach(modal => {
             if (modal.style.display === 'flex' || modal.style.display === 'block') {
@@ -2201,37 +2273,24 @@ window.atualizarStatusBotaoExtrator = function() {
     const btn = document.getElementById('btn-ferramenta-extrator');
     if (!btn) return;
 
-    // Remove o destaque caso não haja aba ativa
     const activeTabId = typeof TopicsManager !== 'undefined' ? TopicsManager.getActiveTabId() : null;
-    if (!activeTabId) {
+    const topico = activeTabId ? topicos.find(t => t.id === activeTabId) : null;
+    if (!topico || !window.JurisPecas) {
         btn.classList.remove('extrator-completo');
+        btn.title = 'Alfinete de Extração (Marcar Início/Fim para IA)';
         return;
     }
 
-    const topico = topicos.find(t => t.id === activeTabId);
-    if (!topico || !topico.marcosExtracao || topico.marcosExtracao.length === 0) {
-        btn.classList.remove('extrator-completo');
-        return;
-    }
+    const totalPaginasPdf = window.PdfEngine?.getPdfDoc?.()?.numPages || null;
+    const marcosGerais = window.GeneralPinsManager ? GeneralPinsManager.getMarcos() : [];
+    const efetivos = JurisPecas.obterMarcosEfetivos(topico, marcosGerais, totalPaginasPdf);
 
-    // Flags para espelhar a exata regra do gerador de payload da IA
-    let hasSentencaInicio = false, hasSentencaFim = false;
-    let hasRecursoInicio = false, hasRecursoFim = false;
+    const hasDecisaoCompleta = efetivos.some(p => p.categoria === 'decisao' && p.completa && !p.invalida);
+    const hasRecursoCompleto = efetivos.some(p => p.categoria === 'recurso' && p.completa && !p.invalida);
 
-    topico.marcosExtracao.forEach(m => {
-        // A lógica espelha: if (docTipo === 'sentenca') { ... } else { /* é recurso */ }
-        if (m.docTipo === 'sentenca') {
-            if (m.fronteira === 'inicio') hasSentencaInicio = true;
-            if (m.fronteira === 'fim') hasSentencaFim = true;
-        } else {
-            if (m.fronteira === 'inicio') hasRecursoInicio = true;
-            if (m.fronteira === 'fim') hasRecursoFim = true;
-        }
-    });
-
-    if (hasSentencaInicio && hasSentencaFim && hasRecursoInicio && hasRecursoFim) {
+    if (hasDecisaoCompleta && hasRecursoCompleto) {
         btn.classList.add('extrator-completo');
-        btn.title = 'Contexto Completo! (Decisão e Recurso mapeados)';
+        btn.title = 'Contexto Completo! (Decisão e Agravo mapeados)';
     } else {
         btn.classList.remove('extrator-completo');
         btn.title = 'Alfinete de Extração (Marcar Início/Fim para IA)';

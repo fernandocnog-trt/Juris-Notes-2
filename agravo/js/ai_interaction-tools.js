@@ -76,18 +76,29 @@ const DropdownManager = (function() {
         _eventosGlobaisRegistrados = true;
     }
 
-    function abrirPortal(triggerEl, topicosArray, selectNativo, onSelectCallback) {
-        fecharAtivo(); 
-        
+    function _renderizarItemHtml(item) {
+        const icone = item.iconHtml
+            ? item.iconHtml
+            : `<div class="jcs-color-dot" style="background-color: ${item.cor};"></div>`;
+        const nomeSeguro = (window.TopicsManager && typeof TopicsManager.escaparHTML === 'function')
+            ? TopicsManager.escaparHTML(item.nome)
+            : item.nome;
+        return `${icone} <span>${nomeSeguro}</span>`;
+    }
+
+    function abrirPortal(triggerEl, itensLista, selectNativo, onSelectCallback, qtdFixos = 0) {
+        fecharAtivo();
+
         _activeTrigger = triggerEl;
         _activeTrigger.setAttribute('aria-expanded', 'true');
 
         const rect = triggerEl.getBoundingClientRect();
-        
+
         _activePortal = document.createElement('div');
         _activePortal.className = 'jcs-options-portal';
         _activePortal.setAttribute('role', 'listbox');
-        
+        _activePortal.setAttribute('data-ignore-outside', 'true');
+
         const desiredWidth = Math.max(rect.width, 380);
         _activePortal.style.width = `${desiredWidth}px`;
 
@@ -96,25 +107,32 @@ const DropdownManager = (function() {
         } else {
             _activePortal.style.left = `${rect.left}px`;
         }
-        
+
         _activePortal.style.top = `${rect.bottom + 4}px`;
 
         let focusedIndex = -1;
         const optionsNodes = [];
 
-        topicosArray.forEach((t, index) => {
+        itensLista.forEach((t, index) => {
+            if (qtdFixos > 0 && index === qtdFixos) {
+                const sep = document.createElement('div');
+                sep.className = 'jcs-separator';
+                sep.setAttribute('role', 'separator');
+                _activePortal.appendChild(sep);
+            }
+
             const opt = document.createElement('div');
-            opt.className = 'jcs-option';
+            opt.className = t.optionClass ? `jcs-option ${t.optionClass}` : 'jcs-option';
             opt.setAttribute('role', 'option');
-            opt.innerHTML = `<div class="jcs-color-dot" style="background-color: ${t.cor};"></div> <span>${t.nome}</span>`;
-            
+            opt.innerHTML = _renderizarItemHtml(t);
+
             const selecionarOpcao = () => {
                 selectNativo.value = t.id;
                 triggerEl.querySelector('.jcs-trigger-content').innerHTML = opt.innerHTML;
-                
+
                 selectNativo.dispatchEvent(new Event('change'));
                 if (onSelectCallback) onSelectCallback(t);
-                
+
                 fecharAtivo();
             };
 
@@ -135,10 +153,10 @@ const DropdownManager = (function() {
         }
 
         _activePortal.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowDown') {
+            if (e.key === 'ArrowDown' && optionsNodes.length > 0) {
                 e.preventDefault();
                 atualizarFoco((focusedIndex + 1) % optionsNodes.length);
-            } else if (e.key === 'ArrowUp') {
+            } else if (e.key === 'ArrowUp' && optionsNodes.length > 0) {
                 e.preventDefault();
                 atualizarFoco((focusedIndex - 1 + optionsNodes.length) % optionsNodes.length);
             } else if (e.key === 'Enter' && focusedIndex >= 0) {
@@ -150,23 +168,31 @@ const DropdownManager = (function() {
             }
         });
 
-        document.body.appendChild(_activePortal); 
+        document.body.appendChild(_activePortal);
         _activePortal.setAttribute('tabindex', '-1');
-        _activePortal.focus(); 
+        _activePortal.focus();
     }
 
-    function renderizar(selectId, topicosArray, preSelecionadoId = null, onSelectCallback = null) {
+    function renderizar(selectId, topicosArray, preSelecionadoId = null, onSelectCallback = null, opcoes = {}) {
         registrarEventosGerais();
-        
+
         const selectNativo = document.getElementById(selectId);
         if (!selectNativo) return;
 
-        const topicosOrdenados = [...topicosArray].reverse();
+        // Mantém 'Selecione o Tópico...' como padrão para não afetar crop-topic-select e seletor-topico
+        const placeholder = opcoes.placeholder || 'Selecione o Tópico...';
+        const fixosNoTopo = Array.isArray(opcoes.fixosNoTopo) ? opcoes.fixosNoTopo : [];
+        const topicosOrdenados = [...fixosNoTopo, ...[...topicosArray].reverse()];
 
-        selectNativo.innerHTML = '<option value="">Selecione o Tópico...</option>';
-        topicosOrdenados.forEach(t => selectNativo.appendChild(new Option(t.nome, t.id)));
+        selectNativo.innerHTML = '';
+        selectNativo.appendChild(new Option(placeholder, ''));
+        topicosOrdenados.forEach(t => {
+            const optionEl = new Option(t.nome, t.id);
+            if (t.cor) optionEl.dataset.cor = t.cor;
+            selectNativo.appendChild(optionEl);
+        });
         if (preSelecionadoId) selectNativo.value = preSelecionadoId;
-        
+
         selectNativo.classList.add('sr-only');
 
         const wrapperAntigo = selectNativo.nextElementSibling;
@@ -176,11 +202,14 @@ const DropdownManager = (function() {
 
         const wrapper = document.createElement('div');
         wrapper.className = 'juris-custom-select';
-        
-        const topicoInicial = topicosOrdenados.find(t => t.id === preSelecionadoId);
-        const triggerHtml = topicoInicial 
-            ? `<div class="jcs-color-dot" style="background-color: ${topicoInicial.cor};"></div> <span>${topicoInicial.nome}</span>`
-            : `<span class="jcs-placeholder-text">Selecione o Tópico...</span>`;
+
+        const itemInicial = topicosOrdenados.find(t => t.id === preSelecionadoId);
+        const placeholderSeguro = (window.TopicsManager && typeof TopicsManager.escaparHTML === 'function')
+            ? TopicsManager.escaparHTML(placeholder)
+            : placeholder;
+        const triggerHtml = itemInicial
+            ? _renderizarItemHtml(itemInicial)
+            : `<span class="jcs-placeholder-text">${placeholderSeguro}</span>`;
 
         wrapper.innerHTML = `
             <div class="jcs-trigger" tabindex="0" role="combobox" aria-haspopup="listbox" aria-expanded="false">
@@ -196,7 +225,7 @@ const DropdownManager = (function() {
         const abrir = (e) => {
             e.preventDefault();
             e.stopPropagation();
-            abrirPortal(triggerBtn, topicosOrdenados, selectNativo, onSelectCallback);
+            abrirPortal(triggerBtn, topicosOrdenados, selectNativo, onSelectCallback, fixosNoTopo.length);
         };
 
         triggerBtn.addEventListener('click', abrir);
@@ -846,28 +875,33 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 window.iniciarMarcadorExtracao = function() {
-    if (topicos.length === 0) {
-        exibirToast('Crie um tópico recursal primeiro.', 'aviso'); return;
+    if (!window.PdfEngine || !PdfEngine.getPdfDoc()) {
+        exibirToast('Carregue um PDF primeiro.', 'aviso'); return;
     }
-    if (modoRecorteAtivo) desativarOverlayRecorte(); 
-    
+    if (modoRecorteAtivo) desativarOverlayRecorte();
+
     modoExtratorAtivo = true;
     document.body.classList.add('modo-extrator-ativo');
-    
+
     const r = document.getElementById('pdf-container').getBoundingClientRect();
     overlay.style.cssText = `position:fixed; left:${r.left}px; top:${r.top}px; width:${r.width}px; height:${r.height}px; display:block;`;
-    
+
     exibirToast('Clique na linha do PDF onde o texto começa ou termina.', 'info');
 };
 
 window.salvarMarcadorExtracao = function() {
-    const topicoId = document.getElementById('extrator-topic-select').value;
+    const destinoId = document.getElementById('extrator-topic-select').value;
+    if (!destinoId) {
+        exibirToast('Selecione "Peças Gerais" ou um Tópico Recursal.', 'aviso');
+        return;
+    }
+
     const selectValue = document.getElementById('extrator-doc-select').value;
     const fronteira = document.getElementById('extrator-fronteira-select').value;
-    
+
     let docTipo = selectValue;
     let docLabel = null;
-    
+
     if (selectValue === 'custom') {
         const rawInput = document.getElementById('extrator-doc-custom').value.replace(/\s+/g, ' ').trim();
         if (rawInput.length < 3) {
@@ -876,32 +910,42 @@ window.salvarMarcadorExtracao = function() {
         }
         docTipo = _gerarSlugSeguro(rawInput);
         docLabel = rawInput;
-        
+
         // Guarda de colisão contra chaves do sistema
         if (Array.from(document.getElementById('extrator-doc-select').options).some(opt => opt.value === docTipo)) {
             exibirToast('Esta peça já existe nas opções padrão.', 'aviso');
             return;
         }
     }
-    
-    const topico = topicos.find(t => t.id === topicoId);
-    if (!topico.marcosExtracao) topico.marcosExtracao = [];
-    
-    topico.marcosExtracao = topico.marcosExtracao.filter(m => !(m.docTipo === docTipo && m.fronteira === fronteira));
-    
+
     // Persistência Híbrida: injeta o docLabel apenas se existir
     const payload = { ...extratorTempState, docTipo, fronteira };
     if (docLabel) payload.docLabel = docLabel;
-    
-    topico.marcosExtracao.push(payload);
 
-    cancelarMarcadorExtracao();
-    exibirToast(`Marco de ${fronteira} definido com sucesso!`, 'sucesso');
-    
-    if(window.sincronizarHighlightsGerais) window.sincronizarHighlightsGerais();
-    if(typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
-    
-    // [NOVO] Valida o botão imediatamente após salvar um novo marco
+    if (window.GeneralPinsManager && destinoId === GeneralPinsManager.GENERAL_ID) {
+        GeneralPinsManager.salvarMarco(payload);
+        GeneralPinsManager.registrarUltimoMarcoSalvo(destinoId, docTipo, docLabel, fronteira);
+        cancelarMarcadorExtracao();
+        exibirToast(`Marco de ${fronteira} salvo em "Peças Gerais"!`, 'sucesso');
+    } else {
+        const topico = topicos.find(t => t.id === destinoId);
+        if (!topico) {
+            exibirToast('Tópico de destino não encontrado.', 'erro');
+            return;
+        }
+        if (!topico.marcosExtracao) topico.marcosExtracao = [];
+        topico.marcosExtracao = topico.marcosExtracao.filter(m => !(m.docTipo === docTipo && m.fronteira === fronteira));
+        topico.marcosExtracao.push(payload);
+
+        if (window.GeneralPinsManager) {
+            GeneralPinsManager.registrarUltimoMarcoSalvo(destinoId, docTipo, docLabel, fronteira);
+        }
+        cancelarMarcadorExtracao();
+        exibirToast(`Marco de ${fronteira} definido com sucesso!`, 'sucesso');
+    }
+
+    if (window.sincronizarHighlightsGerais) window.sincronizarHighlightsGerais();
+    if (typeof salvarBackupAutomatico === 'function') salvarBackupAutomatico();
     if (window.atualizarStatusBotaoExtrator) window.atualizarStatusBotaoExtrator();
 };
 
@@ -962,8 +1006,43 @@ overlay.addEventListener('mousedown', function (e) {
         overlay.style.display = 'none';
 
         const activeTabId = (typeof TopicsManager !== 'undefined') ? TopicsManager.getActiveTabId() : null;
-        DropdownManager.renderizar('extrator-topic-select', topicos, activeTabId);
-        
+        const sugestao = window.GeneralPinsManager
+            ? GeneralPinsManager.consumirSugestaoProximaMarcacao(topicos, activeTabId)
+            : { destinoId: activeTabId, docTipo: null, docLabel: null, fronteira: 'inicio' };
+
+        DropdownManager.renderizar(
+            'extrator-topic-select',
+            topicos,
+            sugestao.destinoId,
+            null,
+            {
+                placeholder: 'Selecione o Destino...',
+                fixosNoTopo: window.GeneralPinsManager ? [GeneralPinsManager.VIRTUAL_TOPIC] : []
+            }
+        );
+
+        const selectDoc = document.getElementById('extrator-doc-select');
+        const inputCustom = document.getElementById('extrator-doc-custom');
+        const selectFronteira = document.getElementById('extrator-fronteira-select');
+
+        if (selectDoc && sugestao.docTipo) {
+            const existeOpcao = Array.from(selectDoc.options).some(opt => opt.value === sugestao.docTipo);
+            if (existeOpcao) {
+                selectDoc.value = sugestao.docTipo;
+                if (inputCustom) {
+                    inputCustom.setAttribute('hidden', '');
+                    inputCustom.value = '';
+                }
+            } else if (sugestao.docLabel && inputCustom) {
+                selectDoc.value = 'custom';
+                inputCustom.removeAttribute('hidden');
+                inputCustom.value = sugestao.docLabel;
+            }
+        }
+        if (selectFronteira) {
+            selectFronteira.value = sugestao.fronteira || 'inicio';
+        }
+
         document.getElementById('extrator-modal-backdrop').style.display = 'block';
         document.getElementById('extrator-wizard-popup').style.display = 'flex';
         return; // Early return bloqueia a execução do Recorte
@@ -1154,14 +1233,16 @@ window.QuickRedactManager = (function() {
         'ctx-minuta-anterior',
         'ctx-rascunho-ia',
         'ctx-teor-sentenca',
-        'ctx-teor-recurso'
+        'ctx-teor-recurso',
+        'ctx-teor-outras'
     ];
 
     const CAMPOS_EDITAVEIS = [
         'ctx-minuta-anterior',
         'ctx-rascunho-ia',
         'ctx-teor-sentenca',
-        'ctx-teor-recurso'
+        'ctx-teor-recurso',
+        'ctx-teor-outras'
     ];
 
     // Estado interno de sessão da UI
@@ -1533,10 +1614,20 @@ window.QuickRedactManager = (function() {
 
 /* --- FUNÇÃO DE LIMPEZA MANUAL --- */
 window.limparAreaInternaLGPD = function() {
-    document.getElementById('ctx-teor-sentenca').value = '';
-    document.getElementById('ctx-teor-recurso').value = '';
+    const elSent = document.getElementById('ctx-teor-sentenca');
+    const elRec = document.getElementById('ctx-teor-recurso');
+    const elOutras = document.getElementById('ctx-teor-outras');
+    const boxOutras = document.getElementById('box-ctx-outras-pecas');
+
+    if (elSent) elSent.value = '';
+    if (elRec) elRec.value = '';
+    if (elOutras) elOutras.value = '';
+    if (boxOutras) boxOutras.style.display = 'none';
+
     sessionStorage.removeItem('juris_ctx_sentenca');
     sessionStorage.removeItem('juris_ctx_recurso');
+    sessionStorage.removeItem('juris_ctx_outras');
+    sessionStorage.removeItem('juris_ctx_topico_ref');
     exibirToast('Área restrita limpa.', 'info');
 };
 
@@ -1664,25 +1755,27 @@ window.limparAreaInternaLGPD = function() {
     }
 })();
 
-/* --- ATUALIZAÇÃO DO AUTO-SAVE COM INJEÇÃO DE HASH DO PROCESSO --- */
+/* --- ATUALIZAÇÃO DO AUTO-SAVE COM INJEÇÃO DE HASH DO PROCESSO E TÓPICO --- */
 window.salvarRascunhoContextoDebounced = _debounce(function() {
     try {
-        const minuta = document.getElementById('ctx-minuta-anterior').value;
-        const rascunho = document.getElementById('ctx-rascunho-ia').value;
-        const sentenca = document.getElementById('ctx-teor-sentenca').value;
-        const recurso = document.getElementById('ctx-teor-recurso').value;
-        
-        // Captura o processo atual como ID de Segurança
+        const minuta = document.getElementById('ctx-minuta-anterior')?.value || '';
+        const rascunho = document.getElementById('ctx-rascunho-ia')?.value || '';
+        const sentenca = document.getElementById('ctx-teor-sentenca')?.value || '';
+        const recurso = document.getElementById('ctx-teor-recurso')?.value || '';
+        const outras = document.getElementById('ctx-teor-outras')?.value || '';
+
         const tagProcesso = document.getElementById('tag-numero-processo');
         const numProcesso = tagProcesso ? tagProcesso.textContent.trim() : 'sem-processo';
-        
+        const activeTabId = typeof TopicsManager !== 'undefined' ? (TopicsManager.getActiveTabId() || '') : '';
+
         sessionStorage.setItem('juris_ctx_minuta', minuta);
         sessionStorage.setItem('juris_ctx_rascunho', rascunho);
-        
-        // Só salva o sigilo se houver dados, amarrado ao ID do processo atual
         sessionStorage.setItem('juris_ctx_sentenca', sentenca);
         sessionStorage.setItem('juris_ctx_recurso', recurso);
+        if (outras.trim()) sessionStorage.setItem('juris_ctx_outras', outras);
+        else sessionStorage.removeItem('juris_ctx_outras');
         sessionStorage.setItem('juris_ctx_processo_ref', numProcesso);
+        sessionStorage.setItem('juris_ctx_topico_ref', activeTabId);
     } catch (e) {
         console.warn('Falha ao acessar sessionStorage:', e);
     }
@@ -1753,7 +1846,7 @@ window.alternarAuditoriaCriticaIA = function(ativo) {
     }
 };
 
-/* --- ABERTURA ASSÍNCRONA DO MODAL DE CONTEXTO (COM EXTRAÇÃO JIT) --- */
+/* --- ABERTURA ASSÍNCRONA DO MODAL DE CONTEXTO (COM EXTRAÇÃO JIT, TRAVA DE CONCORRÊNCIA E ISOLAMENTO POR TÓPICO) --- */
 window.abrirModalGeradorContexto = async function() {
     if (!window.ExportManager) return;
 
@@ -1769,6 +1862,11 @@ window.abrirModalGeradorContexto = async function() {
         return;
     }
 
+    if (typeof window.ExportManager?.isExporting === 'function' && ExportManager.isExporting()) {
+        exibirToast('Aguarde a exportação de PDF em andamento terminar.', 'aviso');
+        return;
+    }
+
     // 1. UI UNBLOCKING: Feedback visual imediato antes da operação pesada na Main Thread
     const btnGerador = document.getElementById('btn-gerador-contexto');
     const originalHTML = btnGerador.innerHTML;
@@ -1779,87 +1877,85 @@ window.abrirModalGeradorContexto = async function() {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     try {
-        // 2. EXTRAÇÃO ASSÍNCRONA DINÂMICA (Baseada nos Pinos)
-        const topicoBruto = topicos.find(t => t.id === TopicsManager.getActiveTabId());
+        // 2. ESCOPO DE SESSÃO (PROCESSO + TÓPICO) E EXTRAÇÃO ASSÍNCRONA DINÂMICA
+        const activeTabId = typeof TopicsManager !== 'undefined' ? TopicsManager.getActiveTabId() : null;
+        const topicoBruto = topicos.find(t => t.id === activeTabId);
         _atualizarBadgeDiagnosticoEpistemologico(topicoBruto);
-        
-        if (topicoBruto && topicoBruto.marcosExtracao && topicoBruto.marcosExtracao.length > 0) {
-            // Agrupar marcos pareados por tipo de documento
-            const agrupados = topicoBruto.marcosExtracao.reduce((acc, curr) => {
-                if(!acc[curr.docTipo]) acc[curr.docTipo] = {};
-                acc[curr.docTipo][curr.fronteira] = curr;
-                return acc;
-            }, {});
 
-            let sentencaXML = "";
-            let recursoXML = "";
+        const tagProcesso = document.getElementById('tag-numero-processo');
+        const numProcessoAtual = tagProcesso ? (tagProcesso.textContent.trim() || 'Não informado') : 'Não informado';
 
-            for (const [docTipo, limites] of Object.entries(agrupados)) {
-                if (limites.inicio && limites.fim) {
-                    const pInicio = Math.min(limites.inicio.pagina, limites.fim.pagina);
-                    const pFim = Math.max(limites.inicio.pagina, limites.fim.pagina);
-                    const amostrasMap = new Map();
+        let mudouProcesso = false;
+        let mudouTopico = false;
+        try {
+            const processoSalvoRef = sessionStorage.getItem('juris_ctx_processo_ref');
+            const topicoSalvoRef = sessionStorage.getItem('juris_ctx_topico_ref');
+            mudouProcesso = Boolean(processoSalvoRef && processoSalvoRef !== numProcessoAtual);
+            mudouTopico = Boolean(topicoSalvoRef && activeTabId && topicoSalvoRef !== activeTabId);
 
-                    // EXTRAÇÃO COM COLETA DE AMOSTRAGEM (necessária para a camada automática de ruído)
-                    const textoBruto = await window.PdfEngine.extrairTextoPorRegiao(
-                        limites.inicio,
-                        limites.fim,
-                        null, // onProgress — não usado neste fluxo
-                        (pageNum, rawText) => {
-                            if (pageNum === pInicio + 1 || pageNum === pInicio + 2 || pageNum === pFim - 1) {
-                                amostrasMap.set(pageNum, rawText);
-                            }
-                        }
-                    );
-
-                    let textoLimpo = window.JurisUtils.limparTextoPDF(textoBruto);
-
-                    // DELEGAÇÃO INTEGRAL DA SANITIZAÇÃO (mesma função usada na exportação TXT)
-                    if (typeof window.ExportManager?.aplicarFiltrosAvancados === 'function') {
-                        textoLimpo = window.ExportManager.aplicarFiltrosAvancados(textoLimpo, docTipo, amostrasMap, pInicio, pFim);
-                    }
-
-                    // ENVELOPAMENTO EPISTEMOLÓGICO DO INTEIRO TEOR
-                    const xml = (typeof window.ExportManager?.enveloparTeorIntegral === 'function')
-                        ? `\n${window.ExportManager.enveloparTeorIntegral(docTipo, textoLimpo)}\n`
-                        : `\n<${docTipo.toUpperCase()}>\n${textoLimpo}\n</${docTipo.toUpperCase()}>\n`;
-
-                    if (docTipo === 'sentenca') sentencaXML += xml;
-                    else recursoXML += xml;
-                }
+            if (mudouProcesso || mudouTopico) {
+                sessionStorage.removeItem('juris_ctx_sentenca');
+                sessionStorage.removeItem('juris_ctx_recurso');
+                sessionStorage.removeItem('juris_ctx_outras');
             }
+        } catch (e) { /* Ignora se sessionStorage estiver bloqueado */ }
 
-            // Injeta nas textareas protegidas por LGPD
-            if (sentencaXML) sessionStorage.setItem('juris_ctx_sentenca', sentencaXML.trim());
-            if (recursoXML) sessionStorage.setItem('juris_ctx_recurso', recursoXML.trim());
+        const totalPaginasPdf = window.PdfEngine?.getPdfDoc?.()?.numPages || null;
+        const marcosGerais = window.GeneralPinsManager ? GeneralPinsManager.getMarcos() : [];
+        const pecasEfetivas = (topicoBruto && window.JurisPecas)
+            ? JurisPecas.obterMarcosEfetivos(topicoBruto, marcosGerais, totalPaginasPdf).filter(p => p.completa && !p.invalida)
+            : [];
+
+        if (pecasEfetivas.length > 0 && window.ExportManager?.extrairTeoresIntegrais) {
+            const extraidos = await ExportManager.extrairTeoresIntegrais(pecasEfetivas);
+
+            let sentencaXML = '';
+            let recursoXML = '';
+            let outrasXML = '';
+
+            extraidos.forEach(item => {
+                const bloco = `\n${item.envelopado}\n`;
+                if (item.categoria === 'decisao') sentencaXML += bloco;
+                else if (item.categoria === 'recurso') recursoXML += bloco;
+                else outrasXML += bloco; // 'resposta' (contraminuta/contrarrazões) e 'outra' (recurso trancado/custom_*)
+            });
+
+            try {
+                if (sentencaXML) sessionStorage.setItem('juris_ctx_sentenca', sentencaXML.trim());
+                else if (mudouTopico) sessionStorage.removeItem('juris_ctx_sentenca');
+
+                if (recursoXML) sessionStorage.setItem('juris_ctx_recurso', recursoXML.trim());
+                else if (mudouTopico) sessionStorage.removeItem('juris_ctx_recurso');
+
+                // Sempre remove juris_ctx_outras se a extração atual não produziu peças complementares
+                if (outrasXML) sessionStorage.setItem('juris_ctx_outras', outrasXML.trim());
+                else sessionStorage.removeItem('juris_ctx_outras');
+            } catch (e) { /* Ignora se sessionStorage estiver bloqueado */ }
         }
 
-        // 3. FLUXO ORIGINAL DE ABERTURA DO MODAL
+        // 3. ABERTURA E HIDRATAÇÃO DO MODAL
         const painelPdf = document.getElementById('pdf-container');
         const painelAnotacoes = document.getElementById('history-container');
         if (painelPdf) painelPdf.classList.add('pdf-foco-ativo');
         if (painelAnotacoes) painelAnotacoes.classList.add('pdf-foco-ativo');
 
-        const tagProcesso = document.getElementById('tag-numero-processo');
-        const numProcessoAtual = tagProcesso ? (tagProcesso.textContent.trim() || 'Não informado') : 'Não informado';
-        
         document.getElementById('ctx-metadados').value = `Processo: ${numProcessoAtual}\nTópico: ${dadosTopico.nome}`;
         document.getElementById('ctx-diretrizes').value = dadosTopico.markdown;
-        
+
         try {
+            sessionStorage.setItem('juris_ctx_processo_ref', numProcessoAtual);
+            sessionStorage.setItem('juris_ctx_topico_ref', activeTabId || '');
+
             document.getElementById('ctx-minuta-anterior').value = sessionStorage.getItem('juris_ctx_minuta') || '';
             document.getElementById('ctx-rascunho-ia').value = sessionStorage.getItem('juris_ctx_rascunho') || '';
-            
-            const processoSalvoRef = sessionStorage.getItem('juris_ctx_processo_ref');
-            
-            if (processoSalvoRef && processoSalvoRef !== numProcessoAtual) {
-                console.info("JurisNotes (AI): Troca de contexto detectada. Limpando cache sigiloso anterior.");
-                window.limparAreaInternaLGPD();
-                sessionStorage.setItem('juris_ctx_processo_ref', numProcessoAtual);
-            } else {
-                document.getElementById('ctx-teor-sentenca').value = sessionStorage.getItem('juris_ctx_sentenca') || '';
-                document.getElementById('ctx-teor-recurso').value = sessionStorage.getItem('juris_ctx_recurso') || '';
-            }
+            document.getElementById('ctx-teor-sentenca').value = sessionStorage.getItem('juris_ctx_sentenca') || '';
+            document.getElementById('ctx-teor-recurso').value = sessionStorage.getItem('juris_ctx_recurso') || '';
+
+            const elOutras = document.getElementById('ctx-teor-outras');
+            const boxOutras = document.getElementById('box-ctx-outras-pecas');
+            const valorOutras = sessionStorage.getItem('juris_ctx_outras') || '';
+            if (elOutras) elOutras.value = valorOutras;
+            if (boxOutras) boxOutras.style.display = valorOutras.trim() ? 'block' : 'none';
         } catch (e) { /* Ignora se bloqueado por restrições do navegador */ }
 
         // Inicializa snapshots de reversão, aplica chips salvos e agenda o Radar em idle time
@@ -1871,8 +1967,12 @@ window.abrirModalGeradorContexto = async function() {
         document.getElementById('modal-gerador-contexto').style.display = 'flex';
 
     } catch (error) {
-        console.error("Erro na compilação do contexto:", error);
-        exibirToast("Erro ao processar os trechos. Tente marcar novamente.", "erro");
+        if (error && error.message === 'EXPORT_BUSY') {
+            exibirToast('Aguarde a exportação em andamento terminar antes de abrir o Gerador.', 'aviso');
+        } else {
+            console.error("Erro na compilação do contexto:", error);
+            exibirToast("Erro ao processar os trechos. Tente marcar novamente.", "erro");
+        }
     } finally {
         // Restaura botão original
         btnGerador.innerHTML = originalHTML;
@@ -1926,15 +2026,16 @@ window.gerarECopiarContexto = function(modo = 'pro') {
     if (modo === 'interno') {
         const sentenca = document.getElementById('ctx-teor-sentenca').value.trim();
         const recurso = document.getElementById('ctx-teor-recurso').value.trim();
+        const outrasPecas = document.getElementById('ctx-teor-outras')?.value.trim() || '';
         const envelopar = window.ExportManager?.enveloparTeorIntegral;
 
-        if (sentenca || recurso) {
+        if (sentenca || recurso || outrasPecas) {
             outputFinal += "<acervo_de_inteiros_teores_nao_vinculantes>\n";
             outputFinal += "[REGRA DE HIERARQUIA]: Os inteiros teores abaixo servem apenas de consulta processual e aferição de dialeticidade/limites do agravo. Jamais sobreponha alegações das partes ou fundamentos superados da origem aos Nós de Ideia.\n\n";
             if (sentenca) {
                 const blocoSentenca = typeof envelopar === 'function' ? envelopar('sentenca', sentenca) : sentenca;
                 outputFinal += "  <inteiro_teor_sentenca>\n";
-                outputFinal += `    ${blocoSentenca.replace(/\n/g, '\n    ')}\n`; 
+                outputFinal += `    ${blocoSentenca.replace(/\n/g, '\n    ')}\n`;
                 outputFinal += "  </inteiro_teor_sentenca>\n\n";
             }
             if (recurso) {
@@ -1942,6 +2043,12 @@ window.gerarECopiarContexto = function(modo = 'pro') {
                 outputFinal += "  <inteiro_teor_recurso>\n";
                 outputFinal += `    ${blocoRecurso.replace(/\n/g, '\n    ')}\n`;
                 outputFinal += "  </inteiro_teor_recurso>\n";
+            }
+            if (outrasPecas) {
+                const blocoOutras = typeof envelopar === 'function' ? envelopar('outras_pecas', outrasPecas) : outrasPecas;
+                outputFinal += "\n  <outras_pecas_autos>\n";
+                outputFinal += `    ${blocoOutras.replace(/\n/g, '\n    ')}\n`;
+                outputFinal += "  </outras_pecas_autos>\n";
             }
             outputFinal += "</acervo_de_inteiros_teores_nao_vinculantes>\n";
             outputFinal += lembreteFinal;
@@ -2016,21 +2123,26 @@ document.addEventListener('mouseover', (e) => {
     const docTipo = pin.dataset.tooltipDoc;
     const topicoNome = pin.dataset.tooltipTopico;
 
-    // Dicionário visual adaptado para o Módulo AI (Preservando as chaves deste painel)
-    const docNomes = { 
-        sentenca: "Decisão / Sentença", 
-        recurso_autora: "Agravo (Autora)", 
-        recurso_re: "Agravo (Ré)", 
-        contrarrazões_autora: "Contraminuta (Autora)", 
-        contrarrazões_re: "Contraminuta (Ré)", 
-        inicial: "Recurso Ordinário" 
+    // Dicionário fallback adaptado ao Módulo AI (usado apenas se JurisPecas ainda não estiver carregado)
+    const docNomesFallback = {
+        sentenca: "Decisão Agravada / Sentença",
+        recurso_autora: "Agravo de Instrumento (Autora)",
+        recurso_re: "Agravo de Instrumento (Ré)",
+        contrarrazões_autora: "Contraminuta (Autora)",
+        contrarrazões_re: "Contraminuta (Ré)",
+        inicial: "Recurso Ordinário Trancado"
     };
-    
-    // Resolução segura de exibição: prioriza o docLabel, faz fallback pro dicionário, e último fallback humanizando o slug
-    const rawName = pin.dataset.tooltipDocLabel || docNomes[docTipo] || (docTipo ? docTipo.replace(/^custom_/, '').toUpperCase() : 'DESCONHECIDO');
+
+    const rawName = window.JurisPecas
+        ? JurisPecas.resolverNome(docTipo, pin.dataset.tooltipDocLabel)
+        : (pin.dataset.tooltipDocLabel || docNomesFallback[docTipo] || (docTipo ? docTipo.replace(/^custom_/, '').toUpperCase() : 'DESCONHECIDO'));
     const nomeBonito = window.TopicsManager ? TopicsManager.escaparHTML(rawName) : rawName;
-    
     const safeTopicoNome = window.TopicsManager ? TopicsManager.escaparHTML(topicoNome) : topicoNome;
+
+    const qtdVinculos = parseInt(pin.dataset.tooltipVinculos || '0', 10);
+    const linhaVinculos = pin.classList.contains('pdf-extrator-pin--geral')
+        ? `<br><b>Vínculos:</b> ${qtdVinculos > 0 ? `Vinculada a ${qtdVinculos} tópico(s)` : 'Sem tópicos vinculados ainda'}`
+        : '';
 
     const corFronteira = fronteira === 'INÍCIO' ? '#34db98' : '#e74c3c';
 
@@ -2039,7 +2151,7 @@ document.addEventListener('mouseover', (e) => {
         <strong style="color: ${corFronteira};">📍 MARCO DE ${fronteira}</strong>
         <span style="display:block; margin-top:4px; font-size: 0.8rem; color:#ecf0f1;">
             <b>Doc:</b> ${nomeBonito}<br>
-            <b>Tópico:</b> ${safeTopicoNome}
+            <b>Tópico:</b> ${safeTopicoNome}${linhaVinculos}
         </span>
     `;
 
