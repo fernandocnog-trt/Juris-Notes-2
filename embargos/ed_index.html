@@ -123,6 +123,11 @@
             <polyline points="2 17 12 22 22 17"></polyline>
             <polyline points="2 12 12 17 22 12"></polyline>
         </symbol>
+        <symbol id="icon-pangea-gab" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            <path d="M12 2v7l2.5-1.5L17 9V2"></path>
+        </symbol>
     </svg>
 
     <!-- ========================================== -->
@@ -342,6 +347,10 @@
                 
                 <button class="icon-btn" id="btn-juris-prompts" onclick="PromptUIController.abrirModal()" title="Juris Prompts (Gestor de Modelos de IA)">
                     <svg viewBox="0 0 24 24"><use href="#icon-robot"></use></svg>
+                </button>
+
+                <button class="icon-btn" id="btn-pangea-gab" onclick="window.PangeaGabController?.abrirModal()" title="PangeaGAB (Modelos do Gabinete)" disabled>
+                    <svg viewBox="0 0 24 24"><use href="#icon-pangea-gab"></use></svg>
                 </button>
                 
             </div>
@@ -566,27 +575,31 @@
                 const APP_VERSION = '3.3.1'; // Incrementado para cache-busting atômico do módulo ED
                 const SHARED_TOOLS_VERSIONS = {
                     relatorio: '1.0.0', // Versionamento independente de ../ferramentas/juris-relatorio.*
-                    prompts:   '2.2.0'  // Mantém a mesma URL entre módulos para reaproveitar cache HTTP
+                    prompts:   '2.2.0', // Mantém a mesma URL entre módulos para reaproveitar cache HTTP
+                    pangea:    '2.1.0'  // Mantém a mesma URL entre módulos (RO/AI/ED) para reaproveitar cache HTTP
                 };
                 const withVersion = (path, version) => `${path.split('?')[0]}?v=${version}`;
 
-                // PASSO 1: Injeção Idempotente de Templates e Módulos (Assets de ED e Ferramentas Compartilhadas)
+                // PASSO 1: Injeção Idempotente de Templates e Módulos (Assets de ED e Ferramentas Compartilhadas com isolamento de falhas)
                 const assets = [
-                    { html: 'ed_modais.html', js: null, id: 'modal-gerador-contexto', version: APP_VERSION },
-                    { html: '../ferramentas/juris-relatorio.template.html', js: '../ferramentas/juris-relatorio.js', id: 'modal-juris-relatorio', version: SHARED_TOOLS_VERSIONS.relatorio },
-                    { html: '../ferramentas/juris-prompts.template.html',   js: '../ferramentas/juris-prompts.js',   id: 'modal-juris-prompts',   version: SHARED_TOOLS_VERSIONS.prompts }
+                    { html: 'ed_modais.html', js: null, id: 'modal-gerador-contexto', version: APP_VERSION, required: true },
+                    { html: '../ferramentas/juris-relatorio.template.html', js: '../ferramentas/juris-relatorio.js', id: 'modal-juris-relatorio', version: SHARED_TOOLS_VERSIONS.relatorio, required: false },
+                    { html: '../ferramentas/juris-prompts.template.html',   js: '../ferramentas/juris-prompts.js',   id: 'modal-juris-prompts',   version: SHARED_TOOLS_VERSIONS.prompts,   required: false },
+                    { html: '../ferramentas/juris-pangea.template.html',    js: '../ferramentas/juris-pangea.js',    id: 'modal-pangea-gab',      version: SHARED_TOOLS_VERSIONS.pangea,    required: false }
                 ];
 
                 for (const asset of assets) {
-                    if (!document.getElementById(asset.id)) {
-                        const res = await fetch(withVersion(asset.html, asset.version));
-                        if (res.ok) {
-                            const htmlText = await res.text();
-                            document.getElementById('modais-dinamicos-container').insertAdjacentHTML('beforeend', htmlText);
-                            if (asset.js) await import(withVersion(asset.js, asset.version));
-                        } else if (asset.html === 'ed_modais.html') {
-                            throw new Error(`Falha no fetch do ed_modais.html (Status: ${res.status})`);
-                        }
+                    if (document.getElementById(asset.id)) continue;
+                    try {
+                        const htmlUrl = withVersion(asset.html, asset.version);
+                        const res = await fetch(htmlUrl);
+                        if (!res.ok) throw new Error(`Status HTTP ${res.status} em ${htmlUrl}`);
+                        const htmlText = await res.text();
+                        document.getElementById('modais-dinamicos-container').insertAdjacentHTML('beforeend', htmlText);
+                        if (asset.js) await import(withVersion(asset.js, asset.version));
+                    } catch (assetErr) {
+                        if (asset.required) throw assetErr;
+                        console.warn(`⚠️ Ferramenta opcional indisponível (${asset.id}):`, assetErr);
                     }
                 }
 
