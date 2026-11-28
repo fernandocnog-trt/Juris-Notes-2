@@ -900,52 +900,13 @@ function adicionarSubAnotacao(topicoId, anotacaoIndex, cIdx = null) {
 let _ideiaContextoTese = null;
 let _autoTeseRequestId = 0; // Controle monotônico contra Race Conditions assíncronas
 
-// Regex pré-compiladas em escopo de módulo (Hoisting para zero overhead no V8)
-const _REGEX_TAGS_HTML_RESIDUAIS = /<[^>]*>/g;
-const _REGEX_CPF_LGPD = /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g;
-const _REGEX_CNPJ_LGPD = /\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g;
-const _REGEX_EMAIL_LGPD = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
-const _REGEX_TEL_LGPD = /(?:\+?55\s?)?(?:\(?\d{2}\)?\s?)?\b9?\d{4}-?\d{4}\b/g;
-
 function _sanitizarTextoParaIA(textoBruto, limiteCaracteres = 500) {
+    if (window.JurisUtils && typeof window.JurisUtils.sanitizarParaIA === 'function') {
+        return window.JurisUtils.sanitizarParaIA(textoBruto, limiteCaracteres);
+    }
     if (!textoBruto || typeof textoBruto !== 'string') return '';
-
-    // 1. Remove tags HTML residuais e limpa ruídos de PDF/Markdown
-    let texto = textoBruto.replace(_REGEX_TAGS_HTML_RESIDUAIS, ' ');
-    if (window.JurisUtils) {
-        if (typeof window.JurisUtils.limparTextoPDF === 'function') {
-            texto = window.JurisUtils.limparTextoPDF(texto);
-        }
-        if (typeof window.JurisUtils.limparEscapeMarkdown === 'function') {
-            texto = window.JurisUtils.limparEscapeMarkdown(texto);
-        }
-    }
-
-    // 2. Mascaramento automático de PII (LGPD: CPF, CNPJ, E-mail, Telefone)
-    texto = texto
-        .replace(_REGEX_CPF_LGPD, '[CPF OCULTADO]')
-        .replace(_REGEX_CNPJ_LGPD, '[CNPJ OCULTADO]')
-        .replace(_REGEX_EMAIL_LGPD, '[EMAIL OCULTADO]')
-        .replace(_REGEX_TEL_LGPD, '[TELEFONE OCULTADO]');
-
-    // 3. Integração com termos customizados do QuickRedactManager (se ativo na sessão)
-    if (window.QuickRedactManager && typeof window.QuickRedactManager.aplicarFiltroEmTexto === 'function') {
-        texto = window.QuickRedactManager.aplicarFiltroEmTexto(texto);
-    } else {
-        // Fallback: lê os chips ativos renderizados no painel LGPD caso a API interna varie
-        const chipsAtivos = document.querySelectorAll('#lista-chips-lgpd .redact-chip');
-        chipsAtivos.forEach(chip => {
-            const termo = chip.firstChild?.textContent?.trim();
-            if (termo && termo.length >= 2) {
-                const escapado = termo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                texto = texto.replace(new RegExp(escapado, 'gi'), '[TERMO OCULTADO]');
-            }
-        });
-    }
-
-    // 4. Normalização de espaços e truncamento seguro de janela de contexto
-    texto = texto.replace(/\s+/g, ' ').trim();
-    return texto.length > limiteCaracteres ? texto.substring(0, limiteCaracteres) + '...' : texto;
+    const limpo = textoBruto.replace(/\s+/g, ' ').trim();
+    return limpo.length > limiteCaracteres ? limpo.slice(0, limiteCaracteres).trimEnd() + '...' : limpo;
 }
 
 function _extrairResumoBlocoParaAutoTese(cardMestre, nomeTopico) {

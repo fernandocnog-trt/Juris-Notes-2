@@ -207,6 +207,13 @@ window.JurisUtils = (function() {
     const REGEX_HIFEN_QUEBRA = /([\p{L}])-\r?\n\s*([\p{L}])/gu;
     const REGEX_QUEBRA_SIMPLES = /([^\n\r])\r?\n([^\n\r])/g;
     const REGEX_ESPACOS_DUPLOS = / {2,}/g;
+    const REGEX_TAGS_HTML_SEGURAS = /<\/?[a-z][a-z0-9]*(?:\s[^>]*)?>/gi;
+    const REGEX_MARCACOES_INTERNAS = /\[\[(?:\/?size(?::[^\]]+)?|\/?u)\]\]/gi;
+    const REGEX_CPF_LGPD = /\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g;
+    const REGEX_CNPJ_LGPD = /\b\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}\b/g;
+    const REGEX_EMAIL_LGPD = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
+    // Exige DDD ou celular 9xxxx-xxxx para não mascarar períodos contratuais como "2020-2024"
+    const REGEX_TEL_LGPD = /(?:\+?55\s?)?(?:\(\d{2}\)\s?|\b\d{2}\s+)(?:9\d{4}|\d{4})-?\d{4}\b|\b9\d{4}-\d{4}\b/g;
 
     const _encontrarMaiorSubstringComum = (s1, s2) => {
         if (!s1 || !s2) return "";
@@ -299,6 +306,54 @@ window.JurisUtils = (function() {
         limparEscapeMarkdown: function(texto) {
             if (!texto || typeof texto !== 'string') return '';
             return texto.replace(/\\([\\`*_{}\[\]()#+\-.!])/g, '$1');
+        },
+
+        /**
+         * SSOT de sanitização LGPD/PII e higienização estrutural para envio a APIs de IA.
+         * @param {string} textoBruto
+         * @param {number} [limiteCaracteres=1500]
+         * @param {{ neutralizarDelimitadores?: boolean }} [opcoes={}]
+         * @returns {string}
+         */
+        sanitizarParaIA: function(textoBruto, limiteCaracteres = 1500, opcoes = {}) {
+            if (!textoBruto || typeof textoBruto !== 'string') return '';
+
+            // 1. Remove apenas tags HTML válidas (preserva comparações como "jornada < 6h e intervalo > 15min")
+            let texto = textoBruto.replace(REGEX_TAGS_HTML_SEGURAS, ' ');
+            texto = window.JurisUtils.limparTextoPDF(texto);
+            texto = window.JurisUtils.limparEscapeMarkdown(texto);
+            texto = texto.replace(REGEX_MARCACOES_INTERNAS, '');
+
+            // 2. Mascaramento automático de PII (LGPD)
+            texto = texto
+                .replace(REGEX_CPF_LGPD, '[CPF OCULTADO]')
+                .replace(REGEX_CNPJ_LGPD, '[CNPJ OCULTADO]')
+                .replace(REGEX_EMAIL_LGPD, '[EMAIL OCULTADO]')
+                .replace(REGEX_TEL_LGPD, '[TELEFONE OCULTADO]');
+
+            // 3. Integração direta com QuickRedactManager.sanitizarString() (sem custo de leitura DOM)
+            if (window.QuickRedactManager && typeof window.QuickRedactManager.sanitizarString === 'function') {
+                texto = window.QuickRedactManager.sanitizarString(texto);
+            } else if (typeof document !== 'undefined') {
+                const chipsAtivos = document.querySelectorAll('#lista-chips-lgpd .redact-chip');
+                chipsAtivos.forEach(chip => {
+                    const termo = chip.firstChild?.textContent?.trim();
+                    if (termo && termo.length >= 2) {
+                        const escapado = termo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        texto = texto.replace(new RegExp(escapado, 'gi'), '[DADO PESSOAL OCULTADO - LGPD]');
+                    }
+                });
+            }
+
+            // 4. Neutraliza delimitadores XML residuais preservando sentido comparativo
+            if (opcoes.neutralizarDelimitadores !== false) {
+                texto = texto.replace(/</g, '‹').replace(/>/g, '›');
+            }
+
+            texto = texto.replace(/\s+/g, ' ').trim();
+            return texto.length > limiteCaracteres
+                ? texto.slice(0, limiteCaracteres).trimEnd() + '...'
+                : texto;
         },
 
         processarTextoParaExtracao: function(textoOriginal) {

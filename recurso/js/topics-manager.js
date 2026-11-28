@@ -524,6 +524,172 @@ window.TopicsManager = (function () {
         }
     }
 
+    function _limparMarcacoesInternasNo(texto) {
+        if (!texto || typeof texto !== 'string') return '';
+        return texto
+            .replace(/\[\[\/?size(?::[^\]]+)?\]\]/gi, '')
+            .replace(/\[\[\/?u\]\]/gi, '')
+            .replace(/\r\n?/g, '\n')
+            .replace(/[ \t]{2,}/g, ' ')
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+    }
+
+    /**
+     * Descarta nós gerados por `adicionarCitacaoExpressa` (intencao: 'comando') e
+     * `adicionarDegravacaoExpressa` (intencao: 'degravacao'), que embutem transcrições literais
+     * com nomes de partes/testemunhas e consomem orçamento sem acrescentar diretriz decisória.
+     */
+    function _ehNoCitacaoOuDegravacaoExpressa(no) {
+        if (!no || typeof no !== 'object') return false;
+        if (no.intencao === 'degravacao') return true;
+        return typeof no.texto === 'string' && /^\s*Transcreva\s+expressamente\b/i.test(no.texto);
+    }
+
+    function _gerarHashContextoFNV1a(str) {
+        let h = 0x811c9dc5;
+        for (let i = 0; i < str.length; i++) {
+            h ^= str.charCodeAt(i);
+            h = Math.imul(h, 0x01000193);
+        }
+        return (h >>> 0).toString(36);
+    }
+
+    /**
+     * Getter leve para UI (botões/tooltips): retorna apenas ID e nome do tópico ativo,
+     * sem percorrer anotações, nós, regex ou calcular hash.
+     * @param {string|null} [topicoIdOpcional=null]
+     * @returns {{ topicoId: string, topicoNome: string } | null}
+     */
+    function obterResumoTopicoAtivo(topicoIdOpcional = null) {
+        const listaTopicos = (typeof topicos !== 'undefined' && Array.isArray(topicos)) ? topicos : [];
+        const alvoId = topicoIdOpcional || (typeof activeTabId !== 'undefined' ? activeTabId : null);
+        if (!alvoId) return null;
+
+        const topico = listaTopicos.find(t => t && t.id === alvoId);
+        if (!topico) return null;
+
+        return {
+            topicoId: topico.id,
+            topicoNome: topico.nome || 'Tópico Ativo'
+        };
+    }
+
+    /**
+     * Fachada somente leitura para coleta do contexto recursal da Busca Inteligente.
+     * Exclui cartões probatórios, checkpoints, diretrizes órfãs, Notas Ocultas (`nota`)
+     * e Citações/Degravações Expressas. Em sessões com volumes divididos, agrega Diretrizes
+     * Globais bidirecionalmente (Vol. I ↔ Vol. II+) com fast-path de custo zero quando não há divisão.
+     *
+     * @param {string|null} [topicoIdOpcional=null]
+     * @param {{ incluirVereditoPreambulo?: boolean, herdarGlobaisFamilia?: boolean }} [opcoes={}]
+     */
+    function obterContextoParaBuscaIA(topicoIdOpcional = null, opcoes = {}) {
+        const { incluirVereditoPreambulo = true, herdarGlobaisFamilia = true } = opcoes;
+        const listaTopicos = (typeof topicos !== 'undefined' && Array.isArray(topicos)) ? topicos : [];
+        const alvoId = topicoIdOpcional || (typeof activeTabId !== 'undefined' ? activeTabId : null);
+        if (!alvoId) return null;
+
+        const topico = listaTopicos.find(t => t && t.id === alvoId);
+        if (!topico) return null;
+
+        const alegacoes = _limparMarcacoesInternasNo(topico.alegacoes || '');
+        const veredito = incluirVereditoPreambulo ? _limparMarcacoesInternasNo(topico.veredito || '') : '';
+        const nosIdeias = [];
+        let totalNosDescartadosExpressos = 0;
+
+        const adicionarNo = (no, origem, contextoTese = '') => {
+            if (!no || typeof no !== 'object') return;
+            if (no.intencao === 'nota') return; // Vedação absoluta: Notas Ocultas nunca são enviadas à IA
+            if (_ehNoCitacaoOuDegravacaoExpressa(no)) {
+                totalNosDescartadosExpressos++;
+                return;
+            }
+            const textoLimpo = _limparMarcacoesInternasNo(no.texto || '');
+            if (!textoLimpo) return;
+
+            nosIdeias.push({
+                origem,
+                contextoTese: String(contextoTese || '').trim(),
+                intencao: no.intencao || 'premissa',
+                texto: textoLimpo
+            });
+        };
+
+        // 1. Diretrizes Globais (simétrico Vol. I ↔ Vol. II+; fast-path evita Map em sessões sem volumes divididos)
+        const uuidsGlobaisVistos = new Set();
+        const existeVolumeNaSessao = herdarGlobaisFamilia && listaTopicos.some(t => Boolean(t && t.volumeData));
+        const volumesParaGlobais = existeVolumeNaSessao ? obterFamiliaVolumes(topico) : [topico];
+
+        volumesParaGlobais.forEach(vol => {
+            if (!vol || !Array.isArray(vol.diretrizesGlobais)) return;
+            vol.diretrizesGlobais.forEach(no => {
+                if (!no) return;
+                if (no.uuid) {
+                    if (uuidsGlobaisVistos.has(no.uuid)) return;
+                    uuidsGlobaisVistos.add(no.uuid);
+                }
+                adicionarNo(no, 'global', '');
+            });
+        });
+
+        // 2. Diretrizes por Tese (apenas chaves efetivamente ancoradas nos cartões ativos do volume)
+        if (topico.diretrizesPorTese && typeof topico.diretrizesPorTese === 'object') {
+            const resolverChaveTese = (an) => (window.ThesisGuard && typeof ThesisGuard.obterChaveTese === 'function')
+                ? ThesisGuard.obterChaveTese(an)
+                : ((an && an.tese && an.tese.trim() !== '') ? an.tese.trim() : 'Tese Não Nomeada');
+
+            const tesesAncoradas = (window.ThesisGuard && typeof ThesisGuard.mapearTesesAncoradas === 'function')
+                ? ThesisGuard.mapearTesesAncoradas(topico)
+                : new Set((topico.anotacoes || []).filter(a => a && !_ehCheckpoint(a)).map(resolverChaveTese));
+
+            Object.entries(topico.diretrizesPorTese).forEach(([chaveTese, arrNos]) => {
+                if (!Array.isArray(arrNos) || arrNos.length === 0) return;
+                const chaveNorm = String(chaveTese || '').trim() || 'Tese Não Nomeada';
+                if (!tesesAncoradas || typeof tesesAncoradas.has !== 'function' || !tesesAncoradas.has(chaveNorm)) return;
+                arrNos.forEach(no => adicionarNo(no, 'tese', chaveNorm));
+            });
+        }
+
+        // 3 e 4. Sub-anotações (Nós de Ideia) de cartões principais e correlacionados (sem an.conteudo/ic.conteudo/an.comentario)
+        if (Array.isArray(topico.anotacoes)) {
+            topico.anotacoes.forEach(an => {
+                if (!an || _ehCheckpoint(an)) return;
+                const contextoTese = (an.tese || '').trim();
+
+                if (Array.isArray(an.subAnotacoes)) {
+                    an.subAnotacoes.forEach(no => adicionarNo(no, 'prova', contextoTese));
+                }
+                if (Array.isArray(an.itensCorrelacionados)) {
+                    an.itensCorrelacionados.forEach(ic => {
+                        if (!ic || _ehCheckpoint(ic)) return;
+                        if (Array.isArray(ic.subAnotacoes)) {
+                            ic.subAnotacoes.forEach(no => adicionarNo(no, 'prova', contextoTese));
+                        }
+                    });
+                }
+            });
+        }
+
+        const baseAssinatura = [
+            topico.id,
+            topico.nome || '',
+            alegacoes,
+            veredito,
+            ...nosIdeias.map(n => `${n.origem}|${n.intencao}|${n.contextoTese}|${n.texto}`)
+        ].join('\u001f');
+
+        return {
+            topicoId: topico.id,
+            topicoNome: topico.nome || 'Tópico Ativo',
+            alegacoes,
+            veredito,
+            nosIdeias,
+            totalNosDescartadosExpressos,
+            assinaturaContexto: _gerarHashContextoFNV1a(baseAssinatura)
+        };
+    }
+
     function _obterTextosDaPilha(topico, grupoId) {
         if (!topico) return "";
         let textos = [];
@@ -4073,7 +4239,9 @@ window.TopicsManager = (function () {
         abrirModalTransitarVolumes,
         fecharModalTransitarVolumes,
         executarTransitoVolumes,
-        desfazerUltimoTransito
+        desfazerUltimoTransito,
+        obterResumoTopicoAtivo,
+        obterContextoParaBuscaIA
     };
 
 })();
