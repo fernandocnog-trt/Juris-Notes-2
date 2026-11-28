@@ -44,6 +44,41 @@ let selectedSpecies = 'ALL';
 let sortMode = 'numero_desc';
 let searchDebounceTimer = null;
 
+const AI_MAX_CATALOGO_CHARS = 9500;
+const AI_TOP_COM_TRECHO_TESE = 20;
+const AI_INICIO_TESE_CHARS = 90;
+const AI_FIM_TESE_CHARS = 95;
+const AI_MAX_RESULTADOS = 12;
+
+const AI_STOPWORDS_PT = new Set([
+    'que', 'com', 'por', 'para', 'dos', 'das', 'nos', 'nas', 'aos', 'uma', 'uns', 'umas',
+    'pelo', 'pela', 'pelos', 'pelas', 'como', 'mais', 'menos', 'muito', 'muita', 'entre',
+    'sobre', 'apos', 'antes', 'desde', 'contra', 'sem', 'sob', 'ate', 'ainda', 'tambem',
+    'apenas', 'quando', 'onde', 'qual', 'quais', 'este', 'esta', 'estes', 'estas', 'esse',
+    'essa', 'esses', 'essas', 'isso', 'isto', 'seu', 'sua', 'seus', 'suas', 'ser', 'sao',
+    'foi', 'foram', 'seja', 'estao', 'tem', 'ter', 'pode', 'deve', 'nao', 'sim', 'mas',
+    'porem', 'contudo', 'portanto', 'logo', 'pois', 'porque', 'caso', 'assim', 'mesmo',
+    'outro', 'outra', 'todo', 'toda', 'cada', 'algum', 'nenhum',
+    'processo', 'autos', 'recurso', 'recursais', 'recorrente', 'recorrido', 'recorrida',
+    'reclamante', 'reclamada', 'autor', 'autora', 'reu', 'parte', 'partes', 'sentenca',
+    'acordao', 'decisao', 'juizo', 'tribunal', 'turma', 'vara', 'relator', 'acao',
+    'pedido', 'pedidos', 'inicial', 'contestacao', 'merito', 'topico', 'folha', 'folhas',
+    'fls', 'art', 'artigo', 'lei', 'clt', 'cpc', 'direito', 'justica', 'trabalho',
+    'trabalhista', 'alega', 'alegacoes', 'requer', 'postula', 'pugna', 'sustenta',
+    'fato', 'fatos', 'prova', 'provas', 'modelo', 'modelos', 'tese', 'teses', 'questao'
+]);
+
+let aiFilterIds = null;
+let aiMatchMeta = new Map();
+let aiFilterTopicId = null;
+let aiFilterTopicNome = '';
+let aiFilterContextHash = null;
+let aiFilterStale = false;
+let aiFilterSummary = '';
+let isAiSearching = false;
+let aiSearchRequestId = 0;
+let sortModeBeforeAi = null;
+
 const getEl = (id) => document.getElementById(id);
 
 function carregarConfig() {
@@ -193,6 +228,12 @@ function renderizarFiltroEspecies() {
 
 function sortModels(list) {
     return [...list].sort((a, b) => {
+        if (sortMode === 'relevancia_ia' && aiFilterIds) {
+            const rankA = aiMatchMeta.get(a.id)?.rank ?? Number.MAX_SAFE_INTEGER;
+            const rankB = aiMatchMeta.get(b.id)?.rank ?? Number.MAX_SAFE_INTEGER;
+            if (rankA !== rankB) return rankA - rankB;
+        }
+
         const favA = Boolean(a.favorite);
         const favB = Boolean(b.favorite);
         if (favA !== favB) return favA ? -1 : 1;
@@ -228,6 +269,16 @@ function renderList(items, contentMatchIds = null) {
     }
 
     if (items.length === 0) {
+        if (aiFilterIds) {
+            listEl.innerHTML = `
+                <div class="pg-empty-state">
+                    <h4>Nenhum modelo da seleção IA corresponde aos filtros atuais</h4>
+                    <p>Limpe a busca textual, ajuste os filtros de favoritos/espécie ou remova o filtro inteligente para exibir todo o acervo.</p>
+                    <button type="button" class="pg-btn-secondary" onclick="window.PangeaGabController?.limparFiltroIA()">Limpar filtro IA</button>
+                </div>
+            `;
+            return;
+        }
         listEl.innerHTML = `
             <div class="pg-empty-state">
                 <h4>Nenhum modelo encontrado</h4>
@@ -250,15 +301,25 @@ function renderList(items, contentMatchIds = null) {
             ? `<span class="pg-badge-match" title="Termo encontrado no teor interno">Contém no texto</span>`
             : '';
 
+        const aiMeta = aiFilterIds ? aiMatchMeta.get(m.id) : null;
+        const aiRankBadge = aiMeta
+            ? `<span class="pg-ai-rank-badge" title="Ordem de afinidade identificada pela IA">✦ #${escapeHtml(String(aiMeta.rank))}</span>`
+            : '';
+        const aiReasonHtml = (aiMeta && aiMeta.motivo)
+            ? `<div class="pg-ai-reason">${escapeHtml(aiMeta.motivo)}</div>`
+            : '';
+
         return `
-            <div class="pg-card" data-model-id="${escapeHtml(m.id)}">
+            <div class="pg-card${aiMeta ? ' is-ai-recommended' : ''}" data-model-id="${escapeHtml(m.id)}">
                 <div class="pg-card-info">
                     <div class="pg-card-head">
+                        ${aiRankBadge}
                         <span class="pg-num-badge">${escapeHtml(badgeTexto)}</span>
                         ${speciesTag}
                         <button type="button" class="pg-card-title" data-action="view" title="${escapeHtml(m.tituloOficial || m.questao)}">${escapeHtml(m.questao)}</button>
                         ${badgeMatch}
                     </div>
+                    ${aiReasonHtml}
                     <div class="pg-card-excerpt">${escapeHtml(idx ? idx.excerpt : '')}</div>
                 </div>
                 <div class="pg-card-actions">
@@ -282,6 +343,7 @@ function filter() {
     const normTerm = normalizeText(rawTerm);
 
     const pool = modelos.filter(m => {
+        if (aiFilterIds && !aiFilterIds.has(m.id)) return false;
         if (onlyFavorites && !m.favorite) return false;
         if (selectedSpecies !== 'ALL' && m.especie !== selectedSpecies) return false;
         return true;
@@ -328,6 +390,10 @@ async function abrirModal() {
         modal.removeAttribute('aria-hidden');
     }
 
+    sincronizarInvalidacaoFiltroIA(false);
+    atualizarBannerFiltroIA();
+    atualizarBotaoBuscaIA();
+
     const listEl = getEl('pg-list');
     if (listEl) {
         listEl.innerHTML = `<div style="text-align: center; padding: 2rem; color: #64748b;">⏳ Conectando à nuvem...</div>`;
@@ -338,6 +404,7 @@ async function abrirModal() {
         const res = await PangeaStore.carregar();
         if (!res.autenticado) {
             if (listEl) listEl.innerHTML = `<div class="pg-empty-state"><h4>Sessão não autenticada</h4><p>Faça login na nuvem do Juris Notes para acessar o acervo PangeaGAB.</p></div>`;
+            atualizarBotaoBuscaIA();
             return;
         }
         modelos = res.modelos;
@@ -345,10 +412,14 @@ async function abrirModal() {
         reconstruirIndice(modelos);
         atualizarCabecalhoMeta();
         renderizarFiltroEspecies();
+        sincronizarInvalidacaoFiltroIA(true);
+        atualizarBannerFiltroIA();
+        atualizarBotaoBuscaIA();
         filter();
         requestAnimationFrame(() => getEl('pg-search')?.focus());
     } catch (error) {
         console.error('PangeaGAB [Erro ao carregar]:', error);
+        atualizarBotaoBuscaIA();
         if (listEl) {
             listEl.innerHTML = `<div class="pg-empty-state"><h4>Falha ao carregar da nuvem</h4><p>${escapeHtml(error.message || 'Verifique sua conexão e as Security Rules do Firestore.')}</p></div>`;
         }
@@ -356,6 +427,12 @@ async function abrirModal() {
 }
 
 function fecharModalPrincipal() {
+    if (isAiSearching) {
+        aiSearchRequestId++;
+        isAiSearching = false;
+        atualizarBotaoBuscaIA();
+        atualizarBannerFiltroIA();
+    }
     getEl('backdrop-pangea-gab')?.classList.remove('active');
     const modal = getEl('modal-pangea-gab');
     if (modal) modal.style.display = 'none';
@@ -461,6 +538,12 @@ async function atualizarBookmarklet(mostrarAvisoReinstalar = false) {
 }
 
 async function openSyncModal() {
+    if (isAiSearching) {
+        aiSearchRequestId++;
+        isAiSearching = false;
+        atualizarBotaoBuscaIA();
+        atualizarBannerFiltroIA();
+    }
     lastTriggerElement = document.activeElement;
     getEl('modal-pangea-gab')?.setAttribute('aria-hidden', 'true');
 
@@ -496,6 +579,8 @@ function closeSyncModal(recarregarLista = false) {
         reconstruirIndice(modelos);
         atualizarCabecalhoMeta();
         renderizarFiltroEspecies();
+        limparFiltroIA(true);
+        atualizarBotaoBuscaIA();
         filter();
     }
     if (lastTriggerElement && document.contains(lastTriggerElement)) {
@@ -746,6 +831,384 @@ function clearSearch() {
     filter();
 }
 
+function garantirOpcaoOrdenacaoIA() {
+    const select = getEl('pg-sort-select');
+    if (!select) return;
+    if (!getEl('pg-sort-opt-ai')) {
+        const opt = document.createElement('option');
+        opt.id = 'pg-sort-opt-ai';
+        opt.value = 'relevancia_ia';
+        opt.textContent = 'Relevância (IA)';
+        select.insertBefore(opt, select.firstChild);
+    }
+    select.value = sortMode;
+}
+
+function removerOpcaoOrdenacaoIA() {
+    const opt = getEl('pg-sort-opt-ai');
+    if (opt) opt.remove();
+    const select = getEl('pg-sort-select');
+    if (select) select.value = sortMode;
+}
+
+/**
+ * Extrai sinal compacto da abertura e do encerramento da `tese` (onde normalmente reside
+ * a conclusão/dispositivo), evitando corte no meio de palavras e sem enviar o inteiro teor.
+ */
+function extrairSinalTese(teseBruta) {
+    const limpo = String(teseBruta || '').replace(/\s+/g, ' ').trim();
+    if (!limpo) return '';
+    if (limpo.length <= AI_INICIO_TESE_CHARS + AI_FIM_TESE_CHARS) {
+        return ` | Teor: ${limpo}`;
+    }
+
+    const corteInicio = limpo.slice(0, AI_INICIO_TESE_CHARS);
+    const ultimoEspacoInicio = corteInicio.lastIndexOf(' ');
+    const inicio = (ultimoEspacoInicio > 45 ? corteInicio.slice(0, ultimoEspacoInicio) : corteInicio).trimEnd();
+
+    const corteFim = limpo.slice(-AI_FIM_TESE_CHARS);
+    const primeiroEspacoFim = corteFim.indexOf(' ');
+    const fim = (primeiroEspacoFim > 0 && primeiroEspacoFim < 30 ? corteFim.slice(primeiroEspacoFim + 1) : corteFim).trimStart();
+
+    return ` | Início: ${inicio}… | Fim: …${fim}`;
+}
+
+/**
+ * Pontua modelos localmente reaproveitando `searchIndex` (zero NFD no acervo, tokenização sem
+ * pontuação residual) e monta catálogo por teto de caracteres (AI_MAX_CATALOGO_CHARS),
+ * enriquecendo os top 20 candidatos com abertura + encerramento da tese.
+ */
+function montarCatalogoParaIA(contexto) {
+    const textoConsulta = [
+        contexto.topicoNome || '',
+        contexto.alegacoes || '',
+        contexto.veredito || '',
+        ...(contexto.nosIdeias || []).map(n => `${n.contextoTese || ''} ${n.texto || ''}`)
+    ].join(' ');
+
+    const termos = Array.from(new Set(
+        normalizeText(textoConsulta)
+            .split(/[^a-z0-9]+/)
+            .filter(tk => tk.length >= 3 && !AI_STOPWORDS_PT.has(tk))
+    ));
+
+    const pontuados = modelos.map(m => {
+        const idx = searchIndex.get(m.id);
+        const titleNorm = idx?.titleNorm || '';
+        const tagsNorm = idx?.tagsNorm || '';
+        const teseNorm = idx?.teseNorm || '';
+
+        // Tokenização limpa remove pontuação jurídica (".", ",", ";", ":") antes do lookup exato
+        const tokensTitulo = titleNorm ? titleNorm.split(/[^a-z0-9]+/).filter(Boolean) : [];
+        const setTitulo = new Set(tokensTitulo);
+        const tokensTags = tagsNorm ? tagsNorm.split(/[^a-z0-9]+/).filter(Boolean) : [];
+        const setTags = new Set(tokensTags);
+
+        let score = 0;
+        for (let i = 0; i < termos.length; i++) {
+            const termo = termos[i];
+            if (setTitulo.has(termo)) {
+                score += 5;
+            } else if (termo.length >= 5) {
+                const radical = termo.slice(0, 5);
+                if (tokensTitulo.some(tk => tk.length >= 5 && tk.startsWith(radical))) {
+                    score += 2;
+                }
+            }
+            if (setTags.has(termo) || (termo.length >= 5 && tagsNorm.includes(termo))) {
+                score += 4;
+            }
+            if (teseNorm && teseNorm.includes(termo)) {
+                score += 1;
+            }
+        }
+        return { modelo: m, score };
+    });
+
+    pontuados.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        const favA = a.modelo.favorite ? 1 : 0;
+        const favB = b.modelo.favorite ? 1 : 0;
+        if (favB !== favA) return favB - favA;
+        const numA = typeof a.modelo.numero === 'number' ? a.modelo.numero : -1;
+        const numB = typeof b.modelo.numero === 'number' ? b.modelo.numero : -1;
+        return numB - numA;
+    });
+
+    const catalogo = [];
+    let charsAcumulados = 0;
+
+    for (let i = 0; i < pontuados.length; i++) {
+        const { modelo: m } = pontuados[i];
+        const numeroStr = (m.numero !== null && m.numero !== undefined && m.numero !== '') ? `Nº ${m.numero}` : 'S/N';
+        const especieStr = (m.especie && m.especie !== 'DESCONHECIDA') ? ` (${m.especie})` : '';
+        const questao = String(m.questao || m.tituloOficial || 'Sem título').replace(/\s+/g, ' ').trim().slice(0, 150);
+        const tags = Array.isArray(m.etiquetas)
+            ? m.etiquetas.map(t => String(t || '').trim()).filter(Boolean).slice(0, 4).join(', ').slice(0, 60)
+            : '';
+
+        let linha = `${numeroStr}${especieStr} | ${questao}`;
+        if (tags) linha += ` | Tags: ${tags}`;
+        if (i < AI_TOP_COM_TRECHO_TESE && m.tese) {
+            linha += extrairSinalTese(m.tese);
+        }
+
+        const custoLinha = linha.length + 8;
+        if (charsAcumulados + custoLinha > AI_MAX_CATALOGO_CHARS && catalogo.length > 0) {
+            break;
+        }
+        catalogo.push({ id: m.id, linha });
+        charsAcumulados += custoLinha;
+    }
+
+    const preFiltrado = catalogo.length < modelos.length;
+    console.debug(`[PangeaGAB IA] Catálogo preparado: ${catalogo.length}/${modelos.length} modelos (${charsAcumulados} chars, pré-filtrado=${preFiltrado})`);
+    return { catalogo, preFiltrado };
+}
+
+function atualizarBotaoBuscaIA() {
+    const btn = getEl('pg-btn-ai-search');
+    if (!btn) return;
+
+    const labelEl = btn.querySelector('.pg-ai-label');
+    // Usa getter leve O(N) sem travessia de nós nem cálculo de hash
+    const resumoTopico = (window.TopicsManager && typeof window.TopicsManager.obterResumoTopicoAtivo === 'function')
+        ? window.TopicsManager.obterResumoTopicoAtivo()
+        : null;
+    const temAcervo = modelos.length > 0;
+    const temFiltroAtivo = Boolean(aiFilterIds && aiFilterIds.size > 0);
+
+    btn.classList.toggle('is-thinking', isAiSearching);
+    btn.classList.toggle('is-active', !isAiSearching && temFiltroAtivo);
+    btn.setAttribute('aria-busy', isAiSearching ? 'true' : 'false');
+    btn.setAttribute('aria-pressed', temFiltroAtivo ? 'true' : 'false');
+    btn.disabled = isAiSearching || isSyncing || !temAcervo;
+
+    if (isAiSearching) {
+        if (labelEl) labelEl.textContent = 'Analisando...';
+        btn.title = 'Analisando Razões Recursais e Nós de Ideias com IA...';
+    } else if (!temAcervo) {
+        if (labelEl) labelEl.textContent = 'Busca Inteligente';
+        btn.title = 'Sincronize os modelos do PangeaGAB antes de usar a busca inteligente';
+    } else if (temFiltroAtivo) {
+        if (labelEl) labelEl.textContent = `Busca Inteligente (${aiFilterIds.size})`;
+        btn.title = `Filtro IA ativo para "${aiFilterTopicNome || 'Tópico Ativo'}" — clique para reexecutar`;
+    } else {
+        if (labelEl) labelEl.textContent = 'Busca Inteligente';
+        btn.title = resumoTopico
+            ? `Confrontar "${resumoTopico.topicoNome}" com o acervo PangeaGAB usando IA`
+            : 'Buscar modelos compatíveis com o tópico recursal ativo usando IA';
+    }
+}
+
+function atualizarBannerFiltroIA() {
+    const banner = getEl('pg-ai-banner');
+    if (!banner) return;
+
+    const textEl = getEl('pg-ai-banner-text');
+    const metaEl = getEl('pg-ai-banner-meta');
+    const btnRerun = getEl('pg-btn-ai-rerun');
+    const btnClear = getEl('pg-btn-ai-clear');
+    const temFiltroAtivo = Boolean(aiFilterIds && aiFilterIds.size > 0);
+
+    banner.hidden = !temFiltroAtivo;
+    banner.classList.toggle('is-stale', temFiltroAtivo && aiFilterStale);
+
+    if (temFiltroAtivo) {
+        const qtd = aiFilterIds.size;
+        if (textEl) {
+            textEl.textContent = aiFilterStale
+                ? `⚠ O tópico "${aiFilterTopicNome || 'Tópico Ativo'}" foi alterado desde esta análise (${qtd} modelo${qtd === 1 ? '' : 's'})`
+                : `✦ Seleção IA — ${aiFilterTopicNome || 'Tópico Ativo'} (${qtd} modelo${qtd === 1 ? '' : 's'})`;
+        }
+        if (metaEl) {
+            metaEl.textContent = aiFilterStale
+                ? 'Clique em "Reanalisar" para atualizar as sugestões com as edições mais recentes.'
+                : (aiFilterSummary || '');
+        }
+        if (btnRerun) btnRerun.disabled = isAiSearching;
+        if (btnClear) btnClear.disabled = isAiSearching;
+    } else {
+        if (textEl) textEl.textContent = '';
+        if (metaEl) metaEl.textContent = '';
+    }
+}
+
+function sincronizarInvalidacaoFiltroIA(verificarModelos = true) {
+    if (!aiFilterIds) return;
+
+    const ctxAtivo = (window.TopicsManager && typeof window.TopicsManager.obterContextoParaBuscaIA === 'function')
+        ? window.TopicsManager.obterContextoParaBuscaIA()
+        : null;
+    const activeTopicId = ctxAtivo?.topicoId || null;
+
+    // Tópico trocado ou processo encerrado: invalida filtro anterior
+    if (!activeTopicId || activeTopicId !== aiFilterTopicId) {
+        limparFiltroIA(true);
+        return;
+    }
+
+    // Mesmo tópico editado entre aberturas: preserva resultados e sinaliza defasagem
+    aiFilterStale = Boolean(aiFilterContextHash && ctxAtivo.assinaturaContexto !== aiFilterContextHash);
+
+    if (verificarModelos) {
+        const idsDisponiveis = new Set(modelos.map(m => m.id));
+        for (const id of Array.from(aiFilterIds)) {
+            if (!idsDisponiveis.has(id)) {
+                aiFilterIds.delete(id);
+                aiMatchMeta.delete(id);
+            }
+        }
+        if (aiFilterIds.size === 0) {
+            limparFiltroIA(true);
+        }
+    }
+}
+
+function limparFiltroIA(silencioso = false) {
+    const tinhaEstadoIA = Boolean(aiFilterIds !== null || sortMode === 'relevancia_ia' || sortModeBeforeAi !== null);
+
+    aiFilterIds = null;
+    aiMatchMeta = new Map();
+    aiFilterTopicId = null;
+    aiFilterTopicNome = '';
+    aiFilterContextHash = null;
+    aiFilterStale = false;
+    aiFilterSummary = '';
+
+    if (tinhaEstadoIA) {
+        sortMode = (sortModeBeforeAi && sortModeBeforeAi !== 'relevancia_ia')
+            ? sortModeBeforeAi
+            : 'numero_desc';
+    }
+    sortModeBeforeAi = null;
+
+    removerOpcaoOrdenacaoIA();
+    atualizarBannerFiltroIA();
+    atualizarBotaoBuscaIA();
+
+    if (!silencioso) {
+        filter();
+    }
+}
+
+async function executarBuscaInteligente() {
+    if (isAiSearching || isSyncing) return;
+
+    if (modelos.length === 0) {
+        window.exibirToast?.('Sincronize os modelos do PangeaGAB antes de usar a busca inteligente.', 'aviso');
+        return;
+    }
+    if (!window.TopicsManager || typeof window.TopicsManager.obterContextoParaBuscaIA !== 'function') {
+        window.exibirToast?.('Módulo de tópicos indisponível para leitura do contexto recursal.', 'erro');
+        return;
+    }
+    if (!window.AIRecommendationManager || typeof window.AIRecommendationManager.rankearCatalogoPorContexto !== 'function') {
+        window.exibirToast?.('Serviço de Inteligência Artificial indisponível.', 'erro');
+        return;
+    }
+
+    const contexto = window.TopicsManager.obterContextoParaBuscaIA();
+    if (!contexto) {
+        window.exibirToast?.('Selecione ou crie um Tópico Recursal na aba Anotações antes de acionar a busca inteligente.', 'aviso');
+        return;
+    }
+
+    const temAlegacoes = Boolean(contexto.alegacoes);
+    const temVeredito = Boolean(contexto.veredito);
+    const totalNos = contexto.nosIdeias.length;
+    if (!temAlegacoes && !temVeredito && totalNos === 0) {
+        window.exibirToast?.(`O tópico "${contexto.topicoNome}" ainda não possui Razões Recursais nem Nós de Ideias válidos para análise.`, 'aviso');
+        return;
+    }
+
+    const { catalogo, preFiltrado } = montarCatalogoParaIA(contexto);
+    if (catalogo.length === 0) {
+        window.exibirToast?.('Nenhum modelo elegível foi encontrado para análise.', 'aviso');
+        return;
+    }
+
+    const reqId = ++aiSearchRequestId;
+    isAiSearching = true;
+    atualizarBotaoBuscaIA();
+    atualizarBannerFiltroIA();
+
+    const fontesLabel = [
+        temAlegacoes ? 'Razões' : null,
+        temVeredito ? 'Veredito' : null,
+        totalNos > 0 ? `${totalNos} nó${totalNos === 1 ? '' : 's'} de ideia` : null
+    ].filter(Boolean).join(' + ');
+
+    window.exibirToast?.(`Analisando "${contexto.topicoNome}" (${fontesLabel}) com IA...`, 'info');
+
+    try {
+        const resultados = await window.AIRecommendationManager.rankearCatalogoPorContexto({
+            contexto,
+            catalogo,
+            maxResultados: AI_MAX_RESULTADOS
+        });
+
+        const modalAberto = getEl('modal-pangea-gab')?.style.display === 'flex';
+        const syncAberto = getEl('modal-pangea-sync')?.style.display === 'flex';
+        if (reqId !== aiSearchRequestId || !modalAberto || syncAberto) return;
+
+        if (!Array.isArray(resultados) || resultados.length === 0) {
+            const tinhaFiltroAnterior = Boolean(aiFilterIds);
+            limparFiltroIA(true);
+            if (tinhaFiltroAnterior) filter();
+            window.exibirToast?.(`Nenhum modelo do PangeaGAB apresentou alta compatibilidade com "${contexto.topicoNome}".`, 'aviso');
+            return;
+        }
+
+        aiFilterIds = new Set(resultados.map(r => r.id));
+        aiMatchMeta = new Map(resultados.map(r => [r.id, { rank: r.rank, motivo: r.motivo || '' }]));
+        aiFilterTopicId = contexto.topicoId;
+        aiFilterTopicNome = contexto.topicoNome || 'Tópico Ativo';
+        aiFilterContextHash = contexto.assinaturaContexto;
+        aiFilterStale = false;
+
+        const escopo = preFiltrado
+            ? `Pré-filtrados ${catalogo.length} de ${modelos.length} modelos`
+            : `${catalogo.length} modelo${catalogo.length === 1 ? '' : 's'} analisado${catalogo.length === 1 ? '' : 's'}`;
+        aiFilterSummary = `Confronto: ${fontesLabel} · ${escopo}`;
+
+        clearTimeout(searchDebounceTimer);
+        const searchInput = getEl('pg-search');
+        const btnClearSearch = getEl('pg-btn-clear-search');
+        if (searchInput && searchInput.value !== '') searchInput.value = '';
+        if (btnClearSearch) btnClearSearch.style.display = 'none';
+
+        if (sortMode !== 'relevancia_ia') sortModeBeforeAi = sortMode;
+        sortMode = 'relevancia_ia';
+        garantirOpcaoOrdenacaoIA();
+
+        filter();
+        getEl('pg-scroll-body')?.scrollTo({ top: 0, behavior: 'smooth' });
+
+        window.exibirToast?.(
+            `${resultados.length} modelo${resultados.length === 1 ? '' : 's'} compatíve${resultados.length === 1 ? 'l encontrado' : 'is encontrados'} pela IA ✨`,
+            'sucesso'
+        );
+    } catch (error) {
+        if (reqId !== aiSearchRequestId) return;
+        console.warn('PangeaGAB [Erro na Busca Inteligente]:', error);
+
+        const modalIaAberto = getEl('modal-ia-config')?.style.display === 'flex';
+        if (error?.code === 'MISSING_API_KEY' || error?.code === 'AUTH_ERROR' || modalIaAberto) {
+            fecharModalPrincipal();
+            window.exibirToast?.('Configure sua chave de IA e reabra o PangeaGAB para continuar.', 'aviso');
+            return;
+        }
+        window.exibirToast?.(error?.message || 'Falha ao executar a busca inteligente com IA.', 'erro');
+    } finally {
+        if (reqId === aiSearchRequestId) {
+            isAiSearching = false;
+            atualizarBotaoBuscaIA();
+            atualizarBannerFiltroIA();
+        }
+    }
+}
+
 document.addEventListener('input', (e) => {
     if (!e.target) return;
     if (e.target.id === 'pg-search') {
@@ -828,6 +1291,11 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+window.addEventListener('aiAuthError', () => {
+    if (getEl('modal-pangea-view')?.style.display === 'flex') closeViewModal();
+    if (getEl('modal-pangea-gab')?.style.display === 'flex') fecharModalPrincipal();
+});
+
 window.PangeaGabController = {
     abrirModal,
     fecharModalPrincipal,
@@ -840,6 +1308,8 @@ window.PangeaGabController = {
     analisarDiferencas,
     confirmarSincronizacao,
     clearSearch,
+    executarBuscaInteligente,
+    limparFiltroIA,
     copyActiveView: (comQuestao = false) => {
         if (currentViewingModel) copiarModeloPorId(currentViewingModel.id, comQuestao);
     }
