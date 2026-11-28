@@ -1,0 +1,573 @@
+<style>
+    /* ================================================
+       PANGEAGAB — CSS ESCOPADO, Z-INDEX PRÓPRIO E THEME-AWARE
+       Tokens validados em juris-core.css: --theme-* | #toast-container = 7000
+       ================================================ */
+    :root {
+        --pg-z-backdrop: 4050;
+        --pg-z-modal: 4051;
+        --pg-z-sub-backdrop: 5010;
+        --pg-z-sub-modal: 5011;
+    }
+
+    .pg-backdrop { z-index: var(--pg-z-backdrop); }
+    .pg-modal {
+        z-index: var(--pg-z-modal);
+        max-width: 880px;
+        width: 95%;
+        height: auto;
+        max-height: 86vh;
+    }
+    .pg-sub-backdrop { z-index: var(--pg-z-sub-backdrop); }
+    .pg-sub-modal,
+    .pg-sync-modal {
+        z-index: var(--pg-z-sub-modal);
+        width: 95%;
+        height: auto;
+        max-height: 86vh;
+    }
+    .pg-sub-modal { max-width: 780px; }
+    .pg-sync-modal { max-width: 740px; }
+
+    .pg-backdrop.active,
+    .pg-sub-backdrop.active { opacity: 1; visibility: visible; }
+
+    .pg-header {
+        background-color: #f8fafc;
+        border-bottom: 1px solid #cbd5e0;
+        padding: 1rem 1.25rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+    }
+    .pg-header-left { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+    .pg-title-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+    .pg-accent-star { color: var(--theme-primary, #fbc02d); font-size: 1.15rem; line-height: 1; }
+    .pg-main-title { color: #1e293b; font-weight: 800; font-size: 1rem; }
+    .pg-origin-chip {
+        font-size: 0.68rem;
+        font-weight: 800;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: #f1f5f9;
+        color: #334155;
+        border: 1px solid #cbd5e0;
+        letter-spacing: 0.03em;
+    }
+    .pg-origin-chip--local {
+        background: var(--theme-light-bg, rgba(251, 192, 45, 0.14));
+        border-color: var(--theme-primary, #fbc02d);
+        color: #0f172a;
+    }
+    .pg-sync-meta { font-size: 0.74rem; color: #64748b; }
+    .pg-header-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+
+    .pg-btn-primary {
+        background-color: var(--theme-primary, #fbc02d);
+        color: var(--theme-text-on-primary, #000000);
+        border: 1px solid var(--theme-hover, #f57f17);
+        padding: 0.48rem 0.95rem;
+        border-radius: 6px;
+        font-size: 0.84rem;
+        font-weight: 700;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: filter 0.15s ease, transform 0.15s ease;
+    }
+    .pg-btn-primary:hover:not(:disabled) { filter: brightness(0.95); transform: translateY(-1px); }
+    .pg-btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+    .pg-btn-secondary {
+        background: #ffffff;
+        color: #334155;
+        border: 1px solid #cbd5e0;
+        padding: 0.45rem 0.85rem;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .pg-btn-secondary:hover:not(:disabled) { background: #f1f5f9; border-color: #94a3b8; }
+    .pg-btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .pg-content {
+        background-color: #f1f5f9;
+        padding: 20px;
+        overflow-y: auto;
+        max-height: 70vh;
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e0 transparent;
+        font-family: var(--font-ui);
+        text-align: left;
+    }
+    .pg-content::-webkit-scrollbar { width: 6px; }
+    .pg-content::-webkit-scrollbar-track { background: transparent; }
+    .pg-content::-webkit-scrollbar-thumb { background-color: #cbd5e0; border-radius: 10px; }
+
+    .pg-search-wrapper { position: relative; width: 100%; margin-bottom: 0.85rem; display: flex; align-items: center; }
+    .pg-search-icon { position: absolute; left: 1rem; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: #64748b; pointer-events: none; }
+    .pg-search {
+        width: 100%;
+        padding: 0.9rem 2.7rem;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+        font-size: 0.96rem;
+        background-color: #ffffff;
+        font-family: inherit;
+        transition: box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+    .pg-search:focus {
+        outline: none;
+        border-color: var(--theme-primary, #fbc02d);
+        box-shadow: 0 0 0 3px var(--theme-light-border, rgba(251, 192, 45, 0.25));
+    }
+    .pg-search-clear {
+        position: absolute;
+        right: 0.75rem;
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 4px;
+        border-radius: 50%;
+    }
+    .pg-search-clear:hover { color: var(--semantic-danger, #ef4444); background-color: #f1f5f9; }
+    .pg-search-clear svg { width: 16px; height: 16px; }
+
+    .pg-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 1rem; }
+    .pg-toolbar-left,
+    .pg-toolbar-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pg-toggle-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        background: #ffffff;
+        border: 1px solid #cbd5e0;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 0.76rem;
+        font-weight: 600;
+        color: #334155;
+        cursor: pointer;
+        user-select: none;
+    }
+    .pg-toggle-chip input { accent-color: var(--trt-blue, #1a3a5c); cursor: pointer; }
+    .pg-species-filter-bar { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+    .pg-species-btn {
+        background: #ffffff;
+        border: 1px solid #cbd5e0;
+        color: #475569;
+        border-radius: 999px;
+        padding: 3px 9px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        cursor: pointer;
+    }
+    .pg-species-btn.is-active {
+        background-color: var(--theme-primary, #fbc02d);
+        color: var(--theme-text-on-primary, #000000);
+        border-color: var(--theme-hover, #f57f17);
+    }
+    .pg-result-counter { font-size: 0.78rem; font-weight: 600; color: #64748b; }
+    .pg-sort-label { font-size: 0.76rem; font-weight: 600; color: #64748b; }
+    .pg-sort-select { padding: 4px 10px; border-radius: 6px; border: 1px solid #cbd5e0; background: #ffffff; font-size: 0.78rem; font-weight: 600; color: #334155; cursor: pointer; }
+
+    .pg-list { display: flex; flex-direction: column; gap: 0.65rem; }
+    .pg-card {
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 0.9rem 1.1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        transition: border-color 0.18s ease, box-shadow 0.18s ease, background-color 0.2s ease;
+    }
+    .pg-card:hover { border-color: var(--theme-primary, #fbc02d); box-shadow: 0 2px 8px rgba(15, 23, 42, 0.05); }
+    .pg-card.just-copied-flash { border-color: #86efac; background-color: #f0fdf4; box-shadow: inset 4px 0 0 #16a34a; }
+    .pg-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+    .pg-card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pg-num-badge {
+        background-color: var(--theme-primary, #fbc02d);
+        color: var(--theme-text-on-primary, #000000);
+        padding: 2px 8px;
+        border-radius: 5px;
+        font-size: 0.72rem;
+        font-weight: 800;
+        flex-shrink: 0;
+    }
+    .pg-species-tag {
+        background: #f1f5f9;
+        color: #475569;
+        border: 1px solid #cbd5e0;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-size: 0.68rem;
+        font-weight: 700;
+        flex-shrink: 0;
+    }
+    .pg-card-title {
+        font-size: 0.95rem;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.35;
+        background: none;
+        border: none;
+        padding: 0;
+        text-align: left;
+        cursor: pointer;
+        font-family: inherit;
+    }
+    .pg-card-title:hover { text-decoration: underline; text-decoration-color: var(--theme-primary, #fbc02d); text-underline-offset: 3px; }
+    .pg-card-excerpt {
+        font-size: 0.82rem;
+        color: #475569;
+        line-height: 1.45;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    .pg-badge-match { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e0; padding: 1px 6px; border-radius: 4px; font-size: 0.68rem; font-weight: 600; }
+    .pg-card-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+    .pg-icon-btn {
+        background: none;
+        border: 1px solid transparent;
+        cursor: pointer;
+        padding: 8px;
+        border-radius: 6px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .pg-icon-btn svg { width: 18px; height: 18px; stroke: #64748b; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+    .pg-icon-btn:hover { background-color: #f1f5f9; }
+    .pg-icon-btn.pg-fav svg { fill: #ffffff; stroke: #94a3b8; }
+    .pg-icon-btn.pg-fav:hover svg { stroke: var(--theme-primary, #fbc02d); transform: scale(1.12); }
+    .pg-icon-btn.pg-fav.is-fav svg { fill: var(--theme-primary, #fbc02d); stroke: var(--theme-primary, #fbc02d); }
+    .pg-icon-btn.pg-view:hover svg { stroke: #0284c7; }
+    .pg-icon-btn.pg-copy:hover { background-color: #f0fdf4; border-color: #bbf7d0; }
+    .pg-icon-btn.pg-copy:hover svg { stroke: #15803d; }
+
+    .pg-empty-state {
+        text-align: center;
+        background: #ffffff;
+        border: 1px dashed #cbd5e0;
+        border-radius: 10px;
+        padding: 2.2rem 1.5rem;
+        color: #475569;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+    }
+    .pg-empty-state h4 { color: #0f172a; font-size: 1rem; margin: 0; }
+    .pg-empty-state p { font-size: 0.85rem; max-width: 480px; line-height: 1.5; margin: 0; }
+
+    .pg-view-content { padding: 20px 24px; background: #ffffff; max-height: 64vh; overflow-y: auto; }
+    .pg-view-question-box {
+        background: var(--theme-light-bg, rgba(251, 192, 45, 0.1));
+        border: 1px solid var(--theme-light-border, rgba(251, 192, 45, 0.4));
+        border-left: 4px solid var(--theme-primary, #fbc02d);
+        border-radius: 8px;
+        padding: 12px 14px;
+    }
+    .pg-view-section-label { font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; color: #64748b; margin-bottom: 6px; }
+    .pg-view-questao { font-size: 0.96rem; font-weight: 700; color: #0f172a; line-height: 1.45; text-align: left; }
+    .pg-view-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .pg-tag-pill { font-size: 0.7rem; font-weight: 600; padding: 2px 8px; border-radius: 999px; background: #ffffff; border: 1px solid #cbd5e0; color: #334155; }
+    .pg-view-tese {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 16px 18px;
+        font-family: var(--font-reading);
+        font-size: 0.95rem;
+        line-height: 1.7;
+        color: #1e293b;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+
+    .pg-sync-info-box {
+        background: var(--theme-light-bg, rgba(251, 192, 45, 0.1));
+        border: 1px solid var(--theme-light-border, rgba(251, 192, 45, 0.4));
+        border-left: 4px solid var(--theme-primary, #fbc02d);
+        border-radius: 8px;
+        padding: 12px 14px;
+        font-size: 0.83rem;
+        color: #1e293b;
+        line-height: 1.5;
+        margin-bottom: 14px;
+    }
+    .pg-sync-info-box code { background: rgba(15, 23, 42, 0.07); padding: 1px 5px; border-radius: 4px; font-size: 0.78rem; }
+    .pg-sync-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
+    .pg-sync-card-title { font-size: 0.84rem; font-weight: 800; color: #0f172a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
+    .pg-sync-card-desc { font-size: 0.81rem; color: #475569; line-height: 1.45; margin: 0 0 10px 0; }
+    .pg-sync-bookmarklet-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .pg-bookmarklet-pill {
+        background-color: var(--theme-primary, #fbc02d);
+        color: var(--theme-text-on-primary, #000000);
+        border: 2px dashed var(--theme-hover, #f57f17);
+        padding: 0.48rem 0.95rem;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 800;
+        text-decoration: none;
+        cursor: grab;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.1);
+    }
+    .pg-bookmarklet-pill:active { cursor: grabbing; }
+    .pg-advanced-filter { margin-top: 10px; font-size: 0.78rem; color: #475569; }
+    .pg-advanced-filter summary { cursor: pointer; font-weight: 700; user-select: none; }
+    .pg-filter-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-top: 8px; }
+    @media (max-width: 560px) { .pg-filter-grid { grid-template-columns: 1fr; } }
+    .pg-filter-grid label { display: block; font-size: 0.72rem; font-weight: 700; color: #64748b; margin-bottom: 3px; }
+    .pg-mini-input { width: 100%; padding: 6px 8px; border: 1px solid #cbd5e0; border-radius: 6px; background: #ffffff; font-size: 0.82rem; }
+    .pg-dirty-warn { margin-top: 8px; padding: 7px 10px; background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; color: #92400e; font-size: 0.76rem; font-weight: 600; }
+    .pg-textarea {
+        width: 100%;
+        min-height: 110px;
+        padding: 10px 12px;
+        border: 1px solid #cbd5e0;
+        border-radius: 8px;
+        background: #ffffff;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 0.78rem;
+        color: #1e293b;
+        resize: vertical;
+    }
+    .pg-textarea:focus { outline: none; border-color: var(--theme-primary, #fbc02d); box-shadow: 0 0 0 3px var(--theme-light-border, rgba(251, 192, 45, 0.25)); }
+    .pg-sync-preview-status { margin-top: 6px; font-size: 0.78rem; font-weight: 700; color: #64748b; }
+    .pg-sync-preview-status.is-valid { color: #15803d; }
+    .pg-sync-preview-status.is-error { color: #dc2626; }
+    .pg-sync-schema-hint { margin-top: 4px; font-size: 0.72rem; color: #64748b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .pg-sync-checkbox-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 0.8rem; color: #475569; cursor: pointer; }
+    .pg-sync-checkbox-row.is-disabled { opacity: 0.55; cursor: not-allowed; }
+
+    .pg-diff-preview-box { margin-top: 12px; background: #ffffff; border: 1px solid #cbd5e0; border-left: 4px solid #0284c7; border-radius: 8px; padding: 12px 14px; font-size: 0.82rem; }
+    .pg-diff-pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+    .pg-diff-pill { font-size: 0.74rem; font-weight: 800; padding: 3px 9px; border-radius: 999px; }
+    .pg-diff-pill--new { background: #dcfce7; color: #166534; }
+    .pg-diff-pill--upd { background: #e0f2fe; color: #075985; }
+    .pg-diff-pill--eq  { background: #f1f5f9; color: #475569; }
+    .pg-diff-pill--arc { background: #fee2e2; color: #991b1b; }
+    .pg-diff-warning { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 6px; padding: 7px 10px; color: #92400e; font-size: 0.77rem; margin-bottom: 8px; }
+    .pg-diff-list { max-height: 140px; overflow-y: auto; border-top: 1px dashed #e2e8f0; padding-top: 8px; display: flex; flex-direction: column; gap: 4px; font-size: 0.77rem; color: #334155; }
+</style>
+
+<!-- MODAL 1: LISTAGEM PRINCIPAL PANGEAGAB -->
+<div class="modal-backdrop-modern pg-backdrop" id="backdrop-pangea-gab" onclick="window.PangeaGabController?.fecharModalPrincipal()"></div>
+<div class="doc-modal pg-modal" id="modal-pangea-gab" role="dialog" aria-modal="true" aria-labelledby="pg-modal-title" style="display: none;">
+    <div class="pg-header">
+        <div class="pg-header-left">
+            <div class="pg-title-row">
+                <span class="pg-accent-star">✦</span>
+                <span id="pg-modal-title" class="pg-main-title">PangeaGAB — Acervo do Gabinete</span>
+                <span class="pg-origin-chip" id="pg-chip-orgao" title="Tribunal de origem">TRT23</span>
+                <span class="pg-origin-chip pg-origin-chip--local" id="pg-chip-local" title="Local / Gabinete no PangeaGAB">GABRC · #3138</span>
+                <span class="pg-origin-chip" id="pg-chip-especie" style="display: none;" title="Espécie filtrada na coleta"></span>
+            </div>
+            <div class="pg-sync-meta" id="pg-sync-meta">Carregando status da nuvem...</div>
+        </div>
+        <div class="pg-header-actions">
+            <button type="button" class="pg-btn-primary" id="pg-btn-open-sync" onclick="window.PangeaGabController?.openSyncModal()" title="Sincronizar modelos do PangeaGAB com o Firebase">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <polyline points="1 20 1 14 7 14"></polyline>
+                    <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                </svg>
+                <span>Sincronizar</span>
+            </button>
+            <button type="button" class="doc-modal__close-btn" onclick="window.PangeaGabController?.fecharModalPrincipal()" aria-label="Fechar painel PangeaGAB">✕</button>
+        </div>
+    </div>
+
+    <div class="doc-modal__content pg-content" id="pg-scroll-body">
+        <div class="pg-search-wrapper">
+            <svg class="pg-search-icon" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="pg-search" class="pg-search" placeholder="Buscar por número (ex: 166), questão, etiqueta ou texto do modelo...">
+            <button type="button" id="pg-btn-clear-search" class="pg-search-clear" aria-label="Limpar busca" onclick="window.PangeaGabController?.clearSearch()" style="display: none;">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+
+        <div class="pg-toolbar">
+            <div class="pg-toolbar-left">
+                <label class="pg-toggle-chip" title="Exibir apenas modelos favoritados">
+                    <input type="checkbox" id="pg-only-favs-toggle">
+                    <span>★ Favoritos</span>
+                </label>
+                <div id="pg-species-filter-bar" class="pg-species-filter-bar" style="display: none;"></div>
+                <span class="pg-result-counter" id="pg-result-counter">0 modelos</span>
+            </div>
+            <div class="pg-toolbar-right">
+                <label for="pg-sort-select" class="pg-sort-label">Ordenar:</label>
+                <select id="pg-sort-select" class="pg-sort-select">
+                    <option value="numero_desc">Número (mais recente)</option>
+                    <option value="alfabetica">Alfabética (Questão)</option>
+                    <option value="numero_asc">Número (crescente)</option>
+                </select>
+            </div>
+        </div>
+
+        <div id="pg-list" class="pg-list"></div>
+    </div>
+</div>
+
+<!-- MODAL 2: LEITURA INTEGRAL (Abre sobre o Modal 1 preservando scroll e foco) -->
+<div class="modal-backdrop-modern pg-sub-backdrop" id="backdrop-pangea-view" onclick="window.PangeaGabController?.closeViewModal()"></div>
+<div class="doc-modal pg-sub-modal" id="modal-pangea-view" role="dialog" aria-modal="true" aria-labelledby="pg-view-title" style="display: none;">
+    <div class="doc-modal__header">
+        <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+            <span class="pg-num-badge" id="pg-view-badge">GABRC</span>
+            <h3 class="doc-modal__title" id="pg-view-title" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Modelo do Gabinete</h3>
+        </div>
+        <button type="button" class="doc-modal__close-btn" onclick="window.PangeaGabController?.closeViewModal()" aria-label="Fechar leitura do modelo">✕</button>
+    </div>
+    <div class="doc-modal__content pg-view-content">
+        <div class="pg-view-question-box">
+            <div class="pg-view-section-label">Questão / Tema</div>
+            <div id="pg-view-questao" class="pg-view-questao"></div>
+            <div id="pg-view-tags" class="pg-view-tags"></div>
+        </div>
+        <div class="pg-view-section-label" style="margin-top: 14px;">Teor Integral do Modelo</div>
+        <div id="pg-view-tese" class="pg-view-tese"></div>
+    </div>
+    <div class="doc-modal__footer" style="justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="pg-btn-secondary" onclick="window.PangeaGabController?.closeViewModal()">← Voltar</button>
+            <a id="pg-view-external-link" class="pg-btn-secondary" href="#" target="_blank" rel="noopener noreferrer" style="display: none; text-decoration: none;">Abrir no PangeaGAB ↗</a>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <button type="button" class="pg-btn-secondary" onclick="window.PangeaGabController?.copyActiveView(true)" title="Copia a Questão seguida do teor integral">Copiar com Questão</button>
+            <button type="button" class="pg-btn-primary" onclick="window.PangeaGabController?.copyActiveView(false)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+                <span>Copiar Modelo</span>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- MODAL 3: CENTRAL DE SINCRONIZAÇÃO EM 2 PASSOS (ANALISAR -> CONFIRMAR) -->
+<div class="modal-backdrop-modern pg-sub-backdrop" id="backdrop-pangea-sync" onclick="window.PangeaGabController?.closeSyncModal()"></div>
+<div class="doc-modal pg-sync-modal" id="modal-pangea-sync" role="dialog" aria-modal="true" aria-labelledby="pg-sync-title" style="display: none;">
+    <div class="doc-modal__header">
+        <h3 class="doc-modal__title" id="pg-sync-title">↻ Sincronizar Modelos do PangeaGAB</h3>
+        <button type="button" class="doc-modal__close-btn" onclick="window.PangeaGabController?.closeSyncModal()" aria-label="Fechar central de sincronização">✕</button>
+    </div>
+    <div class="doc-modal__content" style="padding: 20px; overflow-y: auto; max-height: 76vh;">
+        <div class="pg-sync-info-box">
+            <strong>Sincronização Segura (PangeaGAB → Firebase):</strong>
+            <p style="margin: 6px 0 0 0;">
+                O PangeaGAB restringe chamadas externas por CORS. Execute o coletor na sua aba logada do tribunal (<code>TRT23 · Local 3138 · GABRC</code>), carregue o pacote por <strong>arquivo .json</strong> ou <strong>área de transferência</strong> e revise a prévia antes de gravar. Seus favoritos (★) nunca são apagados.
+            </p>
+        </div>
+
+        <div class="pg-sync-card">
+            <div class="pg-sync-card-title">Passo 1 — Coletar na aba logada do PangeaGAB</div>
+            <p class="pg-sync-card-desc">
+                Arraste o botão temático para a sua barra de favoritos (instalação única) ou copie o script para o Console (F12). Na aba do PangeaGAB, execute o coletor e clique em <strong>Copiar Pacote</strong> ou <strong>Baixar .json</strong>.
+            </p>
+            <div class="pg-sync-bookmarklet-row">
+                <a id="pg-bookmarklet-link" class="pg-bookmarklet-pill" href="#" draggable="true" title="Arraste este botão para a barra de favoritos">
+                    ↻ Coletar PangeaGAB (GABRC)
+                </a>
+                <button type="button" class="pg-btn-secondary" onclick="window.PangeaGabController?.copiarScriptColetor()">
+                    📄 Copiar Script p/ Console
+                </button>
+                <a href="https://pangea.trt4.jus.br/pesquisa" target="_blank" rel="noopener noreferrer" class="pg-btn-secondary" style="text-decoration: none;">
+                    Abrir PangeaGAB ↗
+                </a>
+            </div>
+
+            <details class="pg-advanced-filter">
+                <summary>⚙️ Parâmetros do Filtro do Coletor</summary>
+                <div class="pg-filter-grid">
+                    <div>
+                        <label for="pg-cfg-orgao">Órgão (orgaos)</label>
+                        <input type="text" id="pg-cfg-orgao" class="pg-mini-input" value="TRT23">
+                    </div>
+                    <div>
+                        <label for="pg-cfg-local">ID do Local (locais)</label>
+                        <input type="number" id="pg-cfg-local" class="pg-mini-input" value="3138">
+                    </div>
+                    <div>
+                        <label for="pg-cfg-sigla-local">Sigla do Local</label>
+                        <input type="text" id="pg-cfg-sigla-local" class="pg-mini-input" value="GABRC">
+                    </div>
+                    <div>
+                        <label for="pg-cfg-especies">Espécies (opcional, ex: MDL)</label>
+                        <input type="text" id="pg-cfg-especies" class="pg-mini-input" value="" placeholder="Vazio = todas do local">
+                    </div>
+                </div>
+                <div id="pg-bookmarklet-dirty-warn" class="pg-dirty-warn" style="display: none;">
+                    ⚠️ Parâmetros alterados: arraste o botão acima novamente para atualizar o favorito já salvo no navegador.
+                </div>
+            </details>
+        </div>
+
+        <div class="pg-sync-card" style="margin-top: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
+                <div class="pg-sync-card-title" style="margin: 0;">Passo 2 — Carregar Pacote Coletado</div>
+                <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <label for="pg-sync-file-input" class="pg-btn-secondary" style="cursor: pointer;">
+                        📂 Importar .json
+                    </label>
+                    <input type="file" id="pg-sync-file-input" accept=".json,application/json" style="display: none;">
+                    <button type="button" class="pg-btn-secondary" onclick="window.PangeaGabController?.colarPacoteClipboard()">
+                        📋 Colar Clipboard
+                    </button>
+                </div>
+            </div>
+
+            <textarea id="pg-sync-json-input" class="pg-textarea" placeholder='Importe o arquivo .json baixado do PangeaGAB ou cole o pacote aqui...'></textarea>
+            <div id="pg-sync-preview-status" class="pg-sync-preview-status">Aguardando pacote de dados...</div>
+            <div id="pg-sync-schema-hint" class="pg-sync-schema-hint" style="display: none;"></div>
+
+            <label class="pg-sync-checkbox-row" id="pg-sync-full-label">
+                <input type="checkbox" id="pg-sync-full-mode">
+                <span>Arquivar modelos que não existam mais no PangeaGAB (requer coleta completa confirmada)</span>
+            </label>
+        </div>
+
+        <div id="pg-diff-preview-box" class="pg-diff-preview-box" style="display: none;"></div>
+    </div>
+
+    <div class="doc-modal__footer" style="justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+        <button type="button" class="pg-btn-secondary" onclick="window.PangeaGabController?.closeSyncModal()">← Voltar</button>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button type="button" class="pg-btn-secondary" id="pg-btn-analyze-sync" onclick="window.PangeaGabController?.analisarDiferencas()">
+                🔍 Analisar Diferenças
+            </button>
+            <button type="button" class="pg-btn-primary" id="pg-btn-confirm-sync" onclick="window.PangeaGabController?.confirmarSincronizacao()" disabled>
+                <span>✓ Confirmar Gravação</span>
+            </button>
+        </div>
+    </div>
+</div>
